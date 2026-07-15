@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -85,39 +86,52 @@ async def _fetch_hacker_news(client: httpx.AsyncClient, limit: int = 25) -> list
         return []
 
 
+def _parse_reddit_atom(xml_text: str, sub: str, limit: int) -> list[dict]:
+    """Parse Reddit Atom RSS (JSON endpoints are often blocked without OAuth)."""
+    import xml.etree.ElementTree as ET
+
+    ns = {"a": "http://www.w3.org/2005/Atom"}
+    root = ET.fromstring(xml_text)
+    out: list[dict] = []
+    for i, entry in enumerate(root.findall("a:entry", ns)):
+        if i >= limit:
+            break
+        title = (entry.findtext("a:title", default="", namespaces=ns) or "").strip()
+        if not title:
+            continue
+        link_el = entry.find("a:link", ns)
+        comments = (link_el.get("href") if link_el is not None else None) or None
+        # Prefer external content link when Reddit embeds one in content HTML
+        url = comments or f"https://www.reddit.com/r/{sub}/"
+        content = entry.findtext("a:content", default="", namespaces=ns) or ""
+        # Atom content often has: <a href="EXTERNAL">[link]</a>
+        m = re.search(r'href="(https?://[^"]+)"', content)
+        if m and "reddit.com" not in m.group(1):
+            url = m.group(1)
+        out.append(
+            {
+                "title": title,
+                "url": url,
+                "source": f"Reddit r/{sub}",
+                # RSS has no score; rank by feed order (hot)
+                "score": max(1, limit - i) * 10,
+                "comments_url": comments,
+            }
+        )
+    return out
+
+
 async def _fetch_reddit(client: httpx.AsyncClient, sub: str = "news", limit: int = 20) -> list[dict]:
-    """Reddit JSON feed (no key; public)."""
+    """Reddit public hot feed via Atom RSS (no key)."""
     try:
         r = await client.get(
-            f"https://www.reddit.com/r/{sub}/hot.json",
-            params={"limit": limit},
-            headers={"User-Agent": USER_AGENT},
+            f"https://www.reddit.com/r/{sub}/.rss",
+            headers={"User-Agent": USER_AGENT, "Accept": "application/atom+xml, application/xml, text/xml"},
         )
         if r.status_code != 200:
-            log.warning("Reddit r/%s status %s", sub, r.status_code)
+            log.warning("Reddit r/%s RSS status %s", sub, r.status_code)
             return []
-        data = r.json()
-        children = (data.get("data") or {}).get("children") or []
-        out: list[dict] = []
-        for ch in children:
-            d = ch.get("data") or {}
-            title = (d.get("title") or "").strip()
-            if not title or d.get("stickied"):
-                continue
-            permalink = d.get("permalink") or ""
-            url = d.get("url") or f"https://www.reddit.com{permalink}"
-            if url.startswith("/"):
-                url = f"https://www.reddit.com{url}"
-            out.append(
-                {
-                    "title": title,
-                    "url": url,
-                    "source": f"Reddit r/{sub}",
-                    "score": int(d.get("score") or 0),
-                    "comments_url": f"https://www.reddit.com{permalink}" if permalink else None,
-                }
-            )
-        return out
+        return _parse_reddit_atom(r.text, sub, limit)
     except Exception as e:
         log.warning("Reddit r/%s failed: %s", sub, e)
         return []
@@ -238,14 +252,14 @@ async def build_pulse(force: bool = False) -> dict:
 
     timeout = httpx.Timeout(12.0, connect=6.0)
     async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": USER_AGENT}) as client:
-        hn, reddit_news, reddit_world, reddit_tech = (
-            await _fetch_hacker_news(client),
-            await _fetch_reddit(client, "news"),
-            await _fetch_reddit(client, "worldnews"),
-            await _fetch_reddit(client, "technology"),
-        )
+        hn = await _fetch_hacker_news(client)
+        # Reddit rate-limits aggressively; fetch subs sequentially with a short gap
+        reddit_lists: list[list[dict]] = []
+        for sub in ("news", "worldnews", "technology"):
+            reddit_lists.append(await _fetch_reddit(client, sub))
+            await asyncio.sleep(0.75)
 
-    lists = [hn, reddit_news, reddit_world, reddit_tech]
+    lists = [hn, *reddit_lists]
     if not any(lists):
         lists = [_fallback_items()]
         mode = "fallback"

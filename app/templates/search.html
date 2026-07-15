@@ -2,16 +2,148 @@
 {% block content %}
   <h1>Meta search</h1>
   <p class="lede">
-    Multi-source search (Google, YouTube, X, Bing, AI) is next.
-    Pulse is live now — search ships in the next iteration.
+    Daily trends from <strong>Google</strong>, <strong>Bing</strong>,
+    <strong>YouTube</strong>, and <strong>X</strong> — plus live search across
+    Google News, Bing News, and free indexes.
   </p>
 
-  <form class="search-box" action="/search" method="get">
-    <input type="search" name="q" value="{{ q }}" placeholder="Coming soon — try Pulse for now" disabled />
-    <button type="submit" disabled>Search</button>
+  <form class="search-box" action="/search" method="get" role="search">
+    <input
+      type="search"
+      name="q"
+      value="{{ q }}"
+      placeholder="Search news across the web…"
+      {% if not q %}autofocus{% endif %}
+      maxlength="200"
+      autocomplete="off"
+    />
+    <button type="submit">Search</button>
   </form>
 
-  <div class="empty">
-    Search is not wired yet. Browse <a href="/">Today’s Pulse</a> for consensus trends.
-  </div>
+  {% if results and results.mode == 'trends' and results.trends %}
+    {% set t = results.trends %}
+    <div class="meta-row">
+      <span class="badge live">Daily snapshot</span>
+      <span>UTC day {{ t.day }}</span>
+      {% if t.fetched_at %}
+        <span>Pulled {{ t.fetched_at[:19] }}Z</span>
+      {% endif %}
+      {% if t.sources_ok %}
+        <span>{{ t.sources_ok | join(' · ') | upper }}</span>
+      {% endif %}
+      <span class="muted-hint">Refreshes once per day</span>
+    </div>
+
+    <div class="trend-board">
+      {% set labels = {
+        'google': 'Google Trends',
+        'bing': 'Bing',
+        'youtube': 'YouTube',
+        'x': 'X'
+      } %}
+      {% for key in ['google', 'bing', 'youtube', 'x'] %}
+      <section class="trend-col trend-{{ key }}" aria-label="{{ labels[key] }}">
+        <h2 class="section-title">
+          <span class="plat-dot plat-{{ key }}"></span>
+          {{ labels[key] }}
+          <span class="count-pill">{{ (t.platforms[key] or []) | length }}</span>
+        </h2>
+        {% if t.platforms[key] %}
+        <ol class="trend-list">
+          {% for item in t.platforms[key] %}
+          <li>
+            <span class="t-rank">{{ item.rank }}</span>
+            <div>
+              <a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a>
+              {% if item.snippet %}
+              <p class="t-snip">{{ item.snippet }}</p>
+              {% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <div class="empty small">Unavailable today</div>
+        {% endif %}
+      </section>
+      {% endfor %}
+    </div>
+
+    <div class="disclaimer">{{ results.disclaimer }}</div>
+
+  {% elif results and q %}
+    <div class="meta-row">
+      {% if results.mode == 'live' %}
+        <span class="badge live">Live indexes</span>
+      {% elif results.mode == 'portals_only' %}
+        <span class="badge">Portals only</span>
+      {% else %}
+        <span class="badge">No hits</span>
+      {% endif %}
+      <span>{{ results.count }} results</span>
+      {% if results.sources_ok %}
+        <span>{{ results.sources_ok | join(' · ') }}</span>
+      {% endif %}
+      {% if results.fetched_at %}
+        <span>{{ results.fetched_at[:19] }}Z</span>
+      {% endif %}
+    </div>
+
+    {% if results.portals %}
+    <section class="portals" aria-label="Search portals">
+      <h2 class="section-title">Open in…</h2>
+      <div class="portal-grid">
+        {% for p in results.portals %}
+        <a class="portal portal-{{ p.kind }}" href="{{ p.url }}" rel="noopener noreferrer" target="_blank">
+          {{ p.name }}
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if results.trend_matches %}
+    <section class="trend-matches">
+      <h2 class="section-title">Matches in today’s platform trends</h2>
+      <ul class="match-list">
+        {% for item in results.trend_matches %}
+        <li>
+          <span class="plat-tag plat-{{ item.platform }}">{{ item.platform }}</span>
+          <a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if results.hits %}
+    <h2 class="section-title">From free indexes</h2>
+    <ol class="list">
+      {% for item in results.hits %}
+      <li class="card">
+        <div class="rank">{{ loop.index }}</div>
+        <div>
+          <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
+          {% if item.snippet %}
+          <p class="summary">{{ item.snippet }}</p>
+          {% endif %}
+          <div class="links">
+            <span>{{ item.source }}</span>
+            {% if item.comments_url %}
+            <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
+            {% endif %}
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="empty">
+      No free-index hits for “{{ q }}”. Try a portal above or
+      <a href="/search">today’s platform trends</a>.
+    </div>
+    {% endif %}
+
+    <div class="disclaimer">{{ results.disclaimer }}</div>
+  {% endif %}
 {% endblock %}
