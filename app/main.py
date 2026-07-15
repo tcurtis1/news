@@ -21,14 +21,14 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 
-app = FastAPI(title="Yoyosup News", version="0.4.0")
+app = FastAPI(title="Yoyosup News", version="0.5.0")
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "service": "yoyosup-news", "public": PUBLIC_BASE, "version": "0.4.0"}
+    return {"ok": True, "service": "yoyosup-news", "public": PUBLIC_BASE, "version": "0.5.0"}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -40,7 +40,7 @@ async def pulse_home(request: Request):
         {
             "public_base": PUBLIC_BASE,
             "pulse": data,
-            "page_title": "Pulse — daily trends",
+            "page_title": "Curious Pulse",
         },
     )
 

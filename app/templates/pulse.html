@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-  <h1>Today’s Pulse</h1>
+  <h1>Curious Pulse</h1>
   <p class="lede">
-    Top stories bubbling up across free public feeds. Overlaps rank higher
-    (simple consensus). Refreshes about every 30 minutes.
+    A daily read of what free feeds agree on — <strong>Google News</strong> and
+    <strong>Reddit</strong> first, with a lighter <strong>Hacker News</strong>
+    tech signal (HN is niche, so we don’t let it own the list).
+    Overlaps rank higher. For mass attention (Google Trends, X, TikTok, Polymarket…),
+    use <a href="/search">Daily Intersection</a>.
   </p>
 
   <div class="meta-row">
@@ -14,6 +17,7 @@
     {% else %}
       <span class="badge">Offline seed</span>
     {% endif %}
+    <span class="badge">Curious · not mass media</span>
     <span>{{ pulse.count }} stories</span>
     {% if pulse.fetched_at %}
       <span>Updated {{ pulse.fetched_at[:19] }}Z</span>

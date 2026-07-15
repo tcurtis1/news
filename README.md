@@ -6,7 +6,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 
 | Feature | Status |
 |---------|--------|
-| **Pulse** — HN + Reddit consensus feed | Live |
+| **Curious Pulse** — Google News + Reddit + light HN | Live |
 | **Daily Intersection** — Top 10 per platform | Live |
 | **Consensus Top 10** — topics on 2+ platforms | Live |
 | **Rank map** — search a term → rank per site | Live |

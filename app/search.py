@@ -56,6 +56,7 @@ def _clean_query(q: str) -> str:
 
 
 def portal_links(q: str) -> list[PortalLink]:
+    """Primary portals = mass platforms. HN is optional niche, listed last."""
     enc = quote_plus(q)
     return [
         PortalLink("Google", f"https://www.google.com/search?q={enc}", "web"),
@@ -69,9 +70,10 @@ def portal_links(q: str) -> list[PortalLink]:
         PortalLink("Facebook", f"https://www.facebook.com/search/top/?q={enc}", "social"),
         PortalLink("Instagram", f"https://www.instagram.com/explore/search/keyword/?q={enc}", "social"),
         PortalLink("Reddit", f"https://www.reddit.com/search/?q={enc}", "social"),
-        PortalLink("Hacker News", f"https://hn.algolia.com/?q={enc}", "news"),
         PortalLink("Grok", f"https://grok.com/?q={enc}", "ai"),
         PortalLink("ChatGPT", f"https://chatgpt.com/?q={enc}", "ai"),
+        # Niche tech index — keep available, never front of the list
+        PortalLink("Hacker News (tech)", f"https://hn.algolia.com/?q={enc}", "news"),
     ]
 
 
@@ -105,13 +107,15 @@ async def _fetch_hn(client: httpx.AsyncClient, q: str) -> list[SearchHit]:
                 snippet_parts.append(f"{num_comments} comments")
             if author:
                 snippet_parts.append(f"by {author}")
+            # Strongly down-weight vs Google/Bing News so HN stays a niche supplement
+            score = max(1, (points + num_comments) // 25)
             out.append(
                 SearchHit(
                     title=title,
                     url=url,
-                    source="Hacker News",
-                    snippet=" · ".join(snippet_parts),
-                    score=points + num_comments,
+                    source="Hacker News (tech)",
+                    snippet=" · ".join(snippet_parts + ["niche tech index"]),
+                    score=score,
                     comments_url=comments,
                 )
             )
@@ -300,20 +304,31 @@ async def run_search(q: str, force_trends: bool = False) -> dict[str, Any]:
             await _fetch_reddit(client, query),
         )
 
+    # Primary news = mass indexes; tech niche listed separately
+    main_hits = _merge_hits([gnews, bnews, reddit])
+    tech_hits = _merge_hits([hn])[:8]
+    # Drop tech items that already appear in main list
+    main_titles = {re.sub(r"\W+", " ", (h.title or "").lower()).strip()[:80] for h in main_hits}
+    tech_hits = [
+        h
+        for h in tech_hits
+        if re.sub(r"\W+", " ", (h.title or "").lower()).strip()[:80] not in main_titles
+    ]
+
     sources_ok = []
     if gnews:
         sources_ok.append("Google News")
     if bnews:
         sources_ok.append("Bing News")
-    if hn:
-        sources_ok.append("Hacker News")
     if reddit:
         sources_ok.append("Reddit")
+    if tech_hits:
+        sources_ok.append("Hacker News (tech, secondary)")
 
-    hits = _merge_hits([gnews, bnews, hn, reddit])
+    hits = main_hits
+    mode = "live" if (hits or tech_hits) else ("portals_only" if portals else "empty")
     trends = await build_trends(force=False)
     ranks = rank_lookup(query, trends)
-    mode = "live" if hits else ("portals_only" if portals else "empty")
 
     return {
         "q": query,
@@ -321,16 +336,19 @@ async def run_search(q: str, force_trends: bool = False) -> dict[str, Any]:
         "mode": mode,
         "count": len(hits),
         "hits": [h.to_dict() for h in hits],
+        "tech_hits": [h.to_dict() for h in tech_hits],
         "portals": portals,
         "sources_ok": sources_ok,
         "rank_lookup": ranks,
         "trends": {
             "day": trends.get("day"),
             "consensus": trends.get("consensus") or [],
+            "labels": trends.get("labels") or {},
         },
         "disclaimer": (
-            "Rank map uses today's cached platform Top lists (daily refresh). "
-            "News hits come from Google News, Bing News, Hacker News, Reddit when available. "
-            "Polymarket volumes are not financial advice. Verify original sources."
+            "Rank map = mass platforms on Daily Intersection (not Hacker News). "
+            "Primary news hits: Google News, Bing News, Reddit. "
+            "Hacker News is a secondary tech niche index only. "
+            "Polymarket volumes are not financial advice. Verify sources."
         ),
     }

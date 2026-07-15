@@ -8,8 +8,10 @@
 
   <h1>Daily Intersection</h1>
   <p class="lede">
-    Attention map across search, video, social, and prediction markets.
-    Search any term to see its rank on each list.
+    Mass attention map — search, video, social, and prediction markets
+    (Google, Bing, YouTube, X, Polymarket, TikTok, Facebook, Instagram).
+    Search any term for a rank map. This page is <em>not</em> Hacker News;
+    for a curious/tech-leaning read, see <a href="/">Curious Pulse</a>.
   </p>
 
   <form class="search-box" action="/search" method="get" role="search">
@@ -216,7 +218,7 @@
     {% endif %}
 
     {% if results.hits %}
-    <h2 class="section-title">From free indexes</h2>
+    <h2 class="section-title">News hits (Google · Bing · Reddit)</h2>
     <ol class="list">
       {% for item in results.hits %}
       <li class="card">
@@ -238,9 +240,35 @@
     </ol>
     {% else %}
     <div class="empty">
-      No free-index news hits for “{{ q }}”. Use portals above or
+      No mainstream free-index hits for “{{ q }}”. Use portals above or
       <a href="/search">return to today’s intersection</a>.
     </div>
+    {% endif %}
+
+    {% if results.tech_hits %}
+    <h2 class="section-title section-title-lg">
+      Also in tech communities
+      <span class="muted-hint">Hacker News — niche, secondary</span>
+    </h2>
+    <ol class="list">
+      {% for item in results.tech_hits %}
+      <li class="card card-tech">
+        <div class="rank">{{ loop.index }}</div>
+        <div>
+          <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
+          {% if item.snippet %}
+          <p class="summary">{{ item.snippet }}</p>
+          {% endif %}
+          <div class="links">
+            <span>{{ item.source }}</span>
+            {% if item.comments_url %}
+            <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
+            {% endif %}
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
     {% endif %}
 
     <div class="disclaimer">{{ results.disclaimer }}</div>
