@@ -351,14 +351,15 @@ footer.site {
   flex-shrink: 0;
 }
 
-.plat-google { background: #4285f4; }
-.plat-bing { background: #008373; }
-.plat-youtube { background: #ff0033; }
-.plat-x { background: #e7e9ea; }
-.plat-polymarket { background: #2e5cff; }
-.plat-tiktok { background: #25f4ee; box-shadow: 2px 0 0 #fe2c55; }
-.plat-facebook { background: #1877f2; }
-.plat-instagram {
+/* Dots only — do NOT use bare .plat-* (fights .plat-tag on rank table) */
+.plat-dot.plat-google { background: #4285f4; }
+.plat-dot.plat-bing { background: #008373; }
+.plat-dot.plat-youtube { background: #ff0033; }
+.plat-dot.plat-x { background: #e7e9ea; }
+.plat-dot.plat-polymarket { background: #2e5cff; }
+.plat-dot.plat-tiktok { background: #25f4ee; box-shadow: 2px 0 0 #fe2c55; }
+.plat-dot.plat-facebook { background: #1877f2; }
+.plat-dot.plat-instagram {
   background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
 }
 
@@ -664,34 +665,62 @@ footer.site {
 .plat-tag {
   display: inline-block;
   text-transform: uppercase;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 0.2rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 0.22rem 0.5rem;
   border-radius: 6px;
-  color: #111 !important;
+  color: #0a0a0a !important;
+  -webkit-text-fill-color: #0a0a0a;
   white-space: nowrap;
-  max-width: 100%;
   border: 1px solid transparent;
+  line-height: 1.2;
+  vertical-align: middle;
 }
 
-.plat-tag.plat-google { background: #8ab4f8; }
-.plat-tag.plat-bing { background: #6ee7d2; }
-.plat-tag.plat-youtube { background: #ff8a9b; }
-.plat-tag.plat-x { background: #e7e9ea; border-color: #3d4658; }
-/* Polymarket: high-contrast so it never “disappears” on dark UI */
-.plat-tag.plat-polymarket {
-  background: #c4d0ff;
-  border-color: #2e5cff;
-  box-shadow: 0 0 0 1px rgba(46, 92, 255, 0.35);
+.plat-tag.plat-google {
+  background: #8ab4f8 !important;
+  background-color: #8ab4f8 !important;
 }
-.plat-tag.plat-tiktok { background: #25f4ee; }
-.plat-tag.plat-facebook { background: #8bb8f8; }
-.plat-tag.plat-instagram { background: #f5a9c8; }
+.plat-tag.plat-bing {
+  background: #6ee7d2 !important;
+  background-color: #6ee7d2 !important;
+}
+.plat-tag.plat-youtube {
+  background: #ff8a9b !important;
+  background-color: #ff8a9b !important;
+}
+.plat-tag.plat-x {
+  background: #e7e9ea !important;
+  background-color: #e7e9ea !important;
+  border-color: #3d4658;
+}
+/* Polymarket: bright chip — must beat dark table + long name */
+.plat-tag.plat-polymarket {
+  background: #dbe4ff !important;
+  background-color: #dbe4ff !important;
+  color: #0b1b4a !important;
+  -webkit-text-fill-color: #0b1b4a;
+  border: 1px solid #2e5cff !important;
+  box-shadow: 0 0 0 1px rgba(46, 92, 255, 0.45);
+}
+.plat-tag.plat-tiktok {
+  background: #25f4ee !important;
+  background-color: #25f4ee !important;
+}
+.plat-tag.plat-facebook {
+  background: #8bb8f8 !important;
+  background-color: #8bb8f8 !important;
+}
+.plat-tag.plat-instagram {
+  background: #f5a9c8 !important;
+  background-color: #f5a9c8 !important;
+}
 
 .rank-table td:first-child {
-  min-width: 6.5rem;
-  width: 6.5rem;
+  min-width: 5.25rem;
+  width: 5.25rem;
+  overflow: visible;
 }
 
 .rank-hit-chips {
@@ -700,6 +729,14 @@ footer.site {
 
 .rank-table tr.hit td:first-child .plat-tag {
   font-size: 0.72rem;
+}
+
+/* miss rows: keep tags fully opaque so labels never look “missing” */
+.rank-table tr.miss td:first-child {
+  opacity: 1;
+}
+.rank-table tr.miss td:first-child .plat-tag {
+  opacity: 0.85;
 }
 
 @media (max-width: 720px) {

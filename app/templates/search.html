@@ -198,9 +198,14 @@
           <tbody>
             {% for key in board_keys %}
             {% set row = rl.platforms[key] %}
+            {# Short chips on narrow mobile — full name in title tooltip #}
+            {% set short = {
+              'google': 'Google', 'bing': 'Bing', 'youtube': 'YouTube', 'x': 'X',
+              'polymarket': 'Poly', 'tiktok': 'TikTok', 'facebook': 'FB', 'instagram': 'IG'
+            } %}
             <tr class="{% if row.in_top %}hit{% else %}miss{% endif %}">
               <td>
-                <span class="plat-tag plat-{{ key }}">{{ row.label or labels[key] or key }}</span>
+                <span class="plat-tag plat-{{ key }}" title="{{ row.label or labels[key] or key }}">{{ short[key] or row.label or labels[key] or key }}</span>
               </td>
               <td class="rank-cell">
                 {% if row.in_top %}
