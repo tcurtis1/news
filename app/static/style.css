@@ -598,23 +598,45 @@ footer.site {
 }
 
 .plat-tag {
+  display: inline-block;
   text-transform: uppercase;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  padding: 0.12rem 0.4rem;
+  padding: 0.2rem 0.45rem;
   border-radius: 6px;
-  color: #111;
+  color: #111 !important;
+  white-space: nowrap;
+  max-width: 100%;
+  border: 1px solid transparent;
 }
 
 .plat-tag.plat-google { background: #8ab4f8; }
 .plat-tag.plat-bing { background: #6ee7d2; }
 .plat-tag.plat-youtube { background: #ff8a9b; }
-.plat-tag.plat-x { background: #e7e9ea; }
-.plat-tag.plat-polymarket { background: #9db4ff; }
+.plat-tag.plat-x { background: #e7e9ea; border-color: #3d4658; }
+/* Polymarket: high-contrast so it never “disappears” on dark UI */
+.plat-tag.plat-polymarket {
+  background: #c4d0ff;
+  border-color: #2e5cff;
+  box-shadow: 0 0 0 1px rgba(46, 92, 255, 0.35);
+}
 .plat-tag.plat-tiktok { background: #25f4ee; }
 .plat-tag.plat-facebook { background: #8bb8f8; }
 .plat-tag.plat-instagram { background: #f5a9c8; }
+
+.rank-table td:first-child {
+  min-width: 6.5rem;
+  width: 6.5rem;
+}
+
+.rank-hit-chips {
+  margin: -0.25rem 0 1rem;
+}
+
+.rank-table tr.hit td:first-child .plat-tag {
+  font-size: 0.72rem;
+}
 
 @media (max-width: 720px) {
   .trend-board {

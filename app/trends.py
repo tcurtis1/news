@@ -899,6 +899,21 @@ def rank_lookup(q: str, trends: dict[str, Any]) -> dict[str, Any]:
         if in_consensus:
             break
 
+    # Explicit hit list so every platform (incl. Polymarket) is named in the summary
+    hit_bits = []
+    for plat in PLATFORM_ORDER:
+        row = rows.get(plat) or {}
+        if row.get("in_top") and row.get("rank") is not None:
+            lab = row.get("label") or PLATFORM_LABELS.get(plat, plat)
+            hit_bits.append(f"{lab} #{row['rank']}")
+
+    if hits == 0:
+        summary = "Not in any platform’s top list today"
+    else:
+        summary = " · ".join(hit_bits)
+        if in_consensus and consensus_rank is not None:
+            summary += f" · consensus #{consensus_rank}"
+
     return {
         "q": query,
         "platforms_hit": hits,
@@ -906,11 +921,8 @@ def rank_lookup(q: str, trends: dict[str, Any]) -> dict[str, Any]:
         "in_consensus": in_consensus,
         "consensus_rank": consensus_rank,
         "platforms": rows,
-        "summary": (
-            f"On {hits} platform{'s' if hits != 1 else ''}"
-            + (f" · best rank #{best}" if best else "")
-            + (f" · consensus #{consensus_rank}" if in_consensus else "")
-        ),
+        "hit_summary": hit_bits,
+        "summary": summary,
     }
 
 

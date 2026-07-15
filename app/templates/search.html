@@ -146,6 +146,20 @@
         <span class="badge live">Rank map</span>
         <span>{{ rl.summary }}</span>
       </div>
+      {% if rl.hit_summary %}
+      <div class="source-chips rank-hit-chips" aria-label="Platforms that matched">
+        {% for key in board_keys %}
+          {% set row = rl.platforms[key] %}
+          {% if row.in_top %}
+          <span class="source-chip ok">
+            <span class="plat-dot plat-{{ key }}"></span>
+            <span class="source-label">{{ row.label or labels[key] }}</span>
+            <span class="source-count">#{{ row.rank }}</span>
+          </span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
       <div class="rank-table-wrap">
         <table class="rank-table">
           <thead>
@@ -160,7 +174,7 @@
             {% set row = rl.platforms[key] %}
             <tr class="{% if row.in_top %}hit{% else %}miss{% endif %}">
               <td>
-                <span class="plat-tag plat-{{ key }}">{{ row.label or labels[key] }}</span>
+                <span class="plat-tag plat-{{ key }}">{{ row.label or labels[key] or key }}</span>
               </td>
               <td class="rank-cell">
                 {% if row.in_top %}
