@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Safety & community guidelines</h1>
+  <p class="lede">
+    Yoyosup News is a general-audience product for understanding daily attention
+    and discussion. We moderate <strong>user comments</strong> on topic pages.
+    Third-party headlines (Google, X, Polymarket, etc.) are linked from other sites
+    and are not rewritten by us.
+  </p>
+
+  <h2 class="section-title section-title-lg">What we don’t allow in comments</h2>
+  <ul class="guidelines-list">
+    <li><strong>Sexual content involving minors</strong> — zero tolerance; blocked and not stored as public content.</li>
+    <li><strong>Graphic sexual content</strong> — not for a general news discussion space.</li>
+    <li><strong>Credible threats, glorified gore, or instructions to harm</strong>.</li>
+    <li><strong>Hate targeting protected groups</strong> used as attacks, not news discussion.</li>
+    <li><strong>Doxxing</strong> — posting private personal data to harass.</li>
+    <li><strong>Spam / scams / malware</strong>.</li>
+  </ul>
+
+  <h2 class="section-title section-title-lg">How filtering works</h2>
+  <p class="lede" style="margin-bottom:0.75rem;">
+    We use a <strong>standards-based automated check</strong> (OpenAI Moderations API when configured)
+    with categories used widely across the industry (sexual, sexual/minors, violence, hate, self-harm, etc.),
+    plus a small local safety net if the API is unavailable.
+  </p>
+  <ul class="guidelines-list">
+    <li><strong>Block</strong> — comment is rejected (e.g. sexual/minors, severe self-harm intent).</li>
+    <li><strong>Hold</strong> — comment is saved but not shown until reviewed (e.g. high violence/sexual/hate scores).</li>
+    <li><strong>Publish</strong> — appears on the topic thread.</li>
+  </ul>
+
+  <h2 class="section-title section-title-lg">Reporting</h2>
+  <p class="lede">
+    Use <strong>Report</strong> on any comment. Repeated reports may auto-hide a comment pending review.
+    For urgent illegal content involving children, contact local law enforcement / NCMEC as appropriate;
+    we will cooperate with lawful requests.
+  </p>
+
+  <h2 class="section-title section-title-lg">Age</h2>
+  <p class="lede">
+    This service is intended for a general audience (roughly 13+). Comments should stay suitable for a broad public.
+  </p>
+
+  <p class="lede">
+    <a href="/search">Back to Intersection</a>
+    · <a href="/">Curious Pulse</a>
+  </p>
+{% endblock %}

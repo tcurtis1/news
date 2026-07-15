@@ -13,9 +13,10 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **Rank map** — search a term → rank per site | Live |
 | **Topic pages** — `/topic/{slug}` ranks + news | Live |
 | **Comments** — public thread per topic (no login yet) | Live |
+| **Safety** — guidelines + OpenAI/local moderation + report | Live |
 | **Polymarket** — top markets by 24h volume | Live |
 | Bias badges | Not yet |
-| Accounts / moderated comments | Not yet |
+| Accounts / full auth | Not yet |
 
 ## Platforms (daily cache)
 
@@ -57,5 +58,28 @@ Installs app on `tony@192.168.1.44:~/apps/news` (port **3010**) and a **06:00 Am
 | `GET /api/rank?q=` | Rank map for a query |
 | `GET /api/search?q=` | Rank map + news hits (empty `q` = full trends) |
 | `GET /topic/{slug}` | Topic page (ranks + news + comments) |
-| `POST /topic/{slug}/comments` | Add comment (`name`, `body`) |
+| `POST /topic/{slug}/comments` | Add comment (`name`, `body`) — moderated |
+| `POST /topic/{slug}/comments/{id}/report` | Report a comment |
+| `GET /safety` | Community guidelines |
+| `GET /admin/mod?token=` | Held/reported queue (`MOD_ADMIN_TOKEN`) |
 | `GET /api/topic/{slug}` | Topic JSON |
+
+## Safety / moderation
+
+Comments are checked with a **standards-based** pipeline:
+
+1. **OpenAI Moderations API** when `OPENAI_API_KEY` is set (recommended).  
+2. **Local fallback** heuristics if the key is missing or the API fails.  
+3. Outcomes: **block** (reject), **hold** (saved, not public), **publish**.  
+4. Users can **Report**; 2+ reports auto-holds a published comment.  
+5. Admins review at `/admin/mod?token=…` with `MOD_ADMIN_TOKEN`.
+
+Hard blocks include categories like `sexual/minors` and severe self-harm intent.  
+Hold covers high sexual/violence/hate scores (see `MOD_HOLD_THRESHOLD`).
+
+```bash
+# on basement host or in .env next to docker-compose
+export OPENAI_API_KEY=sk-...
+export MOD_ADMIN_TOKEN=long-random-string
+./deploy.sh
+```

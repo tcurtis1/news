@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Moderation queue</h1>
+  <p class="lede">Held or reported comments. Token required. Not linked from public nav.</p>
+
+  {% if not authorized %}
+  <form class="comment-form" method="get" action="/admin/mod">
+    <div class="comment-fields">
+      <input type="password" name="token" placeholder="Admin token" required />
+      <button type="submit">Open queue</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="meta-row">
+    <span class="badge">{{ rows | length }} items</span>
+    <a href="/admin/mod?token={{ token }}">Refresh</a>
+    <a href="/safety">Guidelines</a>
+  </div>
+
+  {% if rows %}
+  <ol class="list">
+    {% for c in rows %}
+    <li class="card" style="grid-template-columns: 1fr;">
+      <div>
+        <div class="meta-row" style="margin-bottom:0.35rem;">
+          <span class="badge">{{ c.status }}</span>
+          <span>reports: {{ c.report_count or 0 }}</span>
+          <a href="/topic/{{ c.slug }}">/topic/{{ c.slug }}</a>
+          <span class="muted-hint">{{ c.id }}</span>
+        </div>
+        <p class="summary"><strong>{{ c.name }}</strong> · {{ c.created_at[:19] if c.created_at else '' }}Z</p>
+        <p class="comment-body">{{ c.body }}</p>
+        {% if c.moderation %}
+        <p class="t-snip">mod: {{ c.moderation.reason }} · {{ c.moderation.source }} · {{ c.moderation.categories }}</p>
+        {% endif %}
+        <form method="post" action="/admin/mod/action" class="admin-actions">
+          <input type="hidden" name="token" value="{{ token }}" />
+          <input type="hidden" name="slug" value="{{ c.slug }}" />
+          <input type="hidden" name="comment_id" value="{{ c.id }}" />
+          <button type="submit" name="status" value="published">Publish</button>
+          <button type="submit" name="status" value="held">Hold</button>
+          <button type="submit" name="status" value="removed">Remove</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="empty">Queue is empty.</div>
+  {% endif %}
+  {% endif %}
+{% endblock %}

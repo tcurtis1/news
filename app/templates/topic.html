@@ -156,7 +156,11 @@
         <textarea name="body" rows="3" maxlength="2000" required placeholder="Add a thought — keep it civil.">{{ form_body or '' }}</textarea>
         <button type="submit">Post comment</button>
       </div>
-      <p class="t-snip">Be kind. No spam. Comments are stored on this topic and visible to everyone.</p>
+      <p class="t-snip">
+        Be kind. No spam. Comments are filtered for safety
+        (<a href="/safety">(guidelines)</a>.
+        Held comments are not public until reviewed.
+      </p>
     </form>
 
     {% if topic.comments %}
@@ -166,6 +170,10 @@
         <div class="comment-meta">
           <strong>{{ c.name }}</strong>
           {% if c.created_at %}<time datetime="{{ c.created_at }}">{{ c.created_at[:16].replace('T', ' ') }}Z</time>{% endif %}
+          <form class="report-form" method="post" action="/topic/{{ topic.slug }}/comments/{{ c.id }}/report">
+            <input type="hidden" name="reason" value="user_report" />
+            <button type="submit" class="report-btn">Report</button>
+          </form>
         </div>
         <p class="comment-body">{{ c.body }}</p>
       </li>

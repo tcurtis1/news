@@ -6,6 +6,12 @@ services:
     environment:
       - PUBLIC_BASE=${PUBLIC_BASE:-https://news.yoyosup.com}
       - CACHE_DIR=/data
+      # Optional: OpenAI Moderations API for UGC (https://platform.openai.com/docs/guides/moderation)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODERATION_MODEL=${OPENAI_MODERATION_MODEL:-omni-moderation-latest}
+      - MOD_HOLD_THRESHOLD=${MOD_HOLD_THRESHOLD:-0.65}
+      # Optional: token for /admin/mod queue
+      - MOD_ADMIN_TOKEN=${MOD_ADMIN_TOKEN:-}
     volumes:
       - news_data:/data
     restart: unless-stopped

@@ -650,6 +650,63 @@ footer.site {
   margin-top: 1.5rem;
 }
 
+.guidelines-list {
+  color: var(--muted);
+  line-height: 1.55;
+  padding-left: 1.2rem;
+  margin: 0 0 1.25rem;
+}
+
+.guidelines-list li {
+  margin-bottom: 0.45rem;
+}
+
+.guidelines-list strong {
+  color: var(--text);
+}
+
+.report-form {
+  display: inline;
+  margin: 0;
+}
+
+.report-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.report-btn:hover {
+  color: var(--accent);
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.admin-actions button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .t-title-row {
   display: flex;
   flex-wrap: wrap;

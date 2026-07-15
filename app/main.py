@@ -1,4 +1,4 @@
-"""Yoyosup News — Pulse + Intersection + topics + comments."""
+"""Yoyosup News — Pulse + Intersection + topics + moderated comments."""
 
 from __future__ import annotations
 
@@ -12,7 +12,14 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.comments import add_comment, list_comments
+from app.comments import (
+    add_comment,
+    list_all_for_admin,
+    list_comments,
+    report_comment,
+    set_comment_status,
+)
+from app.moderation import moderation_enabled
 from app.pulse import build_pulse
 from app.search import run_search
 from app.topics import build_topic, slugify, unslug
@@ -23,8 +30,9 @@ log = logging.getLogger("news")
 
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
+MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
 
-app = FastAPI(title="Yoyosup News", version="0.6.0")
+app = FastAPI(title="Yoyosup News", version="0.7.0")
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["slugify"] = slugify
@@ -39,9 +47,19 @@ def _client_ip(request: Request) -> str:
     return ""
 
 
+def _admin_ok(token: str) -> bool:
+    return bool(MOD_ADMIN_TOKEN) and token == MOD_ADMIN_TOKEN
+
+
 @app.get("/health")
 async def health():
-    return {"ok": True, "service": "yoyosup-news", "public": PUBLIC_BASE, "version": "0.6.0"}
+    return {
+        "ok": True,
+        "service": "yoyosup-news",
+        "public": PUBLIC_BASE,
+        "version": "0.7.0",
+        "moderation": moderation_enabled(),
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -58,10 +76,21 @@ async def pulse_home(request: Request):
     )
 
 
+@app.get("/safety", response_class=HTMLResponse)
+async def safety_page(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "safety.html",
+        {
+            "public_base": PUBLIC_BASE,
+            "page_title": "Safety & guidelines",
+        },
+    )
+
+
 @app.get("/api/pulse")
 async def api_pulse(force: bool = False):
-    data = await build_pulse(force=force)
-    return JSONResponse(data)
+    return JSONResponse(await build_pulse(force=force))
 
 
 @app.get("/search", response_class=HTMLResponse)
@@ -91,8 +120,7 @@ async def api_search(q: str = "", force: bool = False):
 
 @app.get("/api/trends")
 async def api_trends(force: bool = False):
-    data = await build_trends(force=force)
-    return JSONResponse(data)
+    return JSONResponse(await build_trends(force=force))
 
 
 @app.get("/api/rank")
@@ -103,7 +131,6 @@ async def api_rank(q: str = "", force: bool = False):
 
 @app.get("/topic", response_class=HTMLResponse)
 async def topic_redirect(q: str = ""):
-    """Canonicalize ?q= into /topic/{slug}."""
     if not q.strip():
         return RedirectResponse("/search", status_code=302)
     return RedirectResponse(f"/topic/{slugify(q)}", status_code=302)
@@ -112,12 +139,9 @@ async def topic_redirect(q: str = ""):
 @app.get("/topic/{slug}", response_class=HTMLResponse)
 async def topic_page(request: Request, slug: str, force: bool = False):
     topic = await build_topic(slug, force=force)
-    # Canonical slug redirect
     if slugify(slug) != topic["slug"] and unslug(slug):
         return RedirectResponse(f"/topic/{topic['slug']}", status_code=302)
 
-    flash_error = request.query_params.get("err") or ""
-    flash_ok = request.query_params.get("ok") or ""
     return templates.TemplateResponse(
         request,
         "topic.html",
@@ -125,8 +149,8 @@ async def topic_page(request: Request, slug: str, force: bool = False):
             "public_base": PUBLIC_BASE,
             "topic": topic,
             "page_title": topic["title"],
-            "flash_error": flash_error,
-            "flash_ok": flash_ok,
+            "flash_error": request.query_params.get("err") or "",
+            "flash_ok": request.query_params.get("ok") or "",
             "form_name": request.query_params.get("name") or "",
             "form_body": "",
         },
@@ -139,10 +163,10 @@ async def topic_comment_post(
     slug: str,
     name: str = Form(""),
     body: str = Form(""),
-    website: str = Form(""),  # honeypot
+    website: str = Form(""),
 ):
     canon = slugify(unslug(slug) or slug)
-    ok, err, _comment = add_comment(
+    ok, msg, comment = await add_comment(
         canon,
         name=name,
         body=body,
@@ -151,22 +175,72 @@ async def topic_comment_post(
     )
     if ok:
         return RedirectResponse(
-            f"/topic/{canon}?ok={quote('Comment posted.')}#comments",
+            f"/topic/{canon}?ok={quote(msg)}#comments",
             status_code=303,
         )
     return RedirectResponse(
-        f"/topic/{canon}?err={quote(err)}&name={quote(name[:40])}#comment-form",
+        f"/topic/{canon}?err={quote(msg)}&name={quote(name[:40])}#comment-form",
+        status_code=303,
+    )
+
+
+@app.post("/topic/{slug}/comments/{comment_id}/report")
+async def topic_comment_report(
+    request: Request,
+    slug: str,
+    comment_id: str,
+    reason: str = Form(""),
+):
+    canon = slugify(unslug(slug) or slug)
+    ok, msg = report_comment(
+        canon,
+        comment_id,
+        reason=reason,
+        client_ip=_client_ip(request),
+    )
+    param = "ok" if ok else "err"
+    return RedirectResponse(
+        f"/topic/{canon}?{param}={quote(msg)}#c-{comment_id}",
         status_code=303,
     )
 
 
 @app.get("/api/topic/{slug}")
 async def api_topic(slug: str, force: bool = False):
-    topic = await build_topic(slug, force=force)
-    return JSONResponse(topic)
+    return JSONResponse(await build_topic(slug, force=force))
 
 
 @app.get("/api/topic/{slug}/comments")
 async def api_topic_comments(slug: str):
     canon = slugify(unslug(slug) or slug)
     return JSONResponse({"slug": canon, "comments": list_comments(canon)})
+
+
+@app.get("/admin/mod", response_class=HTMLResponse)
+async def admin_mod(request: Request, token: str = ""):
+    authorized = _admin_ok(token)
+    rows = list_all_for_admin() if authorized else []
+    return templates.TemplateResponse(
+        request,
+        "admin_mod.html",
+        {
+            "public_base": PUBLIC_BASE,
+            "page_title": "Moderation queue",
+            "authorized": authorized,
+            "token": token if authorized else "",
+            "rows": rows,
+        },
+    )
+
+
+@app.post("/admin/mod/action")
+async def admin_mod_action(
+    token: str = Form(""),
+    slug: str = Form(""),
+    comment_id: str = Form(""),
+    status: str = Form(""),
+):
+    if not _admin_ok(token):
+        return RedirectResponse("/admin/mod", status_code=303)
+    set_comment_status(slug, comment_id, status)
+    return RedirectResponse(f"/admin/mod?token={quote(token)}", status_code=303)
