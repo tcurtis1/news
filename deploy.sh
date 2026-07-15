@@ -19,8 +19,17 @@ rsync -avz --delete -e "$SSH" \
   --exclude venv \
   --exclude '__pycache__/' \
   --exclude 'data/*.json' \
+  --exclude 'data/comments/' \
   --exclude 'logs/' \
   "${ROOT}/" "${TARGET}:${REMOTE_DIR}/"
+
+# Sync secrets separately (not deleted by --delete when missing locally)
+if [[ -f "${ROOT}/.env" ]]; then
+  rsync -avz -e "$SSH" "${ROOT}/.env" "${TARGET}:${REMOTE_DIR}/.env"
+  echo "Synced .env → ${TARGET}:${REMOTE_DIR}/.env"
+else
+  echo "No local .env — left remote .env unchanged (if any)."
+fi
 
 $SSH "${TARGET}" bash -s <<'REMOTE'
 set -euo pipefail

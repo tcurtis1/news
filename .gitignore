@@ -6,3 +6,4 @@ venv/
 data/*.json
 !data/.gitkeep
 .DS_Store
+data/comments/

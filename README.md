@@ -78,8 +78,13 @@ Hard blocks include categories like `sexual/minors` and severe self-harm intent.
 Hold covers high sexual/violence/hate scores (see `MOD_HOLD_THRESHOLD`).
 
 ```bash
-# on basement host or in .env next to docker-compose
-export OPENAI_API_KEY=sk-...
-export MOD_ADMIN_TOKEN=long-random-string
+# 1) Copy template (already have .env on this repo — or: cp .env.example .env)
+# 2) Edit .env — paste OPENAI_API_KEY=sk-...
+# 3) Deploy (syncs .env to basement)
 ./deploy.sh
+
+# Admin queue:
+# https://news.yoyosup.com/admin/mod?token=<MOD_ADMIN_TOKEN from .env>
 ```
+
+See [`.env.example`](.env.example) for all variables.
