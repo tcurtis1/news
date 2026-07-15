@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-  <h1>Meta search</h1>
+  <h1>Daily Intersection</h1>
   <p class="lede">
-    Daily trends from <strong>Google</strong>, <strong>Bing</strong>,
-    <strong>YouTube</strong>, and <strong>X</strong> — plus live search across
-    Google News, Bing News, and free indexes.
+    Attention map across <strong>Google</strong>, <strong>Bing</strong>,
+    <strong>YouTube</strong>, <strong>X</strong> + money heat on
+    <strong>Polymarket</strong>. Search any term to see its rank on each list.
   </p>
 
   <form class="search-box" action="/search" method="get" role="search">
@@ -12,16 +12,17 @@
       type="search"
       name="q"
       value="{{ q }}"
-      placeholder="Search news across the web…"
+      placeholder="Look up a topic — e.g. Spain, All-Star, Fed…"
       {% if not q %}autofocus{% endif %}
       maxlength="200"
       autocomplete="off"
     />
-    <button type="submit">Search</button>
+    <button type="submit">Rank map</button>
   </form>
 
   {% if results and results.mode == 'trends' and results.trends %}
     {% set t = results.trends %}
+    {% set top = t.top10 or t.platforms %}
     <div class="meta-row">
       <span class="badge live">Daily snapshot</span>
       <span>UTC day {{ t.day }}</span>
@@ -29,28 +30,73 @@
         <span>Pulled {{ t.fetched_at[:19] }}Z</span>
       {% endif %}
       {% if t.sources_ok %}
-        <span>{{ t.sources_ok | join(' · ') | upper }}</span>
+        <span>{{ t.sources_ok | join(' · ') }}</span>
       {% endif %}
       <span class="muted-hint">Refreshes once per day</span>
     </div>
 
-    <div class="trend-board">
+    {# ── Consensus ── #}
+    <section class="consensus" aria-label="Consensus top topics">
+      <h2 class="section-title section-title-lg">
+        Consensus Top 10
+        <span class="muted-hint">on 2+ platforms</span>
+      </h2>
+      {% if t.consensus %}
+      <ol class="list consensus-list">
+        {% for c in t.consensus %}
+        <li class="card consensus-card">
+          <div class="rank">{{ c.rank }}</div>
+          <div>
+            <h2>
+              {% if c.url %}
+              <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank">{{ c.title }}</a>
+              {% else %}
+              {{ c.title }}
+              {% endif %}
+            </h2>
+            <p class="summary">
+              On {{ c.platform_count }} platforms
+              · avg rank {{ c.avg_rank }}
+            </p>
+            <div class="rank-pills">
+              {% for p in c.platforms %}
+                {% set r = c.ranks[p] %}
+                <a class="rank-pill plat-{{ p }}" href="{{ r.url }}" rel="noopener noreferrer" target="_blank" title="{{ r.title }}">
+                  {{ p }} #{{ r.rank }}
+                </a>
+              {% endfor %}
+            </div>
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <div class="empty">
+        No multi-platform overlaps in today’s Top 10 yet — check individual boards below.
+      </div>
+      {% endif %}
+    </section>
+
+    {# ── Per-platform Top 10 ── #}
+    <h2 class="section-title section-title-lg">Top 10 by platform</h2>
+    <div class="trend-board trend-board-5">
       {% set labels = {
-        'google': 'Google Trends',
+        'google': 'Google',
         'bing': 'Bing',
         'youtube': 'YouTube',
-        'x': 'X'
+        'x': 'X',
+        'polymarket': 'Polymarket'
       } %}
-      {% for key in ['google', 'bing', 'youtube', 'x'] %}
+      {% for key in ['google', 'bing', 'youtube', 'x', 'polymarket'] %}
       <section class="trend-col trend-{{ key }}" aria-label="{{ labels[key] }}">
         <h2 class="section-title">
           <span class="plat-dot plat-{{ key }}"></span>
           {{ labels[key] }}
-          <span class="count-pill">{{ (t.platforms[key] or []) | length }}</span>
+          <span class="count-pill">{{ (top[key] or []) | length }}</span>
         </h2>
-        {% if t.platforms[key] %}
+        {% if top[key] %}
         <ol class="trend-list">
-          {% for item in t.platforms[key] %}
+          {% for item in top[key] %}
           <li>
             <span class="t-rank">{{ item.rank }}</span>
             <div>
@@ -72,9 +118,61 @@
     <div class="disclaimer">{{ results.disclaimer }}</div>
 
   {% elif results and q %}
+    {# ── Rank map for query ── #}
+    {% if results.rank_lookup %}
+    {% set rl = results.rank_lookup %}
+    <section class="rank-map" aria-label="Rank map">
+      <div class="meta-row">
+        <span class="badge live">Rank map</span>
+        <span>{{ rl.summary }}</span>
+      </div>
+      <div class="rank-table-wrap">
+        <table class="rank-table">
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>Rank</th>
+              <th>Today’s matching item</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for key in ['google', 'bing', 'youtube', 'x', 'polymarket'] %}
+            {% set row = rl.platforms[key] %}
+            <tr class="{% if row.in_top %}hit{% else %}miss{% endif %}">
+              <td>
+                <span class="plat-tag plat-{{ key }}">{{ row.label }}</span>
+              </td>
+              <td class="rank-cell">
+                {% if row.in_top %}
+                  <strong>#{{ row.rank }}</strong>
+                {% else %}
+                  <span class="not-in">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.in_top %}
+                  <a href="{{ row.url }}" rel="noopener noreferrer" target="_blank">{{ row.title }}</a>
+                  {% if row.snippet %}<div class="t-snip">{{ row.snippet }}</div>{% endif %}
+                {% else %}
+                  <span class="not-in">Not in today’s top list</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if rl.in_consensus %}
+      <p class="consensus-note">
+        Also in <strong>Consensus Top 10</strong> at #{{ rl.consensus_rank }}.
+      </p>
+      {% endif %}
+    </section>
+    {% endif %}
+
     <div class="meta-row">
       {% if results.mode == 'live' %}
-        <span class="badge live">Live indexes</span>
+        <span class="badge live">Live news hits</span>
       {% elif results.mode == 'portals_only' %}
         <span class="badge">Portals only</span>
       {% else %}
@@ -83,9 +181,6 @@
       <span>{{ results.count }} results</span>
       {% if results.sources_ok %}
         <span>{{ results.sources_ok | join(' · ') }}</span>
-      {% endif %}
-      {% if results.fetched_at %}
-        <span>{{ results.fetched_at[:19] }}Z</span>
       {% endif %}
     </div>
 
@@ -99,20 +194,6 @@
         </a>
         {% endfor %}
       </div>
-    </section>
-    {% endif %}
-
-    {% if results.trend_matches %}
-    <section class="trend-matches">
-      <h2 class="section-title">Matches in today’s platform trends</h2>
-      <ul class="match-list">
-        {% for item in results.trend_matches %}
-        <li>
-          <span class="plat-tag plat-{{ item.platform }}">{{ item.platform }}</span>
-          <a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a>
-        </li>
-        {% endfor %}
-      </ul>
     </section>
     {% endif %}
 
@@ -139,8 +220,8 @@
     </ol>
     {% else %}
     <div class="empty">
-      No free-index hits for “{{ q }}”. Try a portal above or
-      <a href="/search">today’s platform trends</a>.
+      No free-index news hits for “{{ q }}”. Use portals above or
+      <a href="/search">return to today’s intersection</a>.
     </div>
     {% endif %}
 

@@ -1,7 +1,7 @@
-"""Daily multi-platform trends: Google, Bing, YouTube, X.
+"""Daily multi-platform trends + consensus + rank lookup.
 
-Pulled at most once per day (UTC calendar day) and cached under CACHE_DIR.
-Force refresh with force=True or ?force=1 on the API.
+Sources: Google, Bing, YouTube, X, Polymarket.
+Pulled at most once per UTC day (CACHE_DIR). Force with force=True / ?force=1.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import logging
 import os
 import re
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -24,14 +24,58 @@ log = logging.getLogger("trends")
 
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/data"))
 CACHE_FILE = CACHE_DIR / "trends_cache.json"
-# Once-a-day default: still valid if same UTC date, else max age fallback
 CACHE_MAX_AGE_SEC = int(os.environ.get("TRENDS_CACHE_TTL", str(26 * 3600)))
 GEO = os.environ.get("TRENDS_GEO", "US")
 USER_AGENT = (
-    "Mozilla/5.0 (compatible; YoyoNewsTrends/0.2; +https://news.yoyosup.com) "
+    "Mozilla/5.0 (compatible; YoyoNewsTrends/0.3; +https://news.yoyosup.com) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 MAX_PER_PLATFORM = 20
+TOP_N = 10  # display / consensus window
+PLATFORM_ORDER = ("google", "bing", "youtube", "x", "polymarket")
+PLATFORM_LABELS = {
+    "google": "Google",
+    "bing": "Bing",
+    "youtube": "YouTube",
+    "x": "X",
+    "polymarket": "Polymarket",
+}
+STOPWORDS = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "of",
+        "in",
+        "on",
+        "to",
+        "for",
+        "vs",
+        "versus",
+        "will",
+        "win",
+        "wins",
+        "with",
+        "from",
+        "this",
+        "that",
+        "into",
+        "over",
+        "after",
+        "before",
+        "more",
+        "markets",
+        "news",
+        "today",
+        "2024",
+        "2025",
+        "2026",
+        "2027",
+        "2028",
+    }
+)
 
 
 @dataclass
@@ -39,12 +83,16 @@ class TrendItem:
     rank: int
     title: str
     url: str
-    platform: str  # google | bing | youtube | x
+    platform: str
     snippet: str = ""
     traffic: str = ""
+    extra: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        if not d.get("extra"):
+            d.pop("extra", None)
+        return d
 
 
 def _now() -> datetime:
@@ -72,12 +120,11 @@ def _read_cache() -> dict | None:
         if not CACHE_FILE.exists():
             return None
         data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-        if data.get("day") == _utc_day():
-            return data
-        # fallback: still use if within max age (server timezone drift / offline)
-        age = time.time() - float(data.get("fetched_at_unix", 0))
-        if age <= CACHE_MAX_AGE_SEC:
-            return data
+        # Rebuild derived fields if older cache missing them
+        if data.get("day") == _utc_day() or (
+            time.time() - float(data.get("fetched_at_unix", 0)) <= CACHE_MAX_AGE_SEC
+        ):
+            return _ensure_derived(data)
         return None
     except Exception:
         return None
@@ -91,33 +138,106 @@ def _write_cache(payload: dict) -> None:
         log.warning("trends cache write failed: %s", e)
 
 
-def _parse_traffic(raw: str) -> int:
-    """Parse '5000+' / '200K+' style traffic into a rough int for ranking."""
-    if not raw:
-        return 0
-    s = raw.strip().upper().replace(",", "").rstrip("+")
-    mult = 1
-    if s.endswith("K"):
-        mult = 1_000
-        s = s[:-1]
-    elif s.endswith("M"):
-        mult = 1_000_000
-        s = s[:-1]
+def _fmt_money(n: float | int | str | None) -> str:
     try:
-        return int(float(s) * mult)
-    except ValueError:
-        return 0
+        v = float(n or 0)
+    except (TypeError, ValueError):
+        return ""
+    if v >= 1_000_000_000:
+        return f"${v / 1_000_000_000:.1f}B"
+    if v >= 1_000_000:
+        return f"${v / 1_000_000:.1f}M"
+    if v >= 1_000:
+        return f"${v / 1_000:.0f}K"
+    return f"${v:.0f}"
+
+
+def normalize_topic(title: str) -> str:
+    t = (title or "").lower().strip()
+    t = t.replace("#", " ")
+    t = re.sub(r"[^\w\s]", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def topic_tokens(title: str) -> set[str]:
+    return {
+        p
+        for p in re.findall(r"[a-z0-9]+", normalize_topic(title))
+        if len(p) >= 3 and p not in STOPWORDS
+    }
+
+
+def _compact(title: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", normalize_topic(title))
+
+
+def titles_similar(a: str, b: str) -> bool:
+    """Loose match across platforms (subset / jaccard / shared multi-token)."""
+    na, nb = normalize_topic(a), normalize_topic(b)
+    if not na or not nb:
+        return False
+    if na == nb:
+        return True
+    # hashtag-style: #AllStarGame ↔ All Star Game
+    ca, cb = _compact(a), _compact(b)
+    if ca and cb and (ca == cb or (len(ca) >= 8 and (ca in cb or cb in ca))):
+        return True
+    # substring only when shorter side is a real phrase (avoid "golden" ⊂ "golden boot…")
+    shorter, longer = (na, nb) if len(na) <= len(nb) else (nb, na)
+    if len(shorter) >= 8 and shorter in longer:
+        return True
+    ta, tb = topic_tokens(a), topic_tokens(b)
+    if not ta or not tb:
+        return False
+    inter = ta & tb
+    if not inter:
+        return False
+    # full token subset only if the smaller set has 2+ tokens (or equal single-token titles)
+    if ta <= tb or tb <= ta:
+        smaller = ta if len(ta) <= len(tb) else tb
+        if len(smaller) >= 2:
+            return True
+        if len(ta) == 1 and len(tb) == 1:
+            return True
+    j = len(inter) / len(ta | tb)
+    if j >= 0.5:
+        return True
+    if len(inter) >= 2 and j >= 0.35:
+        return True
+    return False
+
+
+def query_matches_title(q: str, title: str) -> bool:
+    nq, nt = normalize_topic(q), normalize_topic(title)
+    if not nq or not nt:
+        return False
+    if nq == nt or nq in nt or nt in nq:
+        return True
+    cq, ct = _compact(q), _compact(title)
+    if cq and ct and (cq == ct or (len(cq) >= 4 and cq in ct)):
+        return True
+    tq, tt = topic_tokens(q), topic_tokens(title)
+    if not tq:
+        return nq in nt
+    if tq <= tt:
+        return True
+    inter = tq & tt
+    if not inter:
+        return False
+    return len(inter) / len(tq) >= 0.6
+
+
+# ── fetchers ──────────────────────────────────────────────────────────────
 
 
 async def _fetch_google(client: httpx.AsyncClient) -> list[TrendItem]:
-    """Google daily search trends via official Trends RSS."""
     try:
         r = await client.get(
             f"https://trends.google.com/trending/rss?geo={GEO}",
             headers={**_browser_headers(), "Accept": "application/rss+xml, application/xml"},
         )
         r.raise_for_status()
-        # ht namespace for approx_traffic + news items
         ns = {"ht": "https://trends.google.com/trending/rss"}
         root = ET.fromstring(r.content)
         items: list[TrendItem] = []
@@ -128,7 +248,6 @@ async def _fetch_google(client: httpx.AsyncClient) -> list[TrendItem]:
             traffic = (
                 entry.findtext("ht:approx_traffic", default="", namespaces=ns) or ""
             ).strip()
-            # Prefer first related news URL when present
             news = entry.find("ht:news_item", ns)
             url = ""
             snippet = ""
@@ -144,9 +263,7 @@ async def _fetch_google(client: httpx.AsyncClient) -> list[TrendItem]:
                     snippet = f"{snippet} — {src}"
             if not url:
                 url = f"https://www.google.com/search?q={quote_plus(title)}"
-            if traffic and not snippet:
-                snippet = f"~{traffic} searches"
-            elif traffic:
+            if traffic:
                 snippet = f"{snippet} · ~{traffic} searches" if snippet else f"~{traffic} searches"
             items.append(
                 TrendItem(
@@ -165,11 +282,8 @@ async def _fetch_google(client: httpx.AsyncClient) -> list[TrendItem]:
 
 
 async def _fetch_bing(client: httpx.AsyncClient) -> list[TrendItem]:
-    """Bing Popular Now (homepage suggestions) + top Bing News RSS."""
     items: list[TrendItem] = []
     seen: set[str] = set()
-
-    # 1) Popular Now searches
     try:
         r = await client.get(
             "https://www.bing.com/AS/Suggestions",
@@ -184,7 +298,7 @@ async def _fetch_bing(client: httpx.AsyncClient) -> list[TrendItem]:
             headers=_browser_headers(),
         )
         if r.status_code == 200:
-            for row in (r.json().get("s") or []):
+            for row in r.json().get("s") or []:
                 q = (row.get("q") or "").strip()
                 if not q or q.lower() in seen:
                     continue
@@ -208,12 +322,14 @@ async def _fetch_bing(client: httpx.AsyncClient) -> list[TrendItem]:
     except Exception as e:
         log.warning("Bing popular failed: %s", e)
 
-    # 2) Bing News RSS for the region
     try:
         r = await client.get(
             "https://www.bing.com/news/search",
             params={"q": "United States", "format": "RSS", "market": "en-US"},
-            headers={**_browser_headers(), "Accept": "application/rss+xml, application/xml, text/xml, */*"},
+            headers={
+                **_browser_headers(),
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+            },
         )
         if r.status_code == 200 and b"<item>" in r.content:
             text = r.content
@@ -249,7 +365,6 @@ async def _fetch_bing(client: httpx.AsyncClient) -> list[TrendItem]:
 
 
 async def _fetch_youtube(client: httpx.AsyncClient) -> list[TrendItem]:
-    """YouTube daily Top Videos chart (US) via charts.youtube.com innertube."""
     try:
         body = {
             "context": {
@@ -305,10 +420,9 @@ async def _fetch_youtube(client: httpx.AsyncClient) -> list[TrendItem]:
                 continue
             seen.add(vid)
             artists = o.get("artists") or []
-            names = []
-            for a in artists:
-                if isinstance(a, dict) and a.get("name"):
-                    names.append(str(a["name"]))
+            names = [
+                str(a["name"]) for a in artists if isinstance(a, dict) and a.get("name")
+            ]
             views = str(o.get("viewCount") or "")
             try:
                 views_fmt = f"{int(views):,} views today"
@@ -334,7 +448,6 @@ async def _fetch_youtube(client: httpx.AsyncClient) -> list[TrendItem]:
 
 
 async def _fetch_x(client: httpx.AsyncClient) -> list[TrendItem]:
-    """X/Twitter US trends via trends24.in (public HTML mirror of X trends)."""
     try:
         r = await client.get(
             "https://trends24.in/united-states/",
@@ -342,12 +455,10 @@ async def _fetch_x(client: httpx.AsyncClient) -> list[TrendItem]:
         )
         r.raise_for_status()
         html = r.text
-        # Prefer the most recent timeline card only
         block = html
         m = re.search(r"<ol class=trend-card__list>(.*?)</ol>", html, re.S | re.I)
         if m:
             block = m.group(1)
-        # trend-link anchors
         pairs = re.findall(
             r'href="https?://(?:twitter|x)\.com/search\?q=([^"]+)"[^>]*class=trend-link[^>]*>([^<]+)',
             block,
@@ -360,7 +471,6 @@ async def _fetch_x(client: httpx.AsyncClient) -> list[TrendItem]:
                 re.I,
             )
         if not pairs:
-            # href-only fallback from first card
             qs = re.findall(r'https?://(?:twitter|x)\.com/search\?q=([^"\']+)', block, re.I)
             pairs = [(q, unquote(q).replace("+", " ")) for q in qs]
 
@@ -378,7 +488,6 @@ async def _fetch_x(client: httpx.AsyncClient) -> list[TrendItem]:
                     url=f"https://x.com/search?q={quote_plus(title)}&src=trend",
                     platform="x",
                     snippet="Trending on X (US)",
-                    traffic="",
                 )
             )
             if len(items) >= MAX_PER_PLATFORM:
@@ -387,6 +496,246 @@ async def _fetch_x(client: httpx.AsyncClient) -> list[TrendItem]:
     except Exception as e:
         log.warning("X trends failed: %s", e)
         return []
+
+
+async def _fetch_polymarket(client: httpx.AsyncClient) -> list[TrendItem]:
+    """Top prediction markets by 24h volume (public Gamma API, no key)."""
+    try:
+        r = await client.get(
+            "https://gamma-api.polymarket.com/events",
+            params={
+                "limit": str(MAX_PER_PLATFORM),
+                "active": "true",
+                "closed": "false",
+                "order": "volume24hr",
+                "ascending": "false",
+            },
+            headers={**_browser_headers(), "Accept": "application/json"},
+        )
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, list):
+            return []
+        items: list[TrendItem] = []
+        for i, ev in enumerate(data[:MAX_PER_PLATFORM], 1):
+            title = (ev.get("title") or "").strip()
+            slug = (ev.get("slug") or "").strip()
+            if not title:
+                continue
+            vol24 = ev.get("volume24hr")
+            vol = ev.get("volume")
+            liq = ev.get("liquidity")
+            url = f"https://polymarket.com/event/{slug}" if slug else "https://polymarket.com/"
+            parts = []
+            if vol24 is not None:
+                parts.append(f"{_fmt_money(vol24)} 24h vol")
+            if vol is not None:
+                parts.append(f"{_fmt_money(vol)} total")
+            if liq is not None:
+                parts.append(f"{_fmt_money(liq)} liq")
+            items.append(
+                TrendItem(
+                    rank=i,
+                    title=title,
+                    url=url,
+                    platform="polymarket",
+                    snippet=" · ".join(parts) or "Polymarket",
+                    traffic=str(vol24 or vol or ""),
+                    extra={
+                        "volume24hr": vol24,
+                        "volume": vol,
+                        "liquidity": liq,
+                        "slug": slug,
+                    },
+                )
+            )
+        return items
+    except Exception as e:
+        log.warning("Polymarket fetch failed: %s", e)
+        return []
+
+
+# ── consensus + rank lookup ────────────────────────────────────────────────
+
+
+def build_consensus(
+    platforms: dict[str, list[dict[str, Any]]], top_n: int = TOP_N
+) -> list[dict[str, Any]]:
+    """
+    Topics that appear on 2+ platforms (within each platform's top_n window).
+    Ranked by platform count, then average rank quality.
+    """
+    # Collect top_n items only for consensus (keeps signal tight)
+    pool: list[dict[str, Any]] = []
+    for plat, items in platforms.items():
+        for it in (items or [])[:top_n]:
+            row = dict(it)
+            row["platform"] = plat
+            pool.append(row)
+
+    parent = list(range(len(pool)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i: int, j: int) -> None:
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[rj] = ri
+
+    for i in range(len(pool)):
+        for j in range(i + 1, len(pool)):
+            if pool[i]["platform"] == pool[j]["platform"]:
+                continue
+            if titles_similar(pool[i].get("title") or "", pool[j].get("title") or ""):
+                union(i, j)
+
+    clusters: dict[int, list[int]] = {}
+    for i in range(len(pool)):
+        clusters.setdefault(find(i), []).append(i)
+
+    consensus: list[dict[str, Any]] = []
+    for idxs in clusters.values():
+        members = [pool[i] for i in idxs]
+        plats = {m["platform"] for m in members}
+        if len(plats) < 2:
+            continue
+        # Prefer shortest readable title as label; fallback to first
+        label = sorted(members, key=lambda m: len(m.get("title") or ""))[0].get("title") or ""
+        # Prefer social/search titles over long news headlines when similar length
+        for pref in ("x", "google", "bing", "polymarket", "youtube"):
+            for m in members:
+                if m["platform"] == pref and titles_similar(m.get("title") or "", label):
+                    label = m["title"]
+                    break
+        ranks: dict[str, dict[str, Any]] = {}
+        for m in members:
+            p = m["platform"]
+            prev = ranks.get(p)
+            if not prev or int(m.get("rank") or 99) < int(prev.get("rank") or 99):
+                ranks[p] = {
+                    "rank": m.get("rank"),
+                    "title": m.get("title"),
+                    "url": m.get("url"),
+                    "snippet": m.get("snippet") or "",
+                }
+        avg_rank = sum(int(r["rank"] or 99) for r in ranks.values()) / max(len(ranks), 1)
+        best_url = ""
+        for pref in ("google", "x", "bing", "polymarket", "youtube"):
+            if pref in ranks and ranks[pref].get("url"):
+                best_url = ranks[pref]["url"]
+                break
+        if not best_url:
+            best_url = next(iter(ranks.values())).get("url") or ""
+        consensus.append(
+            {
+                "title": label,
+                "url": best_url,
+                "platform_count": len(ranks),
+                "platforms": sorted(ranks.keys(), key=lambda p: PLATFORM_ORDER.index(p) if p in PLATFORM_ORDER else 99),
+                "ranks": ranks,
+                "avg_rank": round(avg_rank, 2),
+                "score": len(ranks) * 100 - avg_rank,
+            }
+        )
+
+    consensus.sort(key=lambda c: (-c["platform_count"], c["avg_rank"], c["title"].lower()))
+    out = []
+    for i, c in enumerate(consensus[:TOP_N], 1):
+        c["rank"] = i
+        out.append(c)
+    return out
+
+
+def rank_lookup(q: str, trends: dict[str, Any]) -> dict[str, Any]:
+    """Where does q sit on each platform's daily list?"""
+    query = re.sub(r"\s+", " ", (q or "").strip())[:200]
+    platforms = trends.get("platforms") or {}
+    rows: dict[str, Any] = {}
+    hits = 0
+    best: int | None = None
+
+    for plat in PLATFORM_ORDER:
+        items = platforms.get(plat) or []
+        match = None
+        for it in items:
+            if query_matches_title(query, it.get("title") or ""):
+                match = it
+                break
+        if match:
+            hits += 1
+            rnk = int(match.get("rank") or 0) or None
+            if rnk and (best is None or rnk < best):
+                best = rnk
+            rows[plat] = {
+                "in_top": True,
+                "rank": match.get("rank"),
+                "title": match.get("title"),
+                "url": match.get("url"),
+                "snippet": match.get("snippet") or "",
+                "label": PLATFORM_LABELS.get(plat, plat),
+            }
+        else:
+            rows[plat] = {
+                "in_top": False,
+                "rank": None,
+                "title": None,
+                "url": None,
+                "snippet": "",
+                "label": PLATFORM_LABELS.get(plat, plat),
+            }
+
+    # Also note if in consensus
+    in_consensus = False
+    consensus_rank = None
+    for c in trends.get("consensus") or []:
+        if query_matches_title(query, c.get("title") or ""):
+            in_consensus = True
+            consensus_rank = c.get("rank")
+            break
+        for r in (c.get("ranks") or {}).values():
+            if query_matches_title(query, r.get("title") or ""):
+                in_consensus = True
+                consensus_rank = c.get("rank")
+                break
+        if in_consensus:
+            break
+
+    return {
+        "q": query,
+        "platforms_hit": hits,
+        "best_rank": best,
+        "in_consensus": in_consensus,
+        "consensus_rank": consensus_rank,
+        "platforms": rows,
+        "summary": (
+            f"On {hits} platform{'s' if hits != 1 else ''}"
+            + (f" · best rank #{best}" if best else "")
+            + (f" · consensus #{consensus_rank}" if in_consensus else "")
+        ),
+    }
+
+
+def top_slice(platforms: dict[str, list], n: int = TOP_N) -> dict[str, list]:
+    return {k: (v or [])[:n] for k, v in platforms.items()}
+
+
+def _ensure_derived(data: dict[str, Any]) -> dict[str, Any]:
+    """Fill consensus / top10 if missing (older cache or partial)."""
+    platforms = data.get("platforms") or {}
+    # Ensure all keys exist
+    for p in PLATFORM_ORDER:
+        platforms.setdefault(p, [])
+    data["platforms"] = platforms
+    if "consensus" not in data or data.get("consensus") is None:
+        data["consensus"] = build_consensus(platforms, TOP_N)
+    data["top10"] = top_slice(platforms, TOP_N)
+    data["counts"] = {k: len(v or []) for k, v in platforms.items()}
+    data["sources_ok"] = [k for k, v in platforms.items() if v]
+    return data
 
 
 async def build_trends(force: bool = False) -> dict[str, Any]:
@@ -402,13 +751,16 @@ async def build_trends(force: bool = False) -> dict[str, Any]:
         bing = await _fetch_bing(client)
         youtube = await _fetch_youtube(client)
         x_items = await _fetch_x(client)
+        poly = await _fetch_polymarket(client)
 
     platforms = {
         "google": [it.to_dict() for it in google],
         "bing": [it.to_dict() for it in bing],
         "youtube": [it.to_dict() for it in youtube],
         "x": [it.to_dict() for it in x_items],
+        "polymarket": [it.to_dict() for it in poly],
     }
+    consensus = build_consensus(platforms, TOP_N)
     sources_ok = [name for name, lst in platforms.items() if lst]
     payload = {
         "day": _utc_day(),
@@ -420,11 +772,14 @@ async def build_trends(force: bool = False) -> dict[str, Any]:
         "sources_ok": sources_ok,
         "counts": {k: len(v) for k, v in platforms.items()},
         "platforms": platforms,
+        "top10": top_slice(platforms, TOP_N),
+        "consensus": consensus,
         "disclaimer": (
-            "Daily snapshot of public trends (UTC day). "
-            "Google = Trends RSS; Bing = Popular Now + News RSS; "
-            "YouTube = US daily Top Videos chart; X = US trends via trends24. "
-            "Not affiliated with those platforms. Volumes and ranks are approximate."
+            "Daily attention + money map (UTC day). "
+            "Google Trends RSS · Bing Popular/News · YouTube daily Top Videos · "
+            "X via trends24 · Polymarket 24h volume (Gamma API). "
+            "Consensus = topics matched on 2+ platforms in their Top 10. "
+            "Not affiliated; ranks/volumes approximate — not financial advice."
         ),
     }
     _write_cache(payload)

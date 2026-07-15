@@ -12,7 +12,7 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
-from app.trends import build_trends
+from app.trends import build_trends, rank_lookup
 
 log = logging.getLogger("search")
 
@@ -64,6 +64,7 @@ def portal_links(q: str) -> list[PortalLink]:
         PortalLink("Bing News", f"https://www.bing.com/news/search?q={enc}", "news"),
         PortalLink("YouTube", f"https://www.youtube.com/results?search_query={enc}", "video"),
         PortalLink("X", f"https://x.com/search?q={enc}&src=typed_query", "social"),
+        PortalLink("Polymarket", f"https://polymarket.com/search?_q={enc}", "news"),
         PortalLink("Reddit", f"https://www.reddit.com/search/?q={enc}", "social"),
         PortalLink("Hacker News", f"https://hn.algolia.com/?q={enc}", "news"),
         PortalLink("Grok", f"https://grok.com/?q={enc}", "ai"),
@@ -264,24 +265,6 @@ def _merge_hits(lists: list[list[SearchHit]]) -> list[SearchHit]:
     return sorted(seen.values(), key=lambda h: h.score, reverse=True)[:MAX_RESULTS]
 
 
-def _match_trends(q: str, trends: dict[str, Any]) -> list[dict[str, Any]]:
-    """Surface today's cached trends that match the query."""
-    ql = q.lower()
-    tokens = [t for t in re.split(r"\W+", ql) if len(t) >= 3]
-    if not tokens:
-        return []
-    matched: list[dict[str, Any]] = []
-    platforms = trends.get("platforms") or {}
-    for platform, items in platforms.items():
-        for it in items:
-            title = (it.get("title") or "").lower()
-            if ql in title or any(t in title for t in tokens):
-                row = dict(it)
-                row["match_platform"] = platform
-                matched.append(row)
-    return matched[:15]
-
-
 async def run_search(q: str, force_trends: bool = False) -> dict[str, Any]:
     query = _clean_query(q)
 
@@ -297,6 +280,7 @@ async def run_search(q: str, force_trends: bool = False) -> dict[str, Any]:
             "portals": [],
             "sources_ok": trends.get("sources_ok") or [],
             "trends": trends,
+            "rank_lookup": None,
             "disclaimer": trends.get("disclaimer")
             or "Daily multi-platform trends snapshot.",
         }
@@ -324,9 +308,8 @@ async def run_search(q: str, force_trends: bool = False) -> dict[str, Any]:
         sources_ok.append("Reddit")
 
     hits = _merge_hits([gnews, bnews, hn, reddit])
-    # Attach matching daily trends (cached; no extra fetch if warm)
     trends = await build_trends(force=False)
-    trend_matches = _match_trends(query, trends)
+    ranks = rank_lookup(query, trends)
     mode = "live" if hits else ("portals_only" if portals else "empty")
 
     return {
@@ -337,10 +320,14 @@ async def run_search(q: str, force_trends: bool = False) -> dict[str, Any]:
         "hits": [h.to_dict() for h in hits],
         "portals": portals,
         "sources_ok": sources_ok,
-        "trend_matches": trend_matches,
+        "rank_lookup": ranks,
+        "trends": {
+            "day": trends.get("day"),
+            "consensus": trends.get("consensus") or [],
+        },
         "disclaimer": (
-            "Meta search pulls Google News RSS, Bing News RSS, Hacker News, and Reddit "
-            "(when available), plus one-click portals to Google, YouTube, X, Bing, and AI. "
-            "Platform trends refresh once per day. Not exhaustive — verify sources."
+            "Rank map uses today's cached platform Top lists (daily refresh). "
+            "News hits come from Google News, Bing News, Hacker News, Reddit when available. "
+            "Polymarket volumes are not financial advice. Verify original sources."
         ),
     }

@@ -355,6 +355,120 @@ footer.site {
 .plat-bing { background: #008373; }
 .plat-youtube { background: #ff0033; }
 .plat-x { background: #e7e9ea; }
+.plat-polymarket { background: #2e5cff; }
+
+.section-title-lg {
+  font-size: 1rem;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: -0.01em;
+  margin: 1.5rem 0 0.75rem;
+  gap: 0.5rem;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.trend-board-5 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.consensus-list {
+  margin-bottom: 0.5rem;
+}
+
+.consensus-card h2 {
+  font-size: 1.05rem;
+}
+
+.rank-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
+.rank-pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  color: #111;
+  text-decoration: none;
+}
+
+.rank-pill:hover {
+  filter: brightness(1.08);
+  text-decoration: none;
+}
+
+.rank-pill.plat-google { background: #8ab4f8; }
+.rank-pill.plat-bing { background: #6ee7d2; }
+.rank-pill.plat-youtube { background: #ff8a9b; }
+.rank-pill.plat-x { background: #e7e9ea; }
+.rank-pill.plat-polymarket { background: #9db4ff; }
+
+.rank-table-wrap {
+  overflow-x: auto;
+  margin: 0.5rem 0 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.rank-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.rank-table th,
+.rank-table td {
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.rank-table th {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--panel-2);
+}
+
+.rank-table tr:last-child td {
+  border-bottom: none;
+}
+
+.rank-table tr.miss td {
+  opacity: 0.72;
+}
+
+.rank-cell {
+  white-space: nowrap;
+  width: 4rem;
+}
+
+.rank-cell strong {
+  color: var(--accent);
+  font-size: 1.05rem;
+}
+
+.not-in {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.consensus-note {
+  color: var(--ok);
+  font-size: 0.92rem;
+  margin: 0 0 1rem;
+}
 
 .trend-list {
   list-style: none;
@@ -437,6 +551,7 @@ footer.site {
 .plat-tag.plat-bing { background: #6ee7d2; }
 .plat-tag.plat-youtube { background: #ff8a9b; }
 .plat-tag.plat-x { background: #e7e9ea; }
+.plat-tag.plat-polymarket { background: #9db4ff; }
 
 @media (max-width: 720px) {
   .trend-board {

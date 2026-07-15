@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.pulse import build_pulse
 from app.search import run_search
-from app.trends import build_trends
+from app.trends import build_trends, rank_lookup
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("news")
@@ -21,14 +21,14 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 
-app = FastAPI(title="Yoyosup News", version="0.3.0")
+app = FastAPI(title="Yoyosup News", version="0.4.0")
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "service": "yoyosup-news", "public": PUBLIC_BASE}
+    return {"ok": True, "service": "yoyosup-news", "public": PUBLIC_BASE, "version": "0.4.0"}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -54,7 +54,7 @@ async def api_pulse(force: bool = False):
 @app.get("/search", response_class=HTMLResponse)
 async def search_page(request: Request, q: str = "", force: bool = False):
     results = await run_search(q, force_trends=force)
-    title = f"Search: {q.strip()}" if q.strip() else "Meta search — platform trends"
+    title = f"Rank map: {q.strip()}" if q.strip() else "Daily Intersection"
     return templates.TemplateResponse(
         request,
         "search.html",
@@ -75,6 +75,13 @@ async def api_search(q: str = "", force: bool = False):
 
 @app.get("/api/trends")
 async def api_trends(force: bool = False):
-    """Daily Google / Bing / YouTube / X trends (cached once per UTC day)."""
+    """Daily platform trends + consensus (cached once per UTC day)."""
     data = await build_trends(force=force)
     return JSONResponse(data)
+
+
+@app.get("/api/rank")
+async def api_rank(q: str = "", force: bool = False):
+    """Where does q sit on each platform's daily top list?"""
+    trends = await build_trends(force=force)
+    return JSONResponse(rank_lookup(q, trends))
