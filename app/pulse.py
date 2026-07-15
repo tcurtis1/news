@@ -158,14 +158,16 @@ def _parse_reddit_atom(xml_text: str, sub: str, limit: int) -> list[dict]:
         m = re.search(r'href="(https?://[^"]+)"', content)
         if m and "reddit.com" not in m.group(1):
             url = m.group(1)
+        # Prefer world/news over pure tech when ranking
+        sub_boost = {"news": 28, "worldnews": 30, "technology": 14}.get(sub, 18)
         out.append(
             {
                 "title": title,
                 "url": url,
                 "source": f"Reddit r/{sub}",
-                # RSS has no score; rank by feed order (hot)
-                "score": max(1, limit - i) * 10,
+                "score": max(1, limit - i) * sub_boost,
                 "comments_url": comments,
+                "lane": "social" if sub != "technology" else "tech",
             }
         )
     return out
