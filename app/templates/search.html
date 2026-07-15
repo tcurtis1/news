@@ -1,10 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
+  {% set labels = results.trends.labels if results and results.trends and results.trends.labels else {
+    'google': 'Google', 'bing': 'Bing', 'youtube': 'YouTube', 'x': 'X',
+    'polymarket': 'Polymarket', 'tiktok': 'TikTok', 'facebook': 'Facebook', 'instagram': 'Instagram'
+  } %}
+  {% set board_keys = ['google', 'bing', 'youtube', 'x', 'polymarket', 'tiktok', 'facebook', 'instagram'] %}
+
   <h1>Daily Intersection</h1>
   <p class="lede">
-    Attention map across <strong>Google</strong>, <strong>Bing</strong>,
-    <strong>YouTube</strong>, <strong>X</strong> + money heat on
-    <strong>Polymarket</strong>. Search any term to see its rank on each list.
+    Attention map across search, video, social, and prediction markets.
+    Search any term to see its rank on each list.
   </p>
 
   <form class="search-box" action="/search" method="get" role="search">
@@ -29,10 +34,28 @@
       {% if t.fetched_at %}
         <span>Pulled {{ t.fetched_at[:19] }}Z</span>
       {% endif %}
-      {% if t.sources_ok %}
-        <span>{{ t.sources_ok | join(' · ') }}</span>
-      {% endif %}
       <span class="muted-hint">Refreshes once per day</span>
+    </div>
+
+    {# Platform designators — always show full set; dim offline #}
+    <div class="source-chips" aria-label="Platforms">
+      {% set sources = t.sources or [] %}
+      {% if sources %}
+        {% for s in sources %}
+        <span class="source-chip {% if s.ok %}ok{% else %}off{% endif %}" title="{{ s.note }}{% if s.count %} · {{ s.count }} items{% endif %}">
+          <span class="plat-dot plat-{{ s.id }}"></span>
+          <span class="source-label">{{ s.label }}</span>
+          {% if s.ok %}<span class="source-count">{{ s.count }}</span>{% else %}<span class="source-count">—</span>{% endif %}
+        </span>
+        {% endfor %}
+      {% else %}
+        {% for key in board_keys %}
+        <span class="source-chip {% if top[key] %}ok{% else %}off{% endif %}">
+          <span class="plat-dot plat-{{ key }}"></span>
+          <span class="source-label">{{ labels[key] }}</span>
+        </span>
+        {% endfor %}
+      {% endif %}
     </div>
 
     {# ── Consensus ── #}
@@ -62,7 +85,7 @@
               {% for p in c.platforms %}
                 {% set r = c.ranks[p] %}
                 <a class="rank-pill plat-{{ p }}" href="{{ r.url }}" rel="noopener noreferrer" target="_blank" title="{{ r.title }}">
-                  {{ p }} #{{ r.rank }}
+                  {{ r.label or labels[p] or p }} #{{ r.rank }}
                 </a>
               {% endfor %}
             </div>
@@ -79,21 +102,17 @@
 
     {# ── Per-platform Top 10 ── #}
     <h2 class="section-title section-title-lg">Top 10 by platform</h2>
-    <div class="trend-board trend-board-5">
-      {% set labels = {
-        'google': 'Google',
-        'bing': 'Bing',
-        'youtube': 'YouTube',
-        'x': 'X',
-        'polymarket': 'Polymarket'
-      } %}
-      {% for key in ['google', 'bing', 'youtube', 'x', 'polymarket'] %}
+    <div class="trend-board trend-board-wide">
+      {% for key in board_keys %}
       <section class="trend-col trend-{{ key }}" aria-label="{{ labels[key] }}">
         <h2 class="section-title">
           <span class="plat-dot plat-{{ key }}"></span>
           {{ labels[key] }}
           <span class="count-pill">{{ (top[key] or []) | length }}</span>
         </h2>
+        {% if t.notes and t.notes[key] %}
+        <p class="col-note">{{ t.notes[key] }}</p>
+        {% endif %}
         {% if top[key] %}
         <ol class="trend-list">
           {% for item in top[key] %}
@@ -118,7 +137,6 @@
     <div class="disclaimer">{{ results.disclaimer }}</div>
 
   {% elif results and q %}
-    {# ── Rank map for query ── #}
     {% if results.rank_lookup %}
     {% set rl = results.rank_lookup %}
     <section class="rank-map" aria-label="Rank map">
@@ -136,11 +154,11 @@
             </tr>
           </thead>
           <tbody>
-            {% for key in ['google', 'bing', 'youtube', 'x', 'polymarket'] %}
+            {% for key in board_keys %}
             {% set row = rl.platforms[key] %}
             <tr class="{% if row.in_top %}hit{% else %}miss{% endif %}">
               <td>
-                <span class="plat-tag plat-{{ key }}">{{ row.label }}</span>
+                <span class="plat-tag plat-{{ key }}">{{ row.label or labels[key] }}</span>
               </td>
               <td class="rank-cell">
                 {% if row.in_top %}

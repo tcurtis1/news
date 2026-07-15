@@ -23,6 +23,9 @@ Meta-aggregator for **https://news.yoyosup.com**
 | YouTube | US daily Top Videos chart |
 | X | trends24 US mirror |
 | Polymarket | Gamma API `volume24hr` (no key) |
+| TikTok | Creative Center hashtags (+ news pad) |
+| Facebook | News-buzz proxy (no free Meta top-10 API) |
+| Instagram | News-buzz proxy (no free Meta top-10 API) |
 
 Trends refresh **once per UTC day** (`/data/trends_cache.json`).  
 Force: `?force=1` on `/api/trends` or `/search`.

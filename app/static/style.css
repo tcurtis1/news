@@ -356,6 +356,58 @@ footer.site {
 .plat-youtube { background: #ff0033; }
 .plat-x { background: #e7e9ea; }
 .plat-polymarket { background: #2e5cff; }
+.plat-tiktok { background: #25f4ee; box-shadow: 2px 0 0 #fe2c55; }
+.plat-facebook { background: #1877f2; }
+.plat-instagram {
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+}
+
+.source-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 1.25rem;
+}
+
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.source-chip.ok {
+  border-color: #3d4658;
+}
+
+.source-chip.off {
+  opacity: 0.45;
+}
+
+.source-chip .source-label {
+  color: var(--text);
+}
+
+.source-chip .source-count {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.col-note {
+  margin: -0.25rem 0 0.5rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.trend-board-wide {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
 
 .section-title-lg {
   font-size: 1rem;
@@ -410,6 +462,9 @@ footer.site {
 .rank-pill.plat-youtube { background: #ff8a9b; }
 .rank-pill.plat-x { background: #e7e9ea; }
 .rank-pill.plat-polymarket { background: #9db4ff; }
+.rank-pill.plat-tiktok { background: #25f4ee; }
+.rank-pill.plat-facebook { background: #8bb8f8; }
+.rank-pill.plat-instagram { background: #f5a9c8; }
 
 .rank-table-wrap {
   overflow-x: auto;
@@ -552,6 +607,9 @@ footer.site {
 .plat-tag.plat-youtube { background: #ff8a9b; }
 .plat-tag.plat-x { background: #e7e9ea; }
 .plat-tag.plat-polymarket { background: #9db4ff; }
+.plat-tag.plat-tiktok { background: #25f4ee; }
+.plat-tag.plat-facebook { background: #8bb8f8; }
+.plat-tag.plat-instagram { background: #f5a9c8; }
 
 @media (max-width: 720px) {
   .trend-board {

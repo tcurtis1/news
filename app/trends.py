@@ -1,6 +1,6 @@
 """Daily multi-platform trends + consensus + rank lookup.
 
-Sources: Google, Bing, YouTube, X, Polymarket.
+Sources: Google, Bing, YouTube, X, Polymarket, TikTok, Facebook, Instagram.
 Pulled at most once per UTC day (CACHE_DIR). Force with force=True / ?force=1.
 """
 
@@ -27,18 +27,41 @@ CACHE_FILE = CACHE_DIR / "trends_cache.json"
 CACHE_MAX_AGE_SEC = int(os.environ.get("TRENDS_CACHE_TTL", str(26 * 3600)))
 GEO = os.environ.get("TRENDS_GEO", "US")
 USER_AGENT = (
-    "Mozilla/5.0 (compatible; YoyoNewsTrends/0.3; +https://news.yoyosup.com) "
+    "Mozilla/5.0 (compatible; YoyoNewsTrends/0.4; +https://news.yoyosup.com) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 MAX_PER_PLATFORM = 20
 TOP_N = 10  # display / consensus window
-PLATFORM_ORDER = ("google", "bing", "youtube", "x", "polymarket")
+PLATFORM_ORDER = (
+    "google",
+    "bing",
+    "youtube",
+    "x",
+    "polymarket",
+    "tiktok",
+    "facebook",
+    "instagram",
+)
 PLATFORM_LABELS = {
     "google": "Google",
     "bing": "Bing",
     "youtube": "YouTube",
     "x": "X",
     "polymarket": "Polymarket",
+    "tiktok": "TikTok",
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+}
+# Short note shown under column headers / chips
+PLATFORM_NOTES = {
+    "google": "Trends RSS",
+    "bing": "Popular + News",
+    "youtube": "Daily Top Videos",
+    "x": "US trends",
+    "polymarket": "24h volume",
+    "tiktok": "Creative Center",
+    "facebook": "News buzz proxy",
+    "instagram": "News buzz proxy",
 }
 STOPWORDS = frozenset(
     {
@@ -555,6 +578,174 @@ async def _fetch_polymarket(client: httpx.AsyncClient) -> list[TrendItem]:
         return []
 
 
+async def _fetch_tiktok(client: httpx.AsyncClient) -> list[TrendItem]:
+    """
+    TikTok popular hashtags via Creative Center (public page → jina reader).
+    Meta/TikTok block most direct JSON APIs without login; this is best-effort.
+    """
+    items: list[TrendItem] = []
+    seen: set[str] = set()
+    try:
+        r = await client.get(
+            "https://r.jina.ai/https://ads.tiktok.com/business/creativecenter/"
+            "inspiration/popular/hashtag/pc/en?period=7&countryCode=US",
+            headers={
+                "User-Agent": "YoyoNewsTrends/0.4 (+https://news.yoyosup.com)",
+                "Accept": "text/plain",
+            },
+        )
+        if r.status_code == 200 and r.text:
+            text = r.text
+            # Ranked blocks: #tag, category, N Posts, N Views
+            blocks = re.findall(
+                r"(#[\w]+)\s*\n([^\n]+)\s*\n([\d.,]+[KMB]?)\s*Posts\s*\n([\d.,]+[KMB]?)\s*Views",
+                text,
+                re.I,
+            )
+            for tag, cat, posts, views in blocks:
+                key = tag.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                title = tag if tag.startswith("#") else f"#{tag}"
+                items.append(
+                    TrendItem(
+                        rank=len(items) + 1,
+                        title=title,
+                        url=f"https://www.tiktok.com/tag/{quote_plus(title.lstrip('#'))}",
+                        platform="tiktok",
+                        snippet=f"{cat.strip()} · {posts} posts · {views} views",
+                        traffic=views,
+                    )
+                )
+                if len(items) >= MAX_PER_PLATFORM:
+                    break
+            if not items:
+                # fallback: ordered hashtags in doc
+                for tag in re.findall(r"(?m)^(#[\w]+)\s*$", text):
+                    key = tag.lower()
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    items.append(
+                        TrendItem(
+                            rank=len(items) + 1,
+                            title=tag,
+                            url=f"https://www.tiktok.com/tag/{quote_plus(tag.lstrip('#'))}",
+                            platform="tiktok",
+                            snippet="TikTok Creative Center",
+                        )
+                    )
+                    if len(items) >= TOP_N:
+                        break
+    except Exception as e:
+        log.warning("TikTok Creative Center failed: %s", e)
+
+    # Pad with news-buzz about TikTok if Creative Center is thin
+    if len(items) < TOP_N:
+        extra = await _fetch_social_news_buzz(client, "tiktok", limit=TOP_N)
+        for it in extra:
+            key = normalize_topic(it.title)
+            if key in seen:
+                continue
+            seen.add(key)
+            it.rank = len(items) + 1
+            items.append(it)
+            if len(items) >= MAX_PER_PLATFORM:
+                break
+
+    for i, it in enumerate(items, 1):
+        it.rank = i
+    return items[:MAX_PER_PLATFORM]
+
+
+async def _fetch_social_news_buzz(
+    client: httpx.AsyncClient, platform: str, limit: int = MAX_PER_PLATFORM
+) -> list[TrendItem]:
+    """
+    Facebook / Instagram (and TikTok pad) have no free public top-10 API.
+    Proxy: Google News RSS about what's viral *on* those platforms.
+    Clearly labeled so we never pretend this is Meta's own ranking.
+    """
+    queries = {
+        "facebook": (
+            '("on Facebook" OR "Facebook post" OR "Facebook video" OR "viral on Facebook") '
+            "when:7d"
+        ),
+        "instagram": (
+            '("on Instagram" OR "Instagram Reel" OR "Instagram post" OR "viral on Instagram") '
+            "when:7d"
+        ),
+        "tiktok": (
+            '("on TikTok" OR "TikTok trend" OR "viral TikTok" OR "TikTok video") when:7d'
+        ),
+    }
+    q = queries.get(platform)
+    if not q:
+        return []
+    portal = {
+        "facebook": "https://www.facebook.com/",
+        "instagram": "https://www.instagram.com/explore/",
+        "tiktok": "https://www.tiktok.com/trending",
+    }.get(platform, "https://news.google.com/")
+    try:
+        r = await client.get(
+            "https://news.google.com/rss/search",
+            params={"q": q, "hl": "en-US", "gl": "US", "ceid": "US:en"},
+            headers={
+                **_browser_headers(),
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+            },
+        )
+        r.raise_for_status()
+        root = ET.fromstring(r.content)
+        items: list[TrendItem] = []
+        seen: set[str] = set()
+        for entry in root.findall(".//item"):
+            title = (entry.findtext("title") or "").strip()
+            # strip " - Source" suffix common in Google News
+            title_clean = re.sub(r"\s+-\s+[^-]+$", "", title).strip() or title
+            link = (entry.findtext("link") or "").strip() or portal
+            key = normalize_topic(title_clean)
+            if not title_clean or key in seen:
+                continue
+            # skip pure site chrome
+            if title_clean.lower() in {"groups", "facebook", "instagram", "tiktok"}:
+                continue
+            if "facebook.com" in title_clean.lower() and len(title_clean) < 24:
+                continue
+            seen.add(key)
+            src = (entry.findtext("source") or "").strip()
+            label = PLATFORM_LABELS.get(platform, platform)
+            items.append(
+                TrendItem(
+                    rank=len(items) + 1,
+                    title=title_clean[:180],
+                    url=link,
+                    platform=platform,
+                    snippet=(
+                        f"News buzz about {label}"
+                        + (f" · {src}" if src else "")
+                        + f" (not an official {label} ranking)"
+                    ),
+                )
+            )
+            if len(items) >= limit:
+                break
+        return items
+    except Exception as e:
+        log.warning("%s news-buzz failed: %s", platform, e)
+        return []
+
+
+async def _fetch_facebook(client: httpx.AsyncClient) -> list[TrendItem]:
+    return await _fetch_social_news_buzz(client, "facebook")
+
+
+async def _fetch_instagram(client: httpx.AsyncClient) -> list[TrendItem]:
+    return await _fetch_social_news_buzz(client, "instagram")
+
+
 # ── consensus + rank lookup ────────────────────────────────────────────────
 
 
@@ -606,7 +797,7 @@ def build_consensus(
         # Prefer shortest readable title as label; fallback to first
         label = sorted(members, key=lambda m: len(m.get("title") or ""))[0].get("title") or ""
         # Prefer social/search titles over long news headlines when similar length
-        for pref in ("x", "google", "bing", "polymarket", "youtube"):
+        for pref in PLATFORM_ORDER:
             for m in members:
                 if m["platform"] == pref and titles_similar(m.get("title") or "", label):
                     label = m["title"]
@@ -621,10 +812,11 @@ def build_consensus(
                     "title": m.get("title"),
                     "url": m.get("url"),
                     "snippet": m.get("snippet") or "",
+                    "label": PLATFORM_LABELS.get(p, p),
                 }
         avg_rank = sum(int(r["rank"] or 99) for r in ranks.values()) / max(len(ranks), 1)
         best_url = ""
-        for pref in ("google", "x", "bing", "polymarket", "youtube"):
+        for pref in PLATFORM_ORDER:
             if pref in ranks and ranks[pref].get("url"):
                 best_url = ranks[pref]["url"]
                 break
@@ -635,7 +827,10 @@ def build_consensus(
                 "title": label,
                 "url": best_url,
                 "platform_count": len(ranks),
-                "platforms": sorted(ranks.keys(), key=lambda p: PLATFORM_ORDER.index(p) if p in PLATFORM_ORDER else 99),
+                "platforms": sorted(
+                    ranks.keys(),
+                    key=lambda p: PLATFORM_ORDER.index(p) if p in PLATFORM_ORDER else 99,
+                ),
                 "ranks": ranks,
                 "avg_rank": round(avg_rank, 2),
                 "score": len(ranks) * 100 - avg_rank,
@@ -734,24 +929,50 @@ def _ensure_derived(data: dict[str, Any]) -> dict[str, Any]:
         data["consensus"] = build_consensus(platforms, TOP_N)
     data["top10"] = top_slice(platforms, TOP_N)
     data["counts"] = {k: len(v or []) for k, v in platforms.items()}
-    data["sources_ok"] = [k for k, v in platforms.items() if v]
+    data["sources_ok"] = [k for k in PLATFORM_ORDER if platforms.get(k)]
+    data["sources"] = _sources_meta(platforms)
+    data["labels"] = dict(PLATFORM_LABELS)
+    data["notes"] = dict(PLATFORM_NOTES)
     return data
+
+
+def _sources_meta(platforms: dict[str, list]) -> list[dict[str, Any]]:
+    """Ordered source chips for the summary row (always includes known platforms)."""
+    out = []
+    for key in PLATFORM_ORDER:
+        ok = bool(platforms.get(key))
+        out.append(
+            {
+                "id": key,
+                "label": PLATFORM_LABELS.get(key, key),
+                "ok": ok,
+                "count": len(platforms.get(key) or []),
+                "note": PLATFORM_NOTES.get(key, ""),
+            }
+        )
+    return out
 
 
 async def build_trends(force: bool = False) -> dict[str, Any]:
     if not force:
         cached = _read_cache()
         if cached:
-            cached["cache"] = "hit"
-            return cached
+            # Old cache without new platforms → refresh once
+            plats = cached.get("platforms") or {}
+            if all(p in plats for p in PLATFORM_ORDER):
+                cached["cache"] = "hit"
+                return cached
 
-    timeout = httpx.Timeout(25.0, connect=8.0)
+    timeout = httpx.Timeout(30.0, connect=8.0)
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
         google = await _fetch_google(client)
         bing = await _fetch_bing(client)
         youtube = await _fetch_youtube(client)
         x_items = await _fetch_x(client)
         poly = await _fetch_polymarket(client)
+        tiktok = await _fetch_tiktok(client)
+        facebook = await _fetch_facebook(client)
+        instagram = await _fetch_instagram(client)
 
     platforms = {
         "google": [it.to_dict() for it in google],
@@ -759,9 +980,12 @@ async def build_trends(force: bool = False) -> dict[str, Any]:
         "youtube": [it.to_dict() for it in youtube],
         "x": [it.to_dict() for it in x_items],
         "polymarket": [it.to_dict() for it in poly],
+        "tiktok": [it.to_dict() for it in tiktok],
+        "facebook": [it.to_dict() for it in facebook],
+        "instagram": [it.to_dict() for it in instagram],
     }
     consensus = build_consensus(platforms, TOP_N)
-    sources_ok = [name for name, lst in platforms.items() if lst]
+    sources_ok = [name for name in PLATFORM_ORDER if platforms.get(name)]
     payload = {
         "day": _utc_day(),
         "fetched_at": _now_iso(),
@@ -770,16 +994,19 @@ async def build_trends(force: bool = False) -> dict[str, Any]:
         "cache": "miss",
         "refresh": "daily",
         "sources_ok": sources_ok,
+        "sources": _sources_meta(platforms),
+        "labels": dict(PLATFORM_LABELS),
+        "notes": dict(PLATFORM_NOTES),
         "counts": {k: len(v) for k, v in platforms.items()},
         "platforms": platforms,
         "top10": top_slice(platforms, TOP_N),
         "consensus": consensus,
         "disclaimer": (
             "Daily attention + money map (UTC day). "
-            "Google Trends RSS · Bing Popular/News · YouTube daily Top Videos · "
-            "X via trends24 · Polymarket 24h volume (Gamma API). "
-            "Consensus = topics matched on 2+ platforms in their Top 10. "
-            "Not affiliated; ranks/volumes approximate — not financial advice."
+            "Google Trends · Bing Popular/News · YouTube Top Videos · X (trends24) · "
+            "Polymarket 24h volume · TikTok Creative Center hashtags · "
+            "Facebook/Instagram via news-buzz proxies (Meta has no free public top-10 API). "
+            "Consensus = topics on 2+ platform Top 10s. Not affiliated; not financial advice."
         ),
     }
     _write_cache(payload)
