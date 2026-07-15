@@ -85,11 +85,7 @@
           <div class="rank">{{ c.rank }}</div>
           <div>
             <h2>
-              {% if c.url %}
-              <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank">{{ c.title }}</a>
-              {% else %}
-              {{ c.title }}
-              {% endif %}
+              <a href="/topic/{{ slugify(c.title) }}">{{ c.title }}</a>
               {% if c.delta_label and c.delta != 'baseline' %}
               <span class="delta-pill {{ c.delta }}{% if c.entered_consensus %} entered{% endif %}" title="{% if c.entered_consensus %}Entered consensus today{% elif c.prev_rank %}Was #{{ c.prev_rank }} yesterday{% endif %}">
                 {% if c.entered_consensus %}NEW in consensus{% else %}{{ c.delta_label }}{% endif %}
@@ -101,6 +97,10 @@
               · avg rank {{ c.avg_rank }}
               {% if c.prev_rank and c.delta != 'new' and c.delta != 'baseline' %}
               · was #{{ c.prev_rank }}
+              {% endif %}
+              · <a href="/topic/{{ slugify(c.title) }}#comments">discuss</a>
+              {% if c.url %}
+              · <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank">source</a>
               {% endif %}
             </p>
             <div class="rank-pills">
@@ -170,6 +170,10 @@
       <div class="meta-row">
         <span class="badge live">Rank map</span>
         <span>{{ rl.summary }}</span>
+        {% if topic_slug %}
+        <a class="badge" href="/topic/{{ topic_slug }}">Topic page</a>
+        <a href="/topic/{{ topic_slug }}#comments">Discuss</a>
+        {% endif %}
       </div>
       {% if rl.hit_summary %}
       <div class="source-chips rank-hit-chips" aria-label="Platforms that matched">

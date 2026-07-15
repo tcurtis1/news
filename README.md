@@ -11,9 +11,11 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **Consensus Top 10** — topics on 2+ platforms | Live |
 | **Day-over-day deltas** — NEW / ↑ / ↓ vs yesterday | Live |
 | **Rank map** — search a term → rank per site | Live |
+| **Topic pages** — `/topic/{slug}` ranks + news | Live |
+| **Comments** — public thread per topic (no login yet) | Live |
 | **Polymarket** — top markets by 24h volume | Live |
 | Bias badges | Not yet |
-| Topic comments (Fark-style) | Not yet |
+| Accounts / moderated comments | Not yet |
 
 ## Platforms (daily cache)
 
@@ -54,3 +56,6 @@ Installs app on `tony@192.168.1.44:~/apps/news` (port **3010**) and a **06:00 Am
 | `GET /api/trends` | Platforms + `consensus` + `top10` |
 | `GET /api/rank?q=` | Rank map for a query |
 | `GET /api/search?q=` | Rank map + news hits (empty `q` = full trends) |
+| `GET /topic/{slug}` | Topic page (ranks + news + comments) |
+| `POST /topic/{slug}/comments` | Add comment (`name`, `body`) |
+| `GET /api/topic/{slug}` | Topic JSON |

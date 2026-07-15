@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block content %}
+  {% set labels = topic.labels or {} %}
+  {% set board_keys = ['google', 'bing', 'youtube', 'x', 'polymarket', 'tiktok', 'facebook', 'instagram'] %}
+  {% set short = {
+    'google': 'Google', 'bing': 'Bing', 'youtube': 'YouTube', 'x': 'X',
+    'polymarket': 'Poly', 'tiktok': 'TikTok', 'facebook': 'FB', 'instagram': 'IG'
+  } %}
+  {% set rl = topic.rank_lookup %}
+
+  <p class="crumb">
+    <a href="/search">Intersection</a>
+    <span class="crumb-sep">/</span>
+    <span>Topic</span>
+  </p>
+
+  <h1>{{ topic.title }}</h1>
+  <p class="lede">
+    Rank map, news, and discussion for <strong>{{ topic.q }}</strong>.
+    {% if topic.day %}<span class="muted-hint">Snapshot day {{ topic.day }}</span>{% endif %}
+  </p>
+
+  <div class="meta-row">
+    {% if rl and rl.platforms_hit %}
+      <span class="badge live">On {{ rl.platforms_hit }} platform{{ 's' if rl.platforms_hit != 1 else '' }}</span>
+      <span>{{ rl.summary }}</span>
+    {% else %}
+      <span class="badge">Not in today’s tops</span>
+    {% endif %}
+    <span>{{ topic.comment_count }} comment{{ 's' if topic.comment_count != 1 else '' }}</span>
+    <a href="/search?q={{ topic.q | urlencode }}">Rank map search</a>
+  </div>
+
+  {% if topic.consensus %}
+  {% set c = topic.consensus %}
+  <section class="consensus-card card" style="display:block; margin-bottom:1rem;">
+    <div class="meta-row" style="margin:0 0 0.35rem;">
+      <span class="badge live">Consensus #{{ c.rank }}</span>
+      {% if c.entered_consensus %}
+        <span class="delta-pill new">NEW in consensus</span>
+      {% elif c.delta_label and c.delta != 'baseline' %}
+        <span class="delta-pill {{ c.delta }}">{{ c.delta_label }}</span>
+      {% endif %}
+    </div>
+    <p class="summary" style="margin:0 0 0.5rem;">
+      On {{ c.platform_count }} platforms · avg rank {{ c.avg_rank }}
+    </p>
+    <div class="rank-pills">
+      {% for p in c.platforms %}
+        {% set r = c.ranks[p] %}
+        <a class="rank-pill plat-{{ p }}" href="{{ r.url }}" rel="noopener noreferrer" target="_blank" title="{{ r.title }}">
+          {{ r.label or labels[p] or p }} #{{ r.rank }}
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if rl %}
+  <section class="rank-map" aria-label="Rank map">
+    <h2 class="section-title section-title-lg">Today’s ranks</h2>
+    {% if rl.hit_summary %}
+    <div class="source-chips rank-hit-chips">
+      {% for key in board_keys %}
+        {% set row = rl.platforms[key] %}
+        {% if row.in_top %}
+        <span class="source-chip ok">
+          <span class="plat-dot plat-{{ key }}"></span>
+          <span class="source-label">{{ row.label or labels[key] }}</span>
+          <span class="source-count">#{{ row.rank }}</span>
+        </span>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="rank-table-wrap">
+      <table class="rank-table">
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th>Rank</th>
+            <th>Matching item</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key in board_keys %}
+          {% set row = rl.platforms[key] %}
+          <tr class="{% if row.in_top %}hit{% else %}miss{% endif %}">
+            <td>
+              <span class="plat-tag plat-{{ key }}" title="{{ row.label or labels[key] }}">{{ short[key] }}</span>
+            </td>
+            <td class="rank-cell">
+              {% if row.in_top %}<strong>#{{ row.rank }}</strong>{% else %}<span class="not-in">—</span>{% endif %}
+            </td>
+            <td>
+              {% if row.in_top %}
+                <a href="{{ row.url }}" rel="noopener noreferrer" target="_blank">{{ row.title }}</a>
+                {% if row.snippet %}<div class="t-snip">{{ row.snippet }}</div>{% endif %}
+              {% else %}
+                <span class="not-in">Not in today’s top list</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if topic.portals %}
+  <section class="portals" aria-label="Search portals">
+    <h2 class="section-title">Open in…</h2>
+    <div class="portal-grid">
+      {% for p in topic.portals %}
+      <a class="portal portal-{{ p.kind }}" href="{{ p.url }}" rel="noopener noreferrer" target="_blank">{{ p.name }}</a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if topic.hits %}
+  <h2 class="section-title section-title-lg">News hits</h2>
+  <ol class="list">
+    {% for item in topic.hits[:15] %}
+    <li class="card">
+      <div class="rank">{{ loop.index }}</div>
+      <div>
+        <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
+        {% if item.snippet %}<p class="summary">{{ item.snippet }}</p>{% endif %}
+        <div class="links"><span>{{ item.source }}</span></div>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+
+  {# ── Comments ── #}
+  <section class="comments" id="comments" aria-label="Comments">
+    <h2 class="section-title section-title-lg">
+      Discussion
+      <span class="muted-hint">{{ topic.comment_count }} · public, no login yet</span>
+    </h2>
+
+    {% if flash_error %}
+    <div class="flash error">{{ flash_error }}</div>
+    {% endif %}
+    {% if flash_ok %}
+    <div class="flash ok">{{ flash_ok }}</div>
+    {% endif %}
+
+    <form class="comment-form" method="post" action="/topic/{{ topic.slug }}/comments" id="comment-form">
+      <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+      <div class="comment-fields">
+        <input type="text" name="name" maxlength="40" placeholder="Name (optional)" value="{{ form_name or '' }}" />
+        <textarea name="body" rows="3" maxlength="2000" required placeholder="Add a thought — keep it civil.">{{ form_body or '' }}</textarea>
+        <button type="submit">Post comment</button>
+      </div>
+      <p class="t-snip">Be kind. No spam. Comments are stored on this topic and visible to everyone.</p>
+    </form>
+
+    {% if topic.comments %}
+    <ol class="comment-list">
+      {% for c in topic.comments %}
+      <li class="comment" id="c-{{ c.id }}">
+        <div class="comment-meta">
+          <strong>{{ c.name }}</strong>
+          {% if c.created_at %}<time datetime="{{ c.created_at }}">{{ c.created_at[:16].replace('T', ' ') }}Z</time>{% endif %}
+        </div>
+        <p class="comment-body">{{ c.body }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="empty small">No comments yet — start the thread.</div>
+    {% endif %}
+  </section>
+
+  <div class="disclaimer">{{ topic.disclaimer }}</div>
+{% endblock %}
