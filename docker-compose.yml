@@ -1,0 +1,14 @@
+services:
+  news:
+    build: .
+    ports:
+      - "3010:8000"
+    environment:
+      - PUBLIC_BASE=${PUBLIC_BASE:-https://news.yoyosup.com}
+      - CACHE_DIR=/data
+    volumes:
+      - news_data:/data
+    restart: unless-stopped
+
+volumes:
+  news_data:

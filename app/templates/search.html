@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Meta search</h1>
+  <p class="lede">
+    Multi-source search (Google, YouTube, X, Bing, AI) is next.
+    Pulse is live now — search ships in the next iteration.
+  </p>
+
+  <form class="search-box" action="/search" method="get">
+    <input type="search" name="q" value="{{ q }}" placeholder="Coming soon — try Pulse for now" disabled />
+    <button type="submit" disabled>Search</button>
+  </form>
+
+  <div class="empty">
+    Search is not wired yet. Browse <a href="/">Today’s Pulse</a> for consensus trends.
+  </div>
+{% endblock %}

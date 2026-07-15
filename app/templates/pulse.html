@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Today’s Pulse</h1>
+  <p class="lede">
+    Top stories bubbling up across free public feeds. Overlaps rank higher
+    (simple consensus). Refreshes about every 30 minutes.
+  </p>
+
+  <div class="meta-row">
+    {% if pulse.mode == 'live' %}
+      <span class="badge live">Live feeds</span>
+    {% elif pulse.mode == 'mixed' %}
+      <span class="badge">Mixed</span>
+    {% else %}
+      <span class="badge">Offline seed</span>
+    {% endif %}
+    <span>{{ pulse.count }} stories</span>
+    {% if pulse.fetched_at %}
+      <span>Updated {{ pulse.fetched_at[:19] }}Z</span>
+    {% endif %}
+  </div>
+
+  {% if pulse.stories %}
+  <ol class="list">
+    {% for item in pulse.stories %}
+    <li class="card">
+      <div class="rank">{{ item.rank }}</div>
+      <div>
+        <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
+        <p class="summary">{{ item.summary }}</p>
+        <div class="links">
+          <span>{{ item.source }}</span>
+          {% if item.comments_url %}
+          <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
+          {% endif %}
+        </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="empty">No stories yet — try again in a minute.</div>
+  {% endif %}
+
+  <div class="disclaimer">
+    {{ pulse.disclaimer }}
+  </div>
+{% endblock %}
