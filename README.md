@@ -9,6 +9,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **Curious Pulse** — Google News + Reddit + light HN | Live |
 | **Daily Intersection** — Top 10 per platform | Live |
 | **Consensus Top 10** — topics on 2+ platforms | Live |
+| **Day-over-day deltas** — NEW / ↑ / ↓ vs yesterday | Live |
 | **Rank map** — search a term → rank per site | Live |
 | **Polymarket** — top markets by 24h volume | Live |
 | Bias badges | Not yet |

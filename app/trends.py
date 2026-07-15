@@ -24,6 +24,8 @@ log = logging.getLogger("trends")
 
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/data"))
 CACHE_FILE = CACHE_DIR / "trends_cache.json"
+# Previous UTC-day snapshot for NEW / ↑ / ↓ deltas
+PREV_FILE = CACHE_DIR / "trends_yesterday.json"
 CACHE_MAX_AGE_SEC = int(os.environ.get("TRENDS_CACHE_TTL", str(26 * 3600)))
 GEO = os.environ.get("TRENDS_GEO", "US")
 USER_AGENT = (
@@ -138,16 +140,32 @@ def _browser_headers() -> dict[str, str]:
     }
 
 
+def _read_json(path: Path) -> dict | None:
+    try:
+        if not path.exists():
+            return None
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _write_json(path: Path, payload: dict) -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def _read_cache() -> dict | None:
     try:
-        if not CACHE_FILE.exists():
+        data = _read_json(CACHE_FILE)
+        if not data:
             return None
-        data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
         # Rebuild derived fields if older cache missing them
         if data.get("day") == _utc_day() or (
             time.time() - float(data.get("fetched_at_unix", 0)) <= CACHE_MAX_AGE_SEC
         ):
-            return _ensure_derived(data)
+            data = _ensure_derived(data)
+            # Always re-apply deltas vs yesterday file (cheap, keeps badges fresh)
+            return apply_deltas(data, _read_json(PREV_FILE))
         return None
     except Exception:
         return None
@@ -156,7 +174,28 @@ def _read_cache() -> dict | None:
 def _write_cache(payload: dict) -> None:
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        CACHE_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        existing = _read_json(CACHE_FILE)
+        # Rotate: when we start a new UTC day, today's old cache becomes yesterday
+        if (
+            existing
+            and existing.get("day")
+            and payload.get("day")
+            and existing.get("day") != payload.get("day")
+        ):
+            # strip bulky fields not needed for matching
+            prev = {
+                "day": existing.get("day"),
+                "fetched_at": existing.get("fetched_at"),
+                "platforms": existing.get("platforms") or {},
+                "consensus": existing.get("consensus") or [],
+            }
+            _write_json(PREV_FILE, prev)
+            log.info("Archived trends day %s → yesterday", existing.get("day"))
+        elif not _read_json(PREV_FILE) and existing and existing.get("platforms"):
+            # First deploy: seed yesterday from current so next force still has a baseline
+            # only if different content day isn't available yet
+            pass
+        _write_json(CACHE_FILE, payload)
     except Exception as e:
         log.warning("trends cache write failed: %s", e)
 
@@ -930,6 +969,115 @@ def top_slice(platforms: dict[str, list], n: int = TOP_N) -> dict[str, list]:
     return {k: (v or [])[:n] for k, v in platforms.items()}
 
 
+def _find_prev_item(title: str, prev_items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Match a title against yesterday's list (exact normalize, then fuzzy)."""
+    if not title or not prev_items:
+        return None
+    nt = normalize_topic(title)
+    for it in prev_items:
+        if normalize_topic(it.get("title") or "") == nt:
+            return it
+    for it in prev_items:
+        if titles_similar(title, it.get("title") or ""):
+            return it
+    return None
+
+
+def _delta_fields(rank: int, prev_rank: int | None) -> dict[str, Any]:
+    """Build delta badge fields. Lower rank number = higher on the list."""
+    if prev_rank is None:
+        return {
+            "delta": "new",
+            "delta_label": "NEW",
+            "prev_rank": None,
+            "rank_change": None,
+        }
+    change = int(prev_rank) - int(rank)  # + = rose (better)
+    if change > 0:
+        return {
+            "delta": "up",
+            "delta_label": f"↑{change}",
+            "prev_rank": prev_rank,
+            "rank_change": change,
+        }
+    if change < 0:
+        return {
+            "delta": "down",
+            "delta_label": f"↓{abs(change)}",
+            "prev_rank": prev_rank,
+            "rank_change": change,
+        }
+    return {
+        "delta": "same",
+        "delta_label": "same",
+        "prev_rank": prev_rank,
+        "rank_change": 0,
+    }
+
+
+def apply_deltas(payload: dict[str, Any], prev: dict | None) -> dict[str, Any]:
+    """
+    Annotate platform items + consensus with day-over-day movement vs prev snapshot.
+    """
+    platforms = payload.get("platforms") or {}
+
+    if not prev or not (prev.get("platforms") or prev.get("consensus")):
+        payload["delta_vs"] = None
+        payload["delta_status"] = "baseline"
+        payload["delta_stats"] = {"new": 0, "up": 0, "down": 0, "same": 0, "baseline": 0}
+        for items in platforms.values():
+            for it in items or []:
+                it["delta"] = "baseline"
+                it["delta_label"] = "—"
+                it["prev_rank"] = None
+                it["rank_change"] = None
+        for c in payload.get("consensus") or []:
+            c["delta"] = "baseline"
+            c["delta_label"] = "—"
+            c["entered_consensus"] = False
+            c["prev_rank"] = None
+            c["rank_change"] = None
+        payload["top10"] = top_slice(platforms, TOP_N)
+        return payload
+
+    prev_day = prev.get("day")
+    payload["delta_vs"] = prev_day
+    payload["delta_status"] = "ok"
+    prev_plats = prev.get("platforms") or {}
+    stats = {"new": 0, "up": 0, "down": 0, "same": 0}
+
+    for plat, items in platforms.items():
+        prev_items = prev_plats.get(plat) or []
+        for it in items or []:
+            prev_it = _find_prev_item(it.get("title") or "", prev_items)
+            prev_rank = int(prev_it["rank"]) if prev_it and prev_it.get("rank") else None
+            d = _delta_fields(int(it.get("rank") or 0), prev_rank)
+            it.update(d)
+            # Count only top-N display window for board stats
+            if int(it.get("rank") or 99) <= TOP_N:
+                key = d["delta"]
+                if key in stats:
+                    stats[key] += 1
+
+    prev_cons = prev.get("consensus") or []
+    for c in payload.get("consensus") or []:
+        prev_c = _find_prev_item(c.get("title") or "", prev_cons)
+        if not prev_c:
+            c["delta"] = "new"
+            c["delta_label"] = "NEW"
+            c["entered_consensus"] = True
+            c["prev_rank"] = None
+            c["rank_change"] = None
+        else:
+            d = _delta_fields(int(c.get("rank") or 0), int(prev_c.get("rank") or 0))
+            c.update(d)
+            c["entered_consensus"] = False
+
+    payload["delta_stats"] = stats
+    payload["top10"] = top_slice(platforms, TOP_N)
+    return payload
+
+
 def _ensure_derived(data: dict[str, Any]) -> dict[str, Any]:
     """Fill consensus / top10 if missing (older cache or partial)."""
     platforms = data.get("platforms") or {}
@@ -1018,8 +1166,17 @@ async def build_trends(force: bool = False) -> dict[str, Any]:
             "Google Trends · Bing Popular/News · YouTube Top Videos · X (trends24) · "
             "Polymarket 24h volume · TikTok Creative Center hashtags · "
             "Facebook/Instagram via news-buzz proxies (Meta has no free public top-10 API). "
-            "Consensus = topics on 2+ platform Top 10s. Not affiliated; not financial advice."
+            "Consensus = topics on 2+ platform Top 10s. "
+            "Deltas (NEW / ↑ / ↓) compare to yesterday’s UTC snapshot. "
+            "Not affiliated; not financial advice."
         ),
     }
+    # Rotate history if day rolled, then annotate movement vs yesterday
     _write_cache(payload)
+    payload = apply_deltas(payload, _read_json(PREV_FILE))
+    # Persist delta annotations on today's cache for API consumers
+    try:
+        _write_json(CACHE_FILE, payload)
+    except Exception:
+        pass
     return payload

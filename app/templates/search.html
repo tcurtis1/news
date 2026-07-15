@@ -36,6 +36,19 @@
       {% if t.fetched_at %}
         <span>Pulled {{ t.fetched_at[:19] }}Z</span>
       {% endif %}
+      {% if t.delta_status == 'ok' and t.delta_vs %}
+        <span class="badge">vs {{ t.delta_vs }}</span>
+        {% if t.delta_stats %}
+        <span class="delta-stats">
+          <span class="delta-pill new">{{ t.delta_stats.new or 0 }} new</span>
+          <span class="delta-pill up">{{ t.delta_stats.up or 0 }} ↑</span>
+          <span class="delta-pill down">{{ t.delta_stats.down or 0 }} ↓</span>
+          <span class="delta-pill same">{{ t.delta_stats.same or 0 }} same</span>
+        </span>
+        {% endif %}
+      {% else %}
+        <span class="muted-hint">Deltas start after tomorrow’s pull</span>
+      {% endif %}
       <span class="muted-hint">Refreshes once per day</span>
     </div>
 
@@ -78,10 +91,18 @@
               {% else %}
               {{ c.title }}
               {% endif %}
+              {% if c.delta_label and c.delta != 'baseline' %}
+              <span class="delta-pill {{ c.delta }}{% if c.entered_consensus %} entered{% endif %}" title="{% if c.entered_consensus %}Entered consensus today{% elif c.prev_rank %}Was #{{ c.prev_rank }} yesterday{% endif %}">
+                {% if c.entered_consensus %}NEW in consensus{% else %}{{ c.delta_label }}{% endif %}
+              </span>
+              {% endif %}
             </h2>
             <p class="summary">
               On {{ c.platform_count }} platforms
               · avg rank {{ c.avg_rank }}
+              {% if c.prev_rank and c.delta != 'new' and c.delta != 'baseline' %}
+              · was #{{ c.prev_rank }}
+              {% endif %}
             </p>
             <div class="rank-pills">
               {% for p in c.platforms %}
@@ -121,7 +142,12 @@
           <li>
             <span class="t-rank">{{ item.rank }}</span>
             <div>
-              <a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a>
+              <div class="t-title-row">
+                <a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a>
+                {% if item.delta_label and item.delta != 'baseline' %}
+                <span class="delta-pill {{ item.delta }}" title="{% if item.prev_rank %}Was #{{ item.prev_rank }} yesterday{% else %}Not on yesterday’s list{% endif %}">{{ item.delta_label }}</span>
+                {% endif %}
+              </div>
               {% if item.snippet %}
               <p class="t-snip">{{ item.snippet }}</p>
               {% endif %}

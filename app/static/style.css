@@ -530,6 +530,70 @@ footer.site {
   border-style: dashed;
 }
 
+.t-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+}
+
+.t-title-row a {
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.delta-stats {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.delta-pill {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  vertical-align: middle;
+  border: 1px solid transparent;
+}
+
+.delta-pill.new,
+.delta-pill.entered {
+  background: rgba(52, 211, 153, 0.18);
+  color: var(--ok);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.delta-pill.up {
+  background: rgba(96, 165, 250, 0.18);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+.delta-pill.down {
+  background: rgba(248, 113, 113, 0.15);
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.delta-pill.same {
+  background: var(--panel-2);
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.consensus-card h2 .delta-pill {
+  font-size: 0.65rem;
+  position: relative;
+  top: -0.1rem;
+}
+
 .trend-list {
   list-style: none;
   margin: 0;
