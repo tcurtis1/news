@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ page_title }} · Yoyosup News</title>
   <meta name="description" content="Daily Intersection (mass attention) and Curious Pulse on yoyosup.com." />
-  <link rel="stylesheet" href="/static/style.css?v=0.6.0" />
+  <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.8.0') }}" />
   <link rel="canonical" href="{{ public_base }}{{ request.url.path }}" />
   {% if request.url.path in ['/', '/search', '/safety'] or request.url.path.startswith('/topic/') %}
   <meta name="robots" content="index,follow" />

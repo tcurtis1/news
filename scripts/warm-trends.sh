@@ -12,18 +12,24 @@ ts() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
 {
   echo "[$(ts)] warm-trends start ${BASE_URL}"
+  # Default geo only on cron — other places lazy-warm on first visit.
+  DEFAULT_GEO="${TRENDS_GEO:-US}"
   # force=1 → re-pull all platforms and rewrite daily cache
+  t0=$(date +%s)
   code=$(curl -sS -o /tmp/yoyonews-trends-warm.json -w "%{http_code}" \
     --max-time 120 \
-    "${BASE_URL}/api/trends?force=1" || echo "000")
-  echo "[$(ts)] /api/trends?force=1 → HTTP ${code}"
+    "${BASE_URL}/api/trends?force=1&geo=${DEFAULT_GEO}" || echo "000")
+  t1=$(date +%s)
+  echo "[$(ts)] /api/trends?force=1&geo=${DEFAULT_GEO} → HTTP ${code} (wall $((t1 - t0))s)"
   if [[ -f /tmp/yoyonews-trends-warm.json ]]; then
-    # compact one-line summary if python is available
     python3 - <<'PY' 2>/dev/null || true
 import json
 try:
     d = json.load(open("/tmp/yoyonews-trends-warm.json"))
-    print(f"  day={d.get('day')} sources={d.get('sources_ok')} counts={d.get('counts')}")
+    print(
+        f"  day={d.get('day')} geo={d.get('geo')} cache={d.get('cache')} "
+        f"sources={d.get('sources_ok')} counts={d.get('counts')}"
+    )
 except Exception as e:
     print(f"  parse_error={e}")
 PY

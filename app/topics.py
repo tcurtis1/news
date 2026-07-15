@@ -37,7 +37,9 @@ def _consensus_match(q: str, trends: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-async def build_topic(slug: str, force: bool = False) -> dict[str, Any]:
+async def build_topic(
+    slug: str, force: bool = False, geo: str | None = None
+) -> dict[str, Any]:
     """
     Assemble topic page payload from slug.
     Uses slug text as the search/rank query (hyphens → spaces).
@@ -46,8 +48,8 @@ async def build_topic(slug: str, force: bool = False) -> dict[str, Any]:
     query = unslug(raw_slug)
     canonical = slugify(query)
 
-    search = await run_search(query, force_trends=force)
-    trends = await build_trends(force=False)
+    search = await run_search(query, force_trends=force, geo=geo)
+    trends = await build_trends(force=False, geo=geo)
     ranks = search.get("rank_lookup") or rank_lookup(query, trends)
     consensus = _consensus_match(query, trends)
     comments = list_comments(canonical)
@@ -67,6 +69,8 @@ async def build_topic(slug: str, force: bool = False) -> dict[str, Any]:
         "slug": canonical,
         "q": query,
         "title": display,
+        "geo": trends.get("geo"),
+        "place": trends.get("place"),
         "labels": PLATFORM_LABELS,
         "rank_lookup": ranks,
         "consensus": consensus,

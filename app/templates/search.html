@@ -6,14 +6,19 @@
   } %}
   {% set board_keys = ['google', 'bing', 'youtube', 'x', 'polymarket', 'tiktok', 'facebook', 'instagram'] %}
 
+  {% set geo_code = geo or (place.code if place else 'US') %}
+  {% set place_label = place.label if place else 'United States' %}
+  {% set pui = places_ui or {} %}
+
   <h1>Daily Intersection</h1>
   <p class="lede">
     Mass attention map — search, video, social, and prediction markets
     (Google, Bing, YouTube, X, Polymarket, TikTok, Facebook, Instagram).
-    Search any term for a rank map.
+    Search any term for a rank map. Change location for country or U.S. state boards.
   </p>
 
-  <form class="search-box" action="/search" method="get" role="search">
+  <form class="search-box" action="/search" method="get" role="search" id="search-form">
+    <input type="hidden" name="geo" id="geo-hidden" value="{{ geo_code }}" />
     <input
       type="search"
       name="q"
@@ -26,14 +31,80 @@
     <button type="submit">Rank map</button>
   </form>
 
+  <div class="geo-bar" id="geo-bar">
+    <div class="geo-current">
+      <span class="geo-pin" aria-hidden="true">📍</span>
+      <span class="geo-label-text">Trends for</span>
+      <strong class="geo-place-name">{{ place_label }}</strong>
+      <span class="badge geo-code-badge">{{ geo_code }}</span>
+      <button type="button" class="geo-change-btn" id="geo-toggle" aria-expanded="false" aria-controls="geo-panel">
+        Change
+      </button>
+    </div>
+    <div class="geo-panel" id="geo-panel" hidden>
+      <label class="geo-field">
+        <span>Country</span>
+        <select id="geo-country" name="geo_country">
+          {% set country_sel = place.country if place else 'US' %}
+          {% for c in pui.countries or [] %}
+          <option value="{{ c.code }}" {% if c.code == country_sel %}selected{% endif %}>{{ c.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="geo-field" id="geo-state-wrap" {% if not (place and place.country == 'US') %}hidden{% endif %}>
+        <span>U.S. state <span class="muted-hint">(optional)</span></span>
+        <select id="geo-state">
+          <option value="">Whole country</option>
+          {% for s in pui.us_states or [] %}
+          <option value="{{ s.code }}" {% if geo_code == s.code %}selected{% endif %}>{{ s.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="geo-field geo-type">
+        <span>Or type a place</span>
+        <input
+          type="text"
+          id="geo-typeahead"
+          list="geo-suggestions"
+          placeholder="Utah, England, France, GB…"
+          maxlength="80"
+          autocomplete="off"
+        />
+        <datalist id="geo-suggestions">
+          {% for c in pui.countries or [] %}
+          <option value="{{ c.label }}"></option>
+          {% endfor %}
+          {% for s in pui.us_states or [] %}
+          <option value="{{ s.label }}"></option>
+          {% endfor %}
+        </datalist>
+      </label>
+      <div class="geo-actions">
+        <button type="button" class="geo-apply-btn" id="geo-apply">Apply location</button>
+        <a class="muted-hint" href="/search?geo=US">Reset to United States</a>
+      </div>
+      <p class="geo-hint muted-hint">
+        Countries refresh most boards. U.S. states: Google is state-level; Bing/Facebook/Instagram/TikTok
+        use local news buzz; YouTube &amp; X stay on the U.S. country chart; Polymarket is global.
+        Unknown places fall back to the default.
+      </p>
+    </div>
+  </div>
+
   {% if results and results.mode == 'trends' and results.trends %}
     {% set t = results.trends %}
     {% set top = t.top10 or t.platforms %}
+    {% set cov = t.coverage or (place.coverage if place else none) %}
     <div class="meta-row">
       <span class="badge live">Daily snapshot</span>
       <span>UTC day {{ t.day }}</span>
       {% if t.fetched_at %}
         <span>Pulled {{ t.fetched_at[:19] }}Z</span>
+      {% endif %}
+      {% if t.cache == 'hit' %}
+        <span class="badge">cache hit</span>
+      {% elif t.cache == 'miss' %}
+        <span class="badge">fresh pull</span>
       {% endif %}
       {% if t.delta_status == 'ok' and t.delta_vs %}
         <span class="badge">vs {{ t.delta_vs }}</span>
@@ -46,10 +117,16 @@
         </span>
         {% endif %}
       {% else %}
-        <span class="muted-hint">Deltas start after tomorrow’s pull</span>
+        <span class="muted-hint">Deltas start after tomorrow’s pull for this place</span>
       {% endif %}
-      <span class="muted-hint">Refreshes once per day</span>
+      <span class="muted-hint">Refreshes once per day per location</span>
     </div>
+
+    {% if cov and cov.note %}
+    <div class="coverage-banner" role="note">
+      <strong>Location coverage</strong> — {{ cov.note }}
+    </div>
+    {% endif %}
 
     {# Platform designators — always show full set; dim offline #}
     <div class="source-chips" aria-label="Platforms">
@@ -85,7 +162,7 @@
           <div class="rank">{{ c.rank }}</div>
           <div>
             <h2>
-              <a href="/topic/{{ slugify(c.title) }}">{{ c.title }}</a>
+              <a href="/topic/{{ slugify(c.title) }}?geo={{ geo_code }}">{{ c.title }}</a>
               {% if c.delta_label and c.delta != 'baseline' %}
               <span class="delta-pill {{ c.delta }}{% if c.entered_consensus %} entered{% endif %}" title="{% if c.entered_consensus %}Entered consensus today{% elif c.prev_rank %}Was #{{ c.prev_rank }} yesterday{% endif %}">
                 {% if c.entered_consensus %}NEW in consensus{% else %}{{ c.delta_label }}{% endif %}
@@ -98,7 +175,7 @@
               {% if c.prev_rank and c.delta != 'new' and c.delta != 'baseline' %}
               · was #{{ c.prev_rank }}
               {% endif %}
-              · <a href="/topic/{{ slugify(c.title) }}#comments">discuss</a>
+              · <a href="/topic/{{ slugify(c.title) }}?geo={{ geo_code }}#comments">discuss</a>
               {% if c.url %}
               · <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank">source</a>
               {% endif %}
@@ -124,13 +201,28 @@
 
     {# ── Per-platform Top 10 ── #}
     <h2 class="section-title section-title-lg">Top 10 by platform</h2>
+    {% set pg = {} %}
+    {% if place and place.platform_geo %}{% set pg = place.platform_geo %}
+    {% elif t.place and t.place.platform_geo %}{% set pg = t.place.platform_geo %}{% endif %}
     <div class="trend-board trend-board-wide">
       {% for key in board_keys %}
-      <section class="trend-col trend-{{ key }}" aria-label="{{ labels[key] }}">
+      {% set meta = pg[key] if key in pg else {} %}
+      {% set scope = meta.scope if meta and meta.scope is defined else '' %}
+      {% set scope_class = 'scope-' ~ scope if scope else '' %}
+      <section class="trend-col trend-{{ key }} {{ scope_class }}" aria-label="{{ labels[key] }}">
         <h2 class="section-title">
           <span class="plat-dot plat-{{ key }}"></span>
           {{ labels[key] }}
           <span class="count-pill">{{ (top[key] or []) | length }}</span>
+          {% if scope == 'full' %}
+          <span class="scope-pill scope-pill-full" title="Scoped to this location">local</span>
+          {% elif scope == 'partial' %}
+          <span class="scope-pill scope-pill-partial" title="Local news buzz / best-effort for this place">local buzz</span>
+          {% elif scope == 'country' %}
+          <span class="scope-pill scope-pill-country" title="Parent country chart — no free state Top 10">country</span>
+          {% elif scope == 'global' %}
+          <span class="scope-pill scope-pill-global" title="Always global">global</span>
+          {% endif %}
         </h2>
         {% if t.notes and t.notes[key] %}
         <p class="col-note">{{ t.notes[key] }}</p>
@@ -171,8 +263,8 @@
         <span class="badge live">Rank map</span>
         <span>{{ rl.summary }}</span>
         {% if topic_slug %}
-        <a class="badge" href="/topic/{{ topic_slug }}">Topic page</a>
-        <a href="/topic/{{ topic_slug }}#comments">Discuss</a>
+        <a class="badge" href="/topic/{{ topic_slug }}?geo={{ geo_code }}">Topic page</a>
+        <a href="/topic/{{ topic_slug }}?geo={{ geo_code }}#comments">Discuss</a>
         {% endif %}
       </div>
       {% if rl.hit_summary %}
@@ -289,7 +381,7 @@
     {% else %}
     <div class="empty">
       No mainstream free-index hits for “{{ q }}”. Use portals above or
-      <a href="/search">return to today’s intersection</a>.
+      <a href="/search?geo={{ geo_code }}">return to today’s intersection</a>.
     </div>
     {% endif %}
 
@@ -321,4 +413,84 @@
 
     <div class="disclaimer">{{ results.disclaimer }}</div>
   {% endif %}
+
+  <script>
+  (function () {
+    var STORAGE_KEY = "yoyonews_geo";
+    var toggle = document.getElementById("geo-toggle");
+    var panel = document.getElementById("geo-panel");
+    var country = document.getElementById("geo-country");
+    var state = document.getElementById("geo-state");
+    var stateWrap = document.getElementById("geo-state-wrap");
+    var typeahead = document.getElementById("geo-typeahead");
+    var applyBtn = document.getElementById("geo-apply");
+    var geoHidden = document.getElementById("geo-hidden");
+    var form = document.getElementById("search-form");
+    if (!toggle || !panel || !form || !geoHidden) return;
+
+    var current = (geoHidden.value || "US").toUpperCase();
+    try {
+      // Remember preference; only auto-redirect when landing with no explicit geo
+      var params = new URLSearchParams(window.location.search);
+      if (!params.has("geo")) {
+        var saved = localStorage.getItem(STORAGE_KEY);
+        if (saved && saved.toUpperCase() !== current) {
+          params.set("geo", saved);
+          var q = params.toString();
+          window.location.replace("/search" + (q ? "?" + q : ""));
+          return;
+        }
+      } else {
+        localStorage.setItem(STORAGE_KEY, current);
+      }
+    } catch (e) {}
+
+    function syncStateVisibility() {
+      if (!country || !stateWrap) return;
+      var show = country.value === "US";
+      stateWrap.hidden = !show;
+      if (!show && state) state.value = "";
+    }
+
+    function resolvedGeo() {
+      var typed = (typeahead && typeahead.value || "").trim();
+      if (typed) return typed;
+      if (country && country.value === "US" && state && state.value) return state.value;
+      return (country && country.value) || current || "US";
+    }
+
+    function go(geo) {
+      try { localStorage.setItem(STORAGE_KEY, geo); } catch (e) {}
+      geoHidden.value = geo;
+      var qInput = form.querySelector('input[name="q"]');
+      var q = qInput ? qInput.value : "";
+      var url = "/search?geo=" + encodeURIComponent(geo);
+      if (q) url += "&q=" + encodeURIComponent(q);
+      window.location.href = url;
+    }
+
+    toggle.addEventListener("click", function () {
+      var open = panel.hasAttribute("hidden");
+      if (open) {
+        panel.removeAttribute("hidden");
+        toggle.setAttribute("aria-expanded", "true");
+      } else {
+        panel.setAttribute("hidden", "");
+        toggle.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    if (country) country.addEventListener("change", syncStateVisibility);
+    if (applyBtn) applyBtn.addEventListener("click", function () { go(resolvedGeo()); });
+    if (typeahead) {
+      typeahead.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          go(resolvedGeo());
+        }
+      });
+    }
+    syncStateVisibility();
+  })();
+  </script>
 {% endblock %}

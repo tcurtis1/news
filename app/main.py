@@ -23,6 +23,7 @@ from app.moderation import moderation_enabled
 from app.pulse import build_pulse
 from app.search import run_search
 from app.seo import collect_sitemap_urls, render_robots_txt, render_sitemap_xml
+from app.places import default_place, list_places_for_ui, resolve_place
 from app.topics import build_topic, slugify, unslug
 from app.trends import build_trends, rank_lookup
 
@@ -32,11 +33,13 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
+APP_VERSION = "0.8.1"
 
-app = FastAPI(title="Yoyosup News", version="0.7.1")
+app = FastAPI(title="Yoyosup News", version=APP_VERSION)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["slugify"] = slugify
+templates.env.globals["app_version"] = APP_VERSION
 
 
 def _client_ip(request: Request) -> str:
@@ -54,13 +57,20 @@ def _admin_ok(token: str) -> bool:
 
 @app.get("/health")
 async def health():
+    d = default_place()
     return {
         "ok": True,
         "service": "yoyosup-news",
         "public": PUBLIC_BASE,
-        "version": "0.7.1",
+        "version": APP_VERSION,
+        "default_geo": d.code,
         "moderation": moderation_enabled(),
     }
+
+
+@app.get("/api/places")
+async def api_places():
+    return JSONResponse(list_places_for_ui())
 
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
@@ -107,15 +117,22 @@ async def api_pulse(force: bool = False):
 
 
 @app.get("/search", response_class=HTMLResponse)
-async def search_page(request: Request, q: str = "", force: bool = False):
-    results = await run_search(q, force_trends=force)
+async def search_page(
+    request: Request, q: str = "", force: bool = False, geo: str = ""
+):
+    place = resolve_place(geo or None)
+    results = await run_search(q, force_trends=force, geo=place.code)
     title = f"Rank map: {q.strip()}" if q.strip() else "Daily Intersection"
+    places_ui = list_places_for_ui()
     return templates.TemplateResponse(
         request,
         "search.html",
         {
             "public_base": PUBLIC_BASE,
             "q": q.strip(),
+            "geo": place.code,
+            "place": place.to_dict(),
+            "places_ui": places_ui,
             "results": results,
             "page_title": title,
             "topic_slug": slugify(q) if q.strip() else "",
@@ -124,36 +141,51 @@ async def search_page(request: Request, q: str = "", force: bool = False):
 
 
 @app.get("/api/search")
-async def api_search(q: str = "", force: bool = False):
-    data = await run_search(q, force_trends=force)
+async def api_search(q: str = "", force: bool = False, geo: str = ""):
+    place = resolve_place(geo or None)
+    data = await run_search(q, force_trends=force, geo=place.code)
     if q.strip():
-        data["topic_path"] = f"/topic/{slugify(q)}"
+        data["topic_path"] = f"/topic/{slugify(q)}?geo={place.code}"
     return JSONResponse(data)
 
 
 @app.get("/api/trends")
-async def api_trends(force: bool = False):
-    return JSONResponse(await build_trends(force=force))
+async def api_trends(force: bool = False, geo: str = ""):
+    place = resolve_place(geo or None)
+    return JSONResponse(await build_trends(force=force, geo=place.code))
 
 
 @app.get("/api/rank")
-async def api_rank(q: str = "", force: bool = False):
-    trends = await build_trends(force=force)
-    return JSONResponse(rank_lookup(q, trends))
+async def api_rank(q: str = "", force: bool = False, geo: str = ""):
+    place = resolve_place(geo or None)
+    trends = await build_trends(force=force, geo=place.code)
+    data = rank_lookup(q, trends)
+    data["geo"] = place.code
+    data["place"] = place.to_dict()
+    return JSONResponse(data)
 
 
 @app.get("/topic", response_class=HTMLResponse)
-async def topic_redirect(q: str = ""):
+async def topic_redirect(q: str = "", geo: str = ""):
     if not q.strip():
-        return RedirectResponse("/search", status_code=302)
-    return RedirectResponse(f"/topic/{slugify(q)}", status_code=302)
+        suffix = f"?geo={quote(geo)}" if geo else ""
+        return RedirectResponse(f"/search{suffix}", status_code=302)
+    place = resolve_place(geo or None)
+    return RedirectResponse(
+        f"/topic/{slugify(q)}?geo={place.code}", status_code=302
+    )
 
 
 @app.get("/topic/{slug}", response_class=HTMLResponse)
-async def topic_page(request: Request, slug: str, force: bool = False):
-    topic = await build_topic(slug, force=force)
+async def topic_page(
+    request: Request, slug: str, force: bool = False, geo: str = ""
+):
+    place = resolve_place(geo or None)
+    topic = await build_topic(slug, force=force, geo=place.code)
     if slugify(slug) != topic["slug"] and unslug(slug):
-        return RedirectResponse(f"/topic/{topic['slug']}", status_code=302)
+        return RedirectResponse(
+            f"/topic/{topic['slug']}?geo={place.code}", status_code=302
+        )
 
     return templates.TemplateResponse(
         request,
@@ -161,6 +193,8 @@ async def topic_page(request: Request, slug: str, force: bool = False):
         {
             "public_base": PUBLIC_BASE,
             "topic": topic,
+            "geo": place.code,
+            "place": place.to_dict(),
             "page_title": topic["title"],
             "flash_error": request.query_params.get("err") or "",
             "flash_ok": request.query_params.get("ok") or "",
@@ -219,8 +253,9 @@ async def topic_comment_report(
 
 
 @app.get("/api/topic/{slug}")
-async def api_topic(slug: str, force: bool = False):
-    return JSONResponse(await build_topic(slug, force=force))
+async def api_topic(slug: str, force: bool = False, geo: str = ""):
+    place = resolve_place(geo or None)
+    return JSONResponse(await build_topic(slug, force=force, geo=place.code))
 
 
 @app.get("/api/topic/{slug}/comments")

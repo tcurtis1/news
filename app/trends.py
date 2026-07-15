@@ -6,6 +6,7 @@ Pulled at most once per UTC day (CACHE_DIR). Force with force=True / ?force=1.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -20,16 +21,19 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
+from app.places import Place, cache_key, default_place, resolve_place
+
 log = logging.getLogger("trends")
 
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/data"))
+# Legacy single-file cache (migrated into per-place dir on read)
 CACHE_FILE = CACHE_DIR / "trends_cache.json"
-# Previous UTC-day snapshot for NEW / ↑ / ↓ deltas
 PREV_FILE = CACHE_DIR / "trends_yesterday.json"
+TRENDS_DIR = CACHE_DIR / "trends"
+PREV_DIR = CACHE_DIR / "trends_yesterday"
 CACHE_MAX_AGE_SEC = int(os.environ.get("TRENDS_CACHE_TTL", str(26 * 3600)))
-GEO = os.environ.get("TRENDS_GEO", "US")
 USER_AGENT = (
-    "Mozilla/5.0 (compatible; YoyoNewsTrends/0.4; +https://news.yoyosup.com) "
+    "Mozilla/5.0 (compatible; YoyoNewsTrends/0.5; +https://news.yoyosup.com) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 MAX_PER_PLATFORM = 20
@@ -54,13 +58,13 @@ PLATFORM_LABELS = {
     "facebook": "Facebook",
     "instagram": "Instagram",
 }
-# Short note shown under column headers / chips
+# Short note shown under column headers / chips (geo suffix added at runtime)
 PLATFORM_NOTES = {
     "google": "Trends RSS",
     "bing": "Popular + News",
     "youtube": "Daily Top Videos",
-    "x": "US trends",
-    "polymarket": "24h volume",
+    "x": "trends24",
+    "polymarket": "24h volume · Global",
     "tiktok": "Creative Center",
     "facebook": "News buzz proxy",
     "instagram": "News buzz proxy",
@@ -132,12 +136,17 @@ def _utc_day() -> str:
     return _now().strftime("%Y-%m-%d")
 
 
-def _browser_headers() -> dict[str, str]:
+def _browser_headers(accept_lang: str = "en-US,en;q=0.9") -> dict[str, str]:
     return {
         "User-Agent": USER_AGENT,
-        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Language": accept_lang,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
+
+
+def _place_cache_paths(place: Place) -> tuple[Path, Path]:
+    key = cache_key(place)
+    return TRENDS_DIR / f"{key}.json", PREV_DIR / f"{key}.json"
 
 
 def _read_json(path: Path) -> dict | None:
@@ -150,54 +159,106 @@ def _read_json(path: Path) -> dict | None:
 
 
 def _write_json(path: Path, payload: dict) -> None:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def _read_cache() -> dict | None:
+def _legacy_migrate_default(place: Place) -> None:
+    """One-time: copy old flat cache files into per-place paths for default geo."""
+    if place.code != default_place().code:
+        return
+    today, yday = _place_cache_paths(place)
     try:
-        data = _read_json(CACHE_FILE)
+        if CACHE_FILE.exists() and not today.exists():
+            TRENDS_DIR.mkdir(parents=True, exist_ok=True)
+            today.write_text(CACHE_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+            log.info("Migrated legacy trends_cache.json → %s", today)
+        if PREV_FILE.exists() and PREV_FILE.is_file() and not yday.exists():
+            PREV_DIR.mkdir(parents=True, exist_ok=True)
+            yday.write_text(PREV_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+            log.info("Migrated legacy trends_yesterday.json → %s", yday)
+    except Exception as e:
+        log.warning("legacy cache migrate failed: %s", e)
+
+
+def _read_cache(place: Place) -> dict | None:
+    try:
+        _legacy_migrate_default(place)
+        today, yday = _place_cache_paths(place)
+        data = _read_json(today)
         if not data:
             return None
-        # Rebuild derived fields if older cache missing them
+        # Geo mismatch (stale/wrong file) → miss
+        if data.get("geo") and data.get("geo") != place.code:
+            return None
         if data.get("day") == _utc_day() or (
             time.time() - float(data.get("fetched_at_unix", 0)) <= CACHE_MAX_AGE_SEC
         ):
-            data = _ensure_derived(data)
-            # Always re-apply deltas vs yesterday file (cheap, keeps badges fresh)
-            return apply_deltas(data, _read_json(PREV_FILE))
+            data = _ensure_derived(data, place)
+            return apply_deltas(data, _read_json(yday))
         return None
     except Exception:
         return None
 
 
-def _write_cache(payload: dict) -> None:
+def _write_cache(payload: dict, place: Place) -> None:
     try:
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        existing = _read_json(CACHE_FILE)
-        # Rotate: when we start a new UTC day, today's old cache becomes yesterday
+        today, yday = _place_cache_paths(place)
+        TRENDS_DIR.mkdir(parents=True, exist_ok=True)
+        PREV_DIR.mkdir(parents=True, exist_ok=True)
+        existing = _read_json(today)
         if (
             existing
             and existing.get("day")
             and payload.get("day")
             and existing.get("day") != payload.get("day")
         ):
-            # strip bulky fields not needed for matching
             prev = {
                 "day": existing.get("day"),
                 "fetched_at": existing.get("fetched_at"),
+                "geo": existing.get("geo") or place.code,
                 "platforms": existing.get("platforms") or {},
                 "consensus": existing.get("consensus") or [],
             }
-            _write_json(PREV_FILE, prev)
-            log.info("Archived trends day %s → yesterday", existing.get("day"))
-        elif not _read_json(PREV_FILE) and existing and existing.get("platforms"):
-            # First deploy: seed yesterday from current so next force still has a baseline
-            # only if different content day isn't available yet
-            pass
-        _write_json(CACHE_FILE, payload)
+            _write_json(yday, prev)
+            log.info(
+                "Archived trends day %s geo=%s → yesterday",
+                existing.get("day"),
+                place.code,
+            )
+        _write_json(today, payload)
+        # Keep legacy paths in sync for default geo (warm scripts / ops)
+        if place.code == default_place().code:
+            try:
+                _write_json(CACHE_FILE, payload)
+            except Exception:
+                pass
     except Exception as e:
         log.warning("trends cache write failed: %s", e)
+
+
+def platform_notes_for(place: Place) -> dict[str, str]:
+    """Column notes with geo honesty."""
+    pg = place.platform_geo()
+    out: dict[str, str] = {}
+    local = place.short_label()
+    for key, base in PLATFORM_NOTES.items():
+        meta = pg.get(key) or {}
+        scope = meta.get("scope") or "partial"
+        code = meta.get("code") or ""
+        if scope == "global":
+            out[key] = base if "Global" in base else f"{base} · Global"
+        elif scope == "none":
+            out[key] = f"{base} · unavailable here"
+        elif place.kind == "region" and scope == "country":
+            out[key] = f"{base} · {place.country} country chart (not {local}-specific)"
+        elif place.kind == "region" and scope == "partial":
+            out[key] = f"{base} · {local} local buzz"
+        elif scope == "full":
+            out[key] = f"{base} · {code or place.code}"
+        else:
+            out[key] = f"{base} · {code or place.code}"
+    return out
 
 
 def _fmt_money(n: float | int | str | None) -> str:
@@ -293,11 +354,14 @@ def query_matches_title(q: str, title: str) -> bool:
 # ── fetchers ──────────────────────────────────────────────────────────────
 
 
-async def _fetch_google(client: httpx.AsyncClient) -> list[TrendItem]:
+async def _fetch_google(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:
     try:
         r = await client.get(
-            f"https://trends.google.com/trending/rss?geo={GEO}",
-            headers={**_browser_headers(), "Accept": "application/rss+xml, application/xml"},
+            f"https://trends.google.com/trending/rss?geo={place.google_geo}",
+            headers={
+                **_browser_headers(place.news_hl.replace("_", "-") + ",en;q=0.8"),
+                "Accept": "application/rss+xml, application/xml",
+            },
         )
         r.raise_for_status()
         ns = {"ht": "https://trends.google.com/trending/rss"}
@@ -343,53 +407,67 @@ async def _fetch_google(client: httpx.AsyncClient) -> list[TrendItem]:
         return []
 
 
-async def _fetch_bing(client: httpx.AsyncClient) -> list[TrendItem]:
+async def _fetch_bing(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:
     items: list[TrendItem] = []
     seen: set[str] = set()
-    try:
-        r = await client.get(
-            "https://www.bing.com/AS/Suggestions",
-            params={
-                "pt": "page.home",
-                "qry": "",
-                "cp": "0",
-                "csr": "1",
-                "msbqf": "false",
-                "cvid": "yoyonews",
-            },
-            headers=_browser_headers(),
-        )
-        if r.status_code == 200:
-            for row in r.json().get("s") or []:
-                q = (row.get("q") or "").strip()
-                if not q or q.lower() in seen:
-                    continue
-                seen.add(q.lower())
-                des = ""
-                ext = row.get("ext") or {}
-                if isinstance(ext, dict):
-                    des = (ext.get("des") or "").strip()
-                items.append(
-                    TrendItem(
-                        rank=len(items) + 1,
-                        title=q,
-                        url=f"https://www.bing.com/search?q={quote_plus(q)}",
-                        platform="bing",
-                        snippet=des or "Bing Popular Now",
-                        traffic="popular",
+    headers = {
+        **_browser_headers(place.news_hl.replace("_", "-") + ",en;q=0.8"),
+        # Hint market; Bing may still skew US without cookies
+        "Cookie": f"mkt={place.bing_market};",
+    }
+    is_region = place.kind == "region"
+    local_name = place.short_label()
+
+    # Regions: lead with place-local Bing News so the board actually changes vs US.
+    # Countries: Popular Now first, then national/country news pad.
+    if not is_region:
+        try:
+            r = await client.get(
+                "https://www.bing.com/AS/Suggestions",
+                params={
+                    "pt": "page.home",
+                    "qry": "",
+                    "cp": "0",
+                    "csr": "1",
+                    "msbqf": "false",
+                    "cvid": "yoyonews",
+                    "mkt": place.bing_market,
+                },
+                headers=headers,
+            )
+            if r.status_code == 200:
+                for row in r.json().get("s") or []:
+                    q = (row.get("q") or "").strip()
+                    if not q or q.lower() in seen:
+                        continue
+                    seen.add(q.lower())
+                    des = ""
+                    ext = row.get("ext") or {}
+                    if isinstance(ext, dict):
+                        des = (ext.get("des") or "").strip()
+                    items.append(
+                        TrendItem(
+                            rank=len(items) + 1,
+                            title=q,
+                            url=f"https://www.bing.com/search?q={quote_plus(q)}",
+                            platform="bing",
+                            snippet=des or "Bing Popular Now",
+                            traffic="popular",
+                        )
                     )
-                )
-                if len(items) >= MAX_PER_PLATFORM // 2:
-                    break
-    except Exception as e:
-        log.warning("Bing popular failed: %s", e)
+                    if len(items) >= MAX_PER_PLATFORM // 2:
+                        break
+        except Exception as e:
+            log.warning("Bing popular failed: %s", e)
 
     try:
+        # Country → country label; US state → "Utah" (not "United States")
+        news_q = local_name if is_region else place.label
         r = await client.get(
             "https://www.bing.com/news/search",
-            params={"q": "United States", "format": "RSS", "market": "en-US"},
+            params={"q": news_q, "format": "RSS", "market": place.bing_market},
             headers={
-                **_browser_headers(),
+                **headers,
                 "Accept": "application/rss+xml, application/xml, text/xml, */*",
             },
         )
@@ -406,13 +484,18 @@ async def _fetch_bing(client: httpx.AsyncClient) -> list[TrendItem]:
                     continue
                 seen.add(title.lower())
                 desc = re.sub(r"<[^>]+>", "", entry.findtext("description") or "").strip()
+                snip_base = (
+                    f"Bing News · {local_name}"
+                    if is_region
+                    else "Bing News"
+                )
                 items.append(
                     TrendItem(
                         rank=len(items) + 1,
                         title=title,
                         url=link or f"https://www.bing.com/news/search?q={quote_plus(title)}",
                         platform="bing",
-                        snippet=(desc[:160] + "…") if len(desc) > 160 else desc or "Bing News",
+                        snippet=(desc[:160] + "…") if len(desc) > 160 else desc or snip_base,
                         traffic="news",
                     )
                 )
@@ -426,7 +509,8 @@ async def _fetch_bing(client: httpx.AsyncClient) -> list[TrendItem]:
     return items[:MAX_PER_PLATFORM]
 
 
-async def _fetch_youtube(client: httpx.AsyncClient) -> list[TrendItem]:
+async def _fetch_youtube(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:
+    gl = place.youtube_gl
     try:
         body = {
             "context": {
@@ -434,7 +518,7 @@ async def _fetch_youtube(client: httpx.AsyncClient) -> list[TrendItem]:
                     "clientName": "WEB_MUSIC_ANALYTICS",
                     "clientVersion": "2.0",
                     "hl": "en",
-                    "gl": GEO,
+                    "gl": gl,
                     "userAgent": USER_AGENT,
                     "platform": "DESKTOP",
                 }
@@ -442,7 +526,7 @@ async def _fetch_youtube(client: httpx.AsyncClient) -> list[TrendItem]:
             "browseId": "FEmusic_analytics_charts_home",
             "query": (
                 "perspective=CHART_DETAILS"
-                f"&chart_params_country_code={GEO.lower()}"
+                f"&chart_params_country_code={gl.lower()}"
                 "&chart_params_chart_type=VIDEOS"
                 "&chart_params_period_type=DAILY"
             ),
@@ -454,7 +538,7 @@ async def _fetch_youtube(client: httpx.AsyncClient) -> list[TrendItem]:
                 **_browser_headers(),
                 "Content-Type": "application/json",
                 "Origin": "https://charts.youtube.com",
-                "Referer": f"https://charts.youtube.com/charts/TopVideos/{GEO.lower()}/daily",
+                "Referer": f"https://charts.youtube.com/charts/TopVideos/{gl.lower()}/daily",
             },
             json=body,
         )
@@ -509,10 +593,13 @@ async def _fetch_youtube(client: httpx.AsyncClient) -> list[TrendItem]:
         return []
 
 
-async def _fetch_x(client: httpx.AsyncClient) -> list[TrendItem]:
+async def _fetch_x(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:
+    if not place.x_path:
+        return []
+    label_geo = place.country if place.kind == "region" else place.code
     try:
         r = await client.get(
-            "https://trends24.in/united-states/",
+            f"https://trends24.in/{place.x_path}/",
             headers=_browser_headers(),
         )
         r.raise_for_status()
@@ -549,14 +636,14 @@ async def _fetch_x(client: httpx.AsyncClient) -> list[TrendItem]:
                     title=title,
                     url=f"https://x.com/search?q={quote_plus(title)}&src=trend",
                     platform="x",
-                    snippet="Trending on X (US)",
+                    snippet=f"Trending on X ({label_geo})",
                 )
             )
             if len(items) >= MAX_PER_PLATFORM:
                 break
         return items
     except Exception as e:
-        log.warning("X trends failed: %s", e)
+        log.warning("X trends failed for %s: %s", place.x_path, e)
         return []
 
 
@@ -617,72 +704,91 @@ async def _fetch_polymarket(client: httpx.AsyncClient) -> list[TrendItem]:
         return []
 
 
-async def _fetch_tiktok(client: httpx.AsyncClient) -> list[TrendItem]:
+async def _fetch_tiktok(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:
     """
     TikTok popular hashtags via Creative Center (public page → jina reader).
     Meta/TikTok block most direct JSON APIs without login; this is best-effort.
+    US states: lead with local TikTok news buzz (no free state hashtag chart).
     """
     items: list[TrendItem] = []
     seen: set[str] = set()
-    try:
-        r = await client.get(
-            "https://r.jina.ai/https://ads.tiktok.com/business/creativecenter/"
-            "inspiration/popular/hashtag/pc/en?period=7&countryCode=US",
-            headers={
-                "User-Agent": "YoyoNewsTrends/0.4 (+https://news.yoyosup.com)",
-                "Accept": "text/plain",
-            },
-        )
-        if r.status_code == 200 and r.text:
-            text = r.text
-            # Ranked blocks: #tag, category, N Posts, N Views
-            blocks = re.findall(
-                r"(#[\w]+)\s*\n([^\n]+)\s*\n([\d.,]+[KMB]?)\s*Posts\s*\n([\d.,]+[KMB]?)\s*Views",
-                text,
-                re.I,
+    is_region = place.kind == "region"
+
+    # State/region: local news-about-TikTok first so the board differs from US.
+    if is_region:
+        for it in await _fetch_social_news_buzz(client, "tiktok", place, limit=MAX_PER_PLATFORM):
+            key = normalize_topic(it.title)
+            if key in seen:
+                continue
+            seen.add(key)
+            it.rank = len(items) + 1
+            items.append(it)
+
+    cc = place.tiktok_country
+    # Country Creative Center (also pads thin region boards)
+    if len(items) < TOP_N:
+        try:
+            r = await client.get(
+                "https://r.jina.ai/https://ads.tiktok.com/business/creativecenter/"
+                f"inspiration/popular/hashtag/pc/en?period=7&countryCode={cc}",
+                headers={
+                    "User-Agent": "YoyoNewsTrends/0.5 (+https://news.yoyosup.com)",
+                    "Accept": "text/plain",
+                },
             )
-            for tag, cat, posts, views in blocks:
-                key = tag.lower()
-                if key in seen:
-                    continue
-                seen.add(key)
-                title = tag if tag.startswith("#") else f"#{tag}"
-                items.append(
-                    TrendItem(
-                        rank=len(items) + 1,
-                        title=title,
-                        url=f"https://www.tiktok.com/tag/{quote_plus(title.lstrip('#'))}",
-                        platform="tiktok",
-                        snippet=f"{cat.strip()} · {posts} posts · {views} views",
-                        traffic=views,
-                    )
+            if r.status_code == 200 and r.text:
+                text = r.text
+                # Ranked blocks: #tag, category, N Posts, N Views
+                blocks = re.findall(
+                    r"(#[\w]+)\s*\n([^\n]+)\s*\n([\d.,]+[KMB]?)\s*Posts\s*\n([\d.,]+[KMB]?)\s*Views",
+                    text,
+                    re.I,
                 )
-                if len(items) >= MAX_PER_PLATFORM:
-                    break
-            if not items:
-                # fallback: ordered hashtags in doc
-                for tag in re.findall(r"(?m)^(#[\w]+)\s*$", text):
+                for tag, cat, posts, views in blocks:
                     key = tag.lower()
                     if key in seen:
                         continue
                     seen.add(key)
+                    title = tag if tag.startswith("#") else f"#{tag}"
+                    snip = f"{cat.strip()} · {posts} posts · {views} views"
+                    if is_region:
+                        snip = f"{snip} · {cc} chart"
                     items.append(
                         TrendItem(
                             rank=len(items) + 1,
-                            title=tag,
-                            url=f"https://www.tiktok.com/tag/{quote_plus(tag.lstrip('#'))}",
+                            title=title,
+                            url=f"https://www.tiktok.com/tag/{quote_plus(title.lstrip('#'))}",
                             platform="tiktok",
-                            snippet="TikTok Creative Center",
+                            snippet=snip,
+                            traffic=views,
                         )
                     )
-                    if len(items) >= TOP_N:
+                    if len(items) >= MAX_PER_PLATFORM:
                         break
-    except Exception as e:
-        log.warning("TikTok Creative Center failed: %s", e)
+                if len(items) < TOP_N:
+                    # fallback: ordered hashtags in doc
+                    for tag in re.findall(r"(?m)^(#[\w]+)\s*$", text):
+                        key = tag.lower()
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        items.append(
+                            TrendItem(
+                                rank=len(items) + 1,
+                                title=tag,
+                                url=f"https://www.tiktok.com/tag/{quote_plus(tag.lstrip('#'))}",
+                                platform="tiktok",
+                                snippet="TikTok Creative Center",
+                            )
+                        )
+                        if len(items) >= TOP_N:
+                            break
+        except Exception as e:
+            log.warning("TikTok Creative Center failed: %s", e)
 
-    # Pad with news-buzz about TikTok if Creative Center is thin
-    if len(items) < TOP_N:
-        extra = await _fetch_social_news_buzz(client, "tiktok", limit=TOP_N)
+    # Country pad with national TikTok news buzz if still thin
+    if not is_region and len(items) < TOP_N:
+        extra = await _fetch_social_news_buzz(client, "tiktok", place, limit=TOP_N)
         for it in extra:
             key = normalize_topic(it.title)
             if key in seen:
@@ -699,29 +805,36 @@ async def _fetch_tiktok(client: httpx.AsyncClient) -> list[TrendItem]:
 
 
 async def _fetch_social_news_buzz(
-    client: httpx.AsyncClient, platform: str, limit: int = MAX_PER_PLATFORM
+    client: httpx.AsyncClient,
+    platform: str,
+    place: Place,
+    limit: int = MAX_PER_PLATFORM,
 ) -> list[TrendItem]:
     """
     Facebook / Instagram (and TikTok pad) have no free public top-10 API.
     Proxy: Google News RSS about what's viral *on* those platforms.
     Clearly labeled so we never pretend this is Meta's own ranking.
     """
-    queries = {
+    base_queries = {
         "facebook": (
-            '("on Facebook" OR "Facebook post" OR "Facebook video" OR "viral on Facebook") '
-            "when:7d"
+            '("on Facebook" OR "Facebook post" OR "Facebook video" OR "viral on Facebook")'
         ),
         "instagram": (
-            '("on Instagram" OR "Instagram Reel" OR "Instagram post" OR "viral on Instagram") '
-            "when:7d"
+            '("on Instagram" OR "Instagram Reel" OR "Instagram post" OR "viral on Instagram")'
         ),
         "tiktok": (
-            '("on TikTok" OR "TikTok trend" OR "viral TikTok" OR "TikTok video") when:7d'
+            '("on TikTok" OR "TikTok trend" OR "viral TikTok" OR "TikTok video")'
         ),
     }
-    q = queries.get(platform)
-    if not q:
+    base = base_queries.get(platform)
+    if not base:
         return []
+    # US states / regions: require place name so boards actually change vs country
+    if place.kind == "region":
+        local = place.short_label()
+        q = f"{base} {local} when:14d"
+    else:
+        q = f"{base} when:7d"
     portal = {
         "facebook": "https://www.facebook.com/",
         "instagram": "https://www.instagram.com/explore/",
@@ -730,9 +843,14 @@ async def _fetch_social_news_buzz(
     try:
         r = await client.get(
             "https://news.google.com/rss/search",
-            params={"q": q, "hl": "en-US", "gl": "US", "ceid": "US:en"},
+            params={
+                "q": q,
+                "hl": place.news_hl,
+                "gl": place.news_gl,
+                "ceid": place.news_ceid,
+            },
             headers={
-                **_browser_headers(),
+                **_browser_headers(place.news_hl.replace("_", "-") + ",en;q=0.8"),
                 "Accept": "application/rss+xml, application/xml, text/xml, */*",
             },
         )
@@ -756,6 +874,7 @@ async def _fetch_social_news_buzz(
             seen.add(key)
             src = (entry.findtext("source") or "").strip()
             label = PLATFORM_LABELS.get(platform, platform)
+            where = place.short_label() if place.kind == "region" else ""
             items.append(
                 TrendItem(
                     rank=len(items) + 1,
@@ -764,6 +883,7 @@ async def _fetch_social_news_buzz(
                     platform=platform,
                     snippet=(
                         f"News buzz about {label}"
+                        + (f" in {where}" if where else "")
                         + (f" · {src}" if src else "")
                         + f" (not an official {label} ranking)"
                     ),
@@ -771,18 +891,60 @@ async def _fetch_social_news_buzz(
             )
             if len(items) >= limit:
                 break
+        # Region fallback: local headlines if platform+place query is thin
+        if place.kind == "region" and len(items) < max(3, limit // 2):
+            local = place.short_label()
+            r2 = await client.get(
+                "https://news.google.com/rss/search",
+                params={
+                    "q": f"{local} when:2d",
+                    "hl": place.news_hl,
+                    "gl": place.news_gl,
+                    "ceid": place.news_ceid,
+                },
+                headers={
+                    **_browser_headers(place.news_hl.replace("_", "-") + ",en;q=0.8"),
+                    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                },
+            )
+            if r2.status_code == 200:
+                root2 = ET.fromstring(r2.content)
+                for entry in root2.findall(".//item"):
+                    title = (entry.findtext("title") or "").strip()
+                    title_clean = re.sub(r"\s+-\s+[^-]+$", "", title).strip() or title
+                    link = (entry.findtext("link") or "").strip() or portal
+                    key = normalize_topic(title_clean)
+                    if not title_clean or key in seen:
+                        continue
+                    seen.add(key)
+                    src = (entry.findtext("source") or "").strip()
+                    items.append(
+                        TrendItem(
+                            rank=len(items) + 1,
+                            title=title_clean[:180],
+                            url=link,
+                            platform=platform,
+                            snippet=(
+                                f"Local {local} headline"
+                                + (f" · {src}" if src else "")
+                                + f" (proxy for {label})"
+                            ),
+                        )
+                    )
+                    if len(items) >= limit:
+                        break
         return items
     except Exception as e:
         log.warning("%s news-buzz failed: %s", platform, e)
         return []
 
 
-async def _fetch_facebook(client: httpx.AsyncClient) -> list[TrendItem]:
-    return await _fetch_social_news_buzz(client, "facebook")
+async def _fetch_facebook(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:
+    return await _fetch_social_news_buzz(client, "facebook", place)
 
 
-async def _fetch_instagram(client: httpx.AsyncClient) -> list[TrendItem]:
-    return await _fetch_social_news_buzz(client, "instagram")
+async def _fetch_instagram(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:
+    return await _fetch_social_news_buzz(client, "instagram", place)
 
 
 # ── consensus + rank lookup ────────────────────────────────────────────────
@@ -1078,8 +1240,9 @@ def apply_deltas(payload: dict[str, Any], prev: dict | None) -> dict[str, Any]:
     return payload
 
 
-def _ensure_derived(data: dict[str, Any]) -> dict[str, Any]:
+def _ensure_derived(data: dict[str, Any], place: Place | None = None) -> dict[str, Any]:
     """Fill consensus / top10 if missing (older cache or partial)."""
+    place = place or resolve_place(data.get("geo"))
     platforms = data.get("platforms") or {}
     # Ensure all keys exist
     for p in PLATFORM_ORDER:
@@ -1090,34 +1253,47 @@ def _ensure_derived(data: dict[str, Any]) -> dict[str, Any]:
     data["top10"] = top_slice(platforms, TOP_N)
     data["counts"] = {k: len(v or []) for k, v in platforms.items()}
     data["sources_ok"] = [k for k in PLATFORM_ORDER if platforms.get(k)]
-    data["sources"] = _sources_meta(platforms)
+    notes = platform_notes_for(place)
+    data["sources"] = _sources_meta(platforms, place, notes)
     data["labels"] = dict(PLATFORM_LABELS)
-    data["notes"] = dict(PLATFORM_NOTES)
+    data["notes"] = notes
+    data["geo"] = place.code
+    data["place"] = place.to_dict()
+    data["coverage"] = place.coverage_summary()
     return data
 
 
-def _sources_meta(platforms: dict[str, list]) -> list[dict[str, Any]]:
+def _sources_meta(
+    platforms: dict[str, list],
+    place: Place,
+    notes: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
     """Ordered source chips for the summary row (always includes known platforms)."""
+    notes = notes or platform_notes_for(place)
+    pg = place.platform_geo()
     out = []
     for key in PLATFORM_ORDER:
         ok = bool(platforms.get(key))
+        scope = (pg.get(key) or {}).get("scope") or ""
         out.append(
             {
                 "id": key,
                 "label": PLATFORM_LABELS.get(key, key),
                 "ok": ok,
                 "count": len(platforms.get(key) or []),
-                "note": PLATFORM_NOTES.get(key, ""),
+                "note": notes.get(key, PLATFORM_NOTES.get(key, "")),
+                "geo_scope": scope,
+                "geo_code": (pg.get(key) or {}).get("code") or "",
             }
         )
     return out
 
 
-async def build_trends(force: bool = False) -> dict[str, Any]:
+async def build_trends(force: bool = False, geo: str | None = None) -> dict[str, Any]:
+    place = resolve_place(geo)
     if not force:
-        cached = _read_cache()
+        cached = _read_cache(place)
         if cached:
-            # Old cache without new platforms → refresh once
             plats = cached.get("platforms") or {}
             if all(p in plats for p in PLATFORM_ORDER):
                 cached["cache"] = "hit"
@@ -1125,14 +1301,26 @@ async def build_trends(force: bool = False) -> dict[str, Any]:
 
     timeout = httpx.Timeout(30.0, connect=8.0)
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        google = await _fetch_google(client)
-        bing = await _fetch_bing(client)
-        youtube = await _fetch_youtube(client)
-        x_items = await _fetch_x(client)
-        poly = await _fetch_polymarket(client)
-        tiktok = await _fetch_tiktok(client)
-        facebook = await _fetch_facebook(client)
-        instagram = await _fetch_instagram(client)
+        # Parallel platform pulls — first visit to a geo is bounded by slowest source
+        (
+            google,
+            bing,
+            youtube,
+            x_items,
+            poly,
+            tiktok,
+            facebook,
+            instagram,
+        ) = await asyncio.gather(
+            _fetch_google(client, place),
+            _fetch_bing(client, place),
+            _fetch_youtube(client, place),
+            _fetch_x(client, place),
+            _fetch_polymarket(client),
+            _fetch_tiktok(client, place),
+            _fetch_facebook(client, place),
+            _fetch_instagram(client, place),
+        )
 
     platforms = {
         "google": [it.to_dict() for it in google],
@@ -1146,37 +1334,46 @@ async def build_trends(force: bool = False) -> dict[str, Any]:
     }
     consensus = build_consensus(platforms, TOP_N)
     sources_ok = [name for name in PLATFORM_ORDER if platforms.get(name)]
+    notes = platform_notes_for(place)
+    coverage = place.coverage_summary()
     payload = {
         "day": _utc_day(),
         "fetched_at": _now_iso(),
         "fetched_at_unix": time.time(),
-        "geo": GEO,
+        "geo": place.code,
+        "place": place.to_dict(),
         "cache": "miss",
         "refresh": "daily",
         "sources_ok": sources_ok,
-        "sources": _sources_meta(platforms),
+        "sources": _sources_meta(platforms, place, notes),
         "labels": dict(PLATFORM_LABELS),
-        "notes": dict(PLATFORM_NOTES),
+        "notes": notes,
         "counts": {k: len(v) for k, v in platforms.items()},
         "platforms": platforms,
         "top10": top_slice(platforms, TOP_N),
         "consensus": consensus,
+        "coverage": coverage,
         "disclaimer": (
-            "Daily attention + money map (UTC day). "
+            f"Daily attention + money map for {place.label} (UTC day). "
             "Google Trends · Bing Popular/News · YouTube Top Videos · X (trends24) · "
-            "Polymarket 24h volume · TikTok Creative Center hashtags · "
-            "Facebook/Instagram via news-buzz proxies (Meta has no free public top-10 API). "
+            "Polymarket 24h volume (always global) · TikTok Creative Center hashtags · "
+            "Facebook/Instagram via news-buzz proxies. "
+            "US states: Google is state-level; Bing/Facebook/Instagram/TikTok use "
+            "local news buzz for that state; YouTube & X stay at U.S. country charts; "
+            "Polymarket is global. "
             "Consensus = topics on 2+ platform Top 10s. "
-            "Deltas (NEW / ↑ / ↓) compare to yesterday’s UTC snapshot. "
+            "Deltas (NEW / ↑ / ↓) compare to yesterday’s UTC snapshot for this place. "
             "Not affiliated; not financial advice."
         ),
     }
-    # Rotate history if day rolled, then annotate movement vs yesterday
-    _write_cache(payload)
-    payload = apply_deltas(payload, _read_json(PREV_FILE))
-    # Persist delta annotations on today's cache for API consumers
+    _write_cache(payload, place)
+    _, yday = _place_cache_paths(place)
+    payload = apply_deltas(payload, _read_json(yday))
     try:
-        _write_json(CACHE_FILE, payload)
+        today, _ = _place_cache_paths(place)
+        _write_json(today, payload)
+        if place.code == default_place().code:
+            _write_json(CACHE_FILE, payload)
     except Exception:
         pass
     return payload

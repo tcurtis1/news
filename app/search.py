@@ -12,6 +12,7 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
+from app.places import resolve_place
 from app.trends import build_trends, rank_lookup
 
 log = logging.getLogger("search")
@@ -272,15 +273,20 @@ def _merge_hits(lists: list[list[SearchHit]]) -> list[SearchHit]:
     return sorted(seen.values(), key=lambda h: h.score, reverse=True)[:MAX_RESULTS]
 
 
-async def run_search(q: str, force_trends: bool = False) -> dict[str, Any]:
+async def run_search(
+    q: str, force_trends: bool = False, geo: str | None = None
+) -> dict[str, Any]:
     query = _clean_query(q)
+    place = resolve_place(geo)
 
     # Empty query → daily platform trends dashboard
     if not query:
-        trends = await build_trends(force=force_trends)
+        trends = await build_trends(force=force_trends, geo=place.code)
         return {
             "q": "",
             "mode": "trends",
+            "geo": trends.get("geo"),
+            "place": trends.get("place"),
             "fetched_at": trends.get("fetched_at"),
             "count": sum((trends.get("counts") or {}).values()),
             "hits": [],
@@ -327,11 +333,13 @@ async def run_search(q: str, force_trends: bool = False) -> dict[str, Any]:
 
     hits = main_hits
     mode = "live" if (hits or tech_hits) else ("portals_only" if portals else "empty")
-    trends = await build_trends(force=False)
+    trends = await build_trends(force=False, geo=place.code)
     ranks = rank_lookup(query, trends)
 
     return {
         "q": query,
+        "geo": place.code,
+        "place": place.to_dict(),
         "fetched_at": _now_iso(),
         "mode": mode,
         "count": len(hits),
@@ -342,11 +350,13 @@ async def run_search(q: str, force_trends: bool = False) -> dict[str, Any]:
         "rank_lookup": ranks,
         "trends": {
             "day": trends.get("day"),
+            "geo": trends.get("geo"),
+            "place": trends.get("place"),
             "consensus": trends.get("consensus") or [],
             "labels": trends.get("labels") or {},
         },
         "disclaimer": (
-            "Rank map = mass platforms on Daily Intersection (not Hacker News). "
+            f"Rank map for {place.label} = mass platforms on Daily Intersection (not Hacker News). "
             "Primary news hits: Google News, Bing News, Reddit. "
             "Hacker News is a secondary tech niche index only. "
             "Polymarket volumes are not financial advice. Verify sources."

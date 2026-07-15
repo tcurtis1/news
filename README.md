@@ -8,6 +8,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 |---------|--------|
 | **Curious Pulse** — Google News + Reddit + light HN | Live |
 | **Daily Intersection** — Top 10 per platform | Live |
+| **Location** — country + U.S. state (`?geo=`) | Live |
 | **Consensus Top 10** — topics on 2+ platforms | Live |
 | **Day-over-day deltas** — NEW / ↑ / ↓ vs yesterday | Live |
 | **Rank map** — search a term → rank per site | Live |
@@ -20,19 +21,20 @@ Meta-aggregator for **https://news.yoyosup.com**
 
 ## Platforms (daily cache)
 
-| Platform | Source |
-|----------|--------|
-| Google | Trends RSS |
-| Bing | Popular Now + News RSS |
-| YouTube | US daily Top Videos chart |
-| X | trends24 US mirror |
-| Polymarket | Gamma API `volume24hr` (no key) |
-| TikTok | Creative Center hashtags (+ news pad) |
-| Facebook | News-buzz proxy (no free Meta top-10 API) |
-| Instagram | News-buzz proxy (no free Meta top-10 API) |
+| Platform | Source | Geo |
+|----------|--------|-----|
+| Google | Trends RSS | Country + U.S. state (`US-UT`) |
+| Bing | Popular Now + News RSS | Country market; **states → local Bing News** |
+| YouTube | Daily Top Videos chart | Country (no free state chart) |
+| X | trends24 mirror | Country (no free state chart) |
+| Polymarket | Gamma API `volume24hr` (no key) | Always global |
+| TikTok | Creative Center hashtags (+ news pad) | Country; **states → local TikTok news buzz** |
+| Facebook | News-buzz proxy (no free Meta top-10 API) | Country; **states → local news buzz** |
+| Instagram | News-buzz proxy (no free Meta top-10 API) | Country; **states → local news buzz** |
 
-Trends refresh **once per UTC day** (`/data/trends_cache.json`).  
-Force: `?force=1` on `/api/trends` or `/search`.
+Trends refresh **once per UTC day per place** (`/data/trends/{GEO}.json`).  
+Default geo (`TRENDS_GEO`, usually `US`) is warmed by cron; other places lazy-load on first visit.  
+Force: `?force=1&geo=US-UT` on `/api/trends` or `/search`.
 
 ## Local
 
@@ -54,10 +56,12 @@ Installs app on `tony@192.168.1.44:~/apps/news` (port **3010**) and a **06:00 Am
 | Endpoint | Notes |
 |----------|--------|
 | `GET /api/pulse` | Story consensus (`?force=1`) |
-| `GET /api/trends` | Platforms + `consensus` + `top10` |
-| `GET /api/rank?q=` | Rank map for a query |
-| `GET /api/search?q=` | Rank map + news hits (empty `q` = full trends) |
-| `GET /topic/{slug}` | Topic page (ranks + news + comments) |
+| `GET /api/trends` | Platforms + `consensus` + `top10` (`?geo=US` / `US-UT` / `GB`) |
+| `GET /api/places` | Country + U.S. state catalog for the picker |
+| `GET /api/rank?q=` | Rank map for a query (`?geo=`) |
+| `GET /api/search?q=` | Rank map + news hits (empty `q` = full trends; `?geo=`) |
+| `GET /search?geo=` | Intersection UI with location control |
+| `GET /topic/{slug}` | Topic page (ranks + news + comments; `?geo=`) |
 | `POST /topic/{slug}/comments` | Add comment (`name`, `body`) — moderated |
 | `POST /topic/{slug}/comments/{id}/report` | Report a comment |
 | `GET /safety` | Community guidelines |

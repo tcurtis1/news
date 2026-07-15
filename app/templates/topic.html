@@ -8,8 +8,9 @@
   } %}
   {% set rl = topic.rank_lookup %}
 
+  {% set geo_code = geo or (topic.geo if topic.geo else 'US') %}
   <p class="crumb">
-    <a href="/search">Intersection</a>
+    <a href="/search?geo={{ geo_code }}">Intersection</a>
     <span class="crumb-sep">/</span>
     <span>Topic</span>
   </p>
@@ -17,7 +18,8 @@
   <h1>{{ topic.title }}</h1>
   <p class="lede">
     Rank map, news, and discussion for <strong>{{ topic.q }}</strong>.
-    {% if topic.day %}<span class="muted-hint">Snapshot day {{ topic.day }}</span>{% endif %}
+    {% if place %}<span class="muted-hint">· {{ place.label }}</span>{% endif %}
+    {% if topic.day %}<span class="muted-hint">· Snapshot day {{ topic.day }}</span>{% endif %}
   </p>
 
   <div class="meta-row">
@@ -27,8 +29,9 @@
     {% else %}
       <span class="badge">Not in today’s tops</span>
     {% endif %}
+    {% if place %}<span class="badge geo-code-badge">{{ geo_code }}</span>{% endif %}
     <span>{{ topic.comment_count }} comment{{ 's' if topic.comment_count != 1 else '' }}</span>
-    <a href="/search?q={{ topic.q | urlencode }}">Rank map search</a>
+    <a href="/search?q={{ topic.q | urlencode }}&geo={{ geo_code }}">Rank map search</a>
   </div>
 
   {% if topic.consensus %}
