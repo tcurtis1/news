@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -22,6 +22,7 @@ from app.comments import (
 from app.moderation import moderation_enabled
 from app.pulse import build_pulse
 from app.search import run_search
+from app.seo import collect_sitemap_urls, render_robots_txt, render_sitemap_xml
 from app.topics import build_topic, slugify, unslug
 from app.trends import build_trends, rank_lookup
 
@@ -32,7 +33,7 @@ BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
 
-app = FastAPI(title="Yoyosup News", version="0.7.0")
+app = FastAPI(title="Yoyosup News", version="0.7.1")
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["slugify"] = slugify
@@ -57,9 +58,21 @@ async def health():
         "ok": True,
         "service": "yoyosup-news",
         "public": PUBLIC_BASE,
-        "version": "0.7.0",
+        "version": "0.7.1",
         "moderation": moderation_enabled(),
     }
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+async def robots_txt():
+    return render_robots_txt()
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    urls = await collect_sitemap_urls()
+    xml = render_sitemap_xml(urls)
+    return Response(content=xml, media_type="application/xml")
 
 
 @app.get("/", response_class=HTMLResponse)

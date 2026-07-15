@@ -7,6 +7,11 @@
   <meta name="description" content="Daily Intersection (mass attention) and Curious Pulse on yoyosup.com." />
   <link rel="stylesheet" href="/static/style.css?v=0.6.0" />
   <link rel="canonical" href="{{ public_base }}{{ request.url.path }}" />
+  {% if request.url.path in ['/', '/search', '/safety'] or request.url.path.startswith('/topic/') %}
+  <meta name="robots" content="index,follow" />
+  {% elif request.url.path.startswith('/admin') or request.url.path.startswith('/api') %}
+  <meta name="robots" content="noindex,nofollow" />
+  {% endif %}
 </head>
 <body>
   <div class="wrap">

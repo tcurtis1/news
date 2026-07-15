@@ -61,8 +61,17 @@ Installs app on `tony@192.168.1.44:~/apps/news` (port **3010**) and a **06:00 Am
 | `POST /topic/{slug}/comments` | Add comment (`name`, `body`) — moderated |
 | `POST /topic/{slug}/comments/{id}/report` | Report a comment |
 | `GET /safety` | Community guidelines |
+| `GET /robots.txt` | Crawl rules + sitemap pointer |
+| `GET /sitemap.xml` | Core pages + consensus/topic URLs |
 | `GET /admin/mod?token=` | Held/reported queue (`MOD_ADMIN_TOKEN`) |
 | `GET /api/topic/{slug}` | Topic JSON |
+
+### Search engines
+
+After deploy, submit in consoles:
+
+- Sitemap: `https://news.yoyosup.com/sitemap.xml`
+- Robots: `https://news.yoyosup.com/robots.txt`
 
 ## Safety / moderation
 
