@@ -29,10 +29,16 @@
     {% else %}
       <span class="badge">Not in today’s tops</span>
     {% endif %}
+    {% if topic.coverage_lean %}
+      <span class="lean-badge lean-{{ topic.coverage_lean.lean }}" title="{{ topic.coverage_lean.lean_tip }}">{{ topic.coverage_lean.lean_label }}</span>
+    {% endif %}
     {% if place %}<span class="badge geo-code-badge">{{ geo_code }}</span>{% endif %}
     <span>{{ topic.comment_count }} comment{{ 's' if topic.comment_count != 1 else '' }}</span>
     <a href="/search?q={{ topic.q | urlencode }}&geo={{ geo_code }}">Rank map search</a>
   </div>
+  {% if topic.coverage_lean and topic.coverage_lean.lean_sample %}
+  <p class="lean-note">{{ topic.coverage_lean.lean_tip }}</p>
+  {% endif %}
 
   {% if topic.consensus %}
   {% set c = topic.consensus %}
@@ -131,7 +137,12 @@
       <div>
         <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
         {% if item.snippet %}<p class="summary">{{ item.snippet }}</p>{% endif %}
-        <div class="links"><span>{{ item.source }}</span></div>
+        <div class="links">
+          <span>{{ item.source }}</span>
+          {% if item.lean_label %}
+          <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
+          {% endif %}
+        </div>
       </div>
     </li>
     {% endfor %}
@@ -142,7 +153,7 @@
   <section class="comments" id="comments" aria-label="Comments">
     <h2 class="section-title section-title-lg">
       Discussion
-      <span class="muted-hint">{{ topic.comment_count }} · public, no login yet</span>
+      <span class="muted-hint">{{ topic.comment_count }} · optional name or Anonymous</span>
     </h2>
 
     {% if flash_error %}
@@ -155,13 +166,13 @@
     <form class="comment-form" method="post" action="/topic/{{ topic.slug }}/comments" id="comment-form">
       <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
       <div class="comment-fields">
-        <input type="text" name="name" maxlength="40" placeholder="Name (optional)" value="{{ form_name or '' }}" />
+        <input type="text" name="name" id="comment-name" maxlength="40" placeholder="Name (optional)" autocomplete="nickname" value="{{ form_name or '' }}" />
         <textarea name="body" rows="3" maxlength="2000" required placeholder="Add a thought — keep it civil.">{{ form_body or '' }}</textarea>
         <button type="submit">Post comment</button>
       </div>
       <p class="t-snip">
         Be kind. No spam. Comments are filtered for safety
-        (<a href="/safety">(guidelines)</a>.
+        (<a href="/safety">guidelines</a>).
         Held comments are not public until reviewed.
       </p>
     </form>
@@ -188,4 +199,7 @@
   </section>
 
   <div class="disclaimer">{{ topic.disclaimer }}</div>
+{% endblock %}
+{% block scripts %}
+  <script src="/static/comment-name.js?v={{ app_version | default('0.9.0') }}" defer></script>
 {% endblock %}

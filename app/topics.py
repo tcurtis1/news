@@ -6,6 +6,7 @@ import re
 from typing import Any
 from urllib.parse import unquote
 
+from app.bias import aggregate_lean, enrich_hits
 from app.comments import list_comments
 from app.search import run_search
 from app.trends import PLATFORM_LABELS, build_trends, query_matches_title, rank_lookup
@@ -53,6 +54,9 @@ async def build_topic(
     ranks = search.get("rank_lookup") or rank_lookup(query, trends)
     consensus = _consensus_match(query, trends)
     comments = list_comments(canonical)
+    hits = enrich_hits(search.get("hits") or [])
+    tech_hits = enrich_hits(search.get("tech_hits") or [])
+    coverage = search.get("coverage_lean") or aggregate_lean(hits)
 
     # Prefer display title from consensus or best rank hit
     display = query
@@ -74,16 +78,18 @@ async def build_topic(
         "labels": PLATFORM_LABELS,
         "rank_lookup": ranks,
         "consensus": consensus,
-        "hits": search.get("hits") or [],
-        "tech_hits": search.get("tech_hits") or [],
+        "hits": hits,
+        "tech_hits": tech_hits,
         "portals": search.get("portals") or [],
         "sources_ok": search.get("sources_ok") or [],
+        "coverage_lean": coverage,
         "day": trends.get("day"),
         "delta_vs": trends.get("delta_vs"),
         "comments": comments,
         "comment_count": len(comments),
         "disclaimer": (
             "Topic pages combine today’s rank map, free news indexes, and public comments. "
+            "Lean badges use curated outlet labels — not a fact-check or endorsement. "
             "Not affiliated with listed platforms. Be civil — comments are public."
         ),
     }

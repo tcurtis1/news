@@ -338,11 +338,17 @@
       {% else %}
         <span class="badge">No hits</span>
       {% endif %}
+      {% if results.coverage_lean %}
+        <span class="lean-badge lean-{{ results.coverage_lean.lean }}" title="{{ results.coverage_lean.lean_tip }}">{{ results.coverage_lean.lean_label }}</span>
+      {% endif %}
       <span>{{ results.count }} results</span>
       {% if results.sources_ok %}
         <span>{{ results.sources_ok | join(' · ') }}</span>
       {% endif %}
     </div>
+    {% if results.coverage_lean and results.coverage_lean.lean_sample %}
+    <p class="lean-note">{{ results.coverage_lean.lean_tip }}</p>
+    {% endif %}
 
     {% if results.portals %}
     <section class="portals" aria-label="Search portals">
@@ -370,9 +376,13 @@
           {% endif %}
           <div class="links">
             <span>{{ item.source }}</span>
+            {% if item.lean_label %}
+            <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
+            {% endif %}
             {% if item.comments_url %}
             <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
             {% endif %}
+            <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}#comments">Discuss here</a>
           </div>
         </div>
       </li>
@@ -401,6 +411,9 @@
           {% endif %}
           <div class="links">
             <span>{{ item.source }}</span>
+            {% if item.lean_label %}
+            <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
+            {% endif %}
             {% if item.comments_url %}
             <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
             {% endif %}

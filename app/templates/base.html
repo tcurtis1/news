@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ page_title }} · yoyosup News</title>
   <meta name="description" content="Daily Intersection (mass attention) and Curious Pulse on yoyosup.com." />
-  <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.8.3') }}" />
+  <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.9.2') }}" />
+  <link rel="icon" href="/static/logo-mark.svg?v=flat1" type="image/svg+xml" />
   <link rel="canonical" href="{{ public_base }}{{ request.url.path }}" />
   {% if request.url.path in ['/', '/search', '/safety'] or request.url.path.startswith('/topic/') %}
   <meta name="robots" content="index,follow" />
@@ -17,7 +18,7 @@
   <div class="wrap">
     <header class="site">
       <a class="brand brand-link" href="/">
-        <strong class="wordmark">yoyo<span class="logo-sup">sup</span></strong>
+        <img class="brand-logo" src="/static/logo.svg?v=flat1" width="160" height="32" alt="yoyosup" />
         <span class="tag">News · Intersection · curious pulse</span>
       </a>
       <nav>
@@ -34,7 +35,7 @@
       <span>
         <a href="/safety">Safety</a>
         · <a href="/api/pulse">JSON API</a>
-        · MVP
+        · lean badges are outlet labels, not truth scores
       </span>
     </footer>
   </div>

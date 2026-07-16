@@ -12,6 +12,7 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
+from app.bias import aggregate_lean, enrich_hits
 from app.places import resolve_place
 from app.trends import build_trends, rank_lookup
 
@@ -331,10 +332,12 @@ async def run_search(
     if tech_hits:
         sources_ok.append("Hacker News (tech, secondary)")
 
-    hits = main_hits
-    mode = "live" if (hits or tech_hits) else ("portals_only" if portals else "empty")
+    hits = enrich_hits([h.to_dict() for h in main_hits])
+    tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
+    mode = "live" if (hits or tech_hit_dicts) else ("portals_only" if portals else "empty")
     trends = await build_trends(force=False, geo=place.code)
     ranks = rank_lookup(query, trends)
+    coverage = aggregate_lean(hits)
 
     return {
         "q": query,
@@ -343,11 +346,12 @@ async def run_search(
         "fetched_at": _now_iso(),
         "mode": mode,
         "count": len(hits),
-        "hits": [h.to_dict() for h in hits],
-        "tech_hits": [h.to_dict() for h in tech_hits],
+        "hits": hits,
+        "tech_hits": tech_hit_dicts,
         "portals": portals,
         "sources_ok": sources_ok,
         "rank_lookup": ranks,
+        "coverage_lean": coverage,
         "trends": {
             "day": trends.get("day"),
             "geo": trends.get("geo"),
@@ -359,6 +363,7 @@ async def run_search(
             f"Rank map for {place.label} = mass platforms on Daily Intersection (not Hacker News). "
             "Primary news hits: Google News, Bing News, Reddit. "
             "Hacker News is a secondary tech niche index only. "
+            "Lean badges = curated outlet labels (not a truth score). "
             "Polymarket volumes are not financial advice. Verify sources."
         ),
     }

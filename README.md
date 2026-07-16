@@ -13,11 +13,24 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **Day-over-day deltas** — NEW / ↑ / ↓ vs yesterday | Live |
 | **Rank map** — search a term → rank per site | Live |
 | **Topic pages** — `/topic/{slug}` ranks + news | Live |
-| **Comments** — public thread per topic (no login yet) | Live |
+| **Comments** — public thread per topic; optional name or **Anonymous** (no login) | Live |
+| **Comment name memory** — localStorage preferred display name | Live |
+| **Bias / lean badges** — Lean left · right · mixed · unclear (outlet map) | Live |
 | **Safety** — guidelines + OpenAI/local moderation + report | Live |
 | **Polymarket** — top markets by 24h volume | Live |
-| Bias badges | Not yet |
-| Accounts / full auth | Not yet |
+| **YoyoSup logo** — SVG wordmark + mark | Live |
+
+## Feature backlog (product todo)
+
+| Priority | Item | Notes |
+|----------|------|--------|
+| ~~P1~~ | ~~Bias / leaning badge~~ | **Shipped v1** — `app/bias.py`; expand outlet list over time |
+| ~~P1a~~ | ~~Remember comment name~~ | **Shipped** — `static/comment-name.js` |
+| **P1b** | **Register a name** | Lightweight account (magic-link) so name is portable; keep anonymous |
+| **P1c** | **Discuss from Intersection cards** | Search hits already link “Discuss here”; wire consensus rows too |
+| P2 | Accounts / full auth | Only if registered names need verification, moderation trust, or rate-limit relief. |
+| P2 | News AdSense / monetization | After tools site ads are stable; avoid hard ads in comment boxes. |
+| P3 | Outlet bias sources | Wire public media-bias datasets for broader provenance. |
 
 ## Platforms (daily cache)
 
