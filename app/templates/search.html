@@ -430,18 +430,22 @@
 
     var current = (geoHidden.value || "US").toUpperCase();
     try {
-      // Remember preference; only auto-redirect when landing with no explicit geo
+      // Server prefers yoyonews_geo cookie (no paint-then-redirect). Mirror to localStorage.
       var params = new URLSearchParams(window.location.search);
-      if (!params.has("geo")) {
+      if (params.has("geo")) {
+        localStorage.setItem(STORAGE_KEY, current);
+        document.cookie =
+          "yoyonews_geo=" +
+          encodeURIComponent(current) +
+          "; path=/; max-age=31536000; samesite=lax";
+      } else {
+        // Fallback only if cookie missing but localStorage has a place (first visit after deploy)
         var saved = localStorage.getItem(STORAGE_KEY);
         if (saved && saved.toUpperCase() !== current) {
           params.set("geo", saved);
-          var q = params.toString();
-          window.location.replace("/search" + (q ? "?" + q : ""));
+          window.location.replace("/search" + (params.toString() ? "?" + params.toString() : ""));
           return;
         }
-      } else {
-        localStorage.setItem(STORAGE_KEY, current);
       }
     } catch (e) {}
 
@@ -460,7 +464,13 @@
     }
 
     function go(geo) {
-      try { localStorage.setItem(STORAGE_KEY, geo); } catch (e) {}
+      try {
+        localStorage.setItem(STORAGE_KEY, geo);
+        document.cookie =
+          "yoyonews_geo=" +
+          encodeURIComponent(geo) +
+          "; path=/; max-age=31536000; samesite=lax";
+      } catch (e) {}
       geoHidden.value = geo;
       var qInput = form.querySelector('input[name="q"]');
       var q = qInput ? qInput.value : "";

@@ -33,13 +33,39 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.8.1"
+APP_VERSION = "0.8.2"
+GEO_COOKIE = "yoyonews_geo"
+GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
 
 app = FastAPI(title="Yoyosup News", version=APP_VERSION)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["slugify"] = slugify
 templates.env.globals["app_version"] = APP_VERSION
+
+
+def _geo_cookie_place(request: Request):
+    """Saved non-default location from cookie (validated)."""
+    raw = (request.cookies.get(GEO_COOKIE) or "").strip()
+    if not raw:
+        return None
+    place = resolve_place(raw)
+    # Only redirect when preference differs from site default (avoids useless hop)
+    if place.code == default_place().code:
+        return None
+    return place
+
+
+def _set_geo_cookie(response: Response, geo_code: str) -> None:
+    response.set_cookie(
+        key=GEO_COOKIE,
+        value=geo_code,
+        max_age=GEO_COOKIE_MAX_AGE,
+        httponly=False,  # JS mirrors to localStorage
+        samesite="lax",
+        secure=PUBLIC_BASE.startswith("https"),
+        path="/",
+    )
 
 
 def _client_ip(request: Request) -> str:
@@ -120,11 +146,23 @@ async def api_pulse(force: bool = False):
 async def search_page(
     request: Request, q: str = "", force: bool = False, geo: str = ""
 ):
+    # Prefer explicit ?geo=; else cookie (no client paint-then-redirect flash)
+    if not (geo or "").strip():
+        saved = _geo_cookie_place(request)
+        if saved is not None:
+            params = []
+            if q.strip():
+                params.append(f"q={quote(q.strip())}")
+            if force:
+                params.append("force=1")
+            params.append(f"geo={quote(saved.code)}")
+            return RedirectResponse("/search?" + "&".join(params), status_code=302)
+
     place = resolve_place(geo or None)
     results = await run_search(q, force_trends=force, geo=place.code)
     title = f"Rank map: {q.strip()}" if q.strip() else "Daily Intersection"
     places_ui = list_places_for_ui()
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request,
         "search.html",
         {
@@ -138,6 +176,10 @@ async def search_page(
             "topic_slug": slugify(q) if q.strip() else "",
         },
     )
+    # Remember location for next visit (server-side; avoids FOUC redirect)
+    if (geo or "").strip():
+        _set_geo_cookie(resp, place.code)
+    return resp
 
 
 @app.get("/api/search")
