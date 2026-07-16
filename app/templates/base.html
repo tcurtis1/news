@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{ page_title }} · Yoyosup News</title>
+  <title>{{ page_title }} · yoyosup News</title>
   <meta name="description" content="Daily Intersection (mass attention) and Curious Pulse on yoyosup.com." />
-  <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.8.0') }}" />
+  <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.8.3') }}" />
   <link rel="canonical" href="{{ public_base }}{{ request.url.path }}" />
   {% if request.url.path in ['/', '/search', '/safety'] or request.url.path.startswith('/topic/') %}
   <meta name="robots" content="index,follow" />
@@ -16,10 +16,10 @@
 <body>
   <div class="wrap">
     <header class="site">
-      <div class="brand">
-        <strong>Yoyo<span>sup</span> News</strong>
-        <span class="tag">Intersection · curious pulse</span>
-      </div>
+      <a class="brand brand-link" href="/">
+        <strong class="wordmark">yoyo<span class="logo-sup">sup</span></strong>
+        <span class="tag">News · Intersection · curious pulse</span>
+      </a>
       <nav>
         <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Pulse</a>
         <a href="/search" class="{% if request.url.path.startswith('/search') %}active{% endif %}">Intersection</a>
@@ -38,5 +38,6 @@
       </span>
     </footer>
   </div>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -59,12 +59,25 @@ header.site {
   gap: 0.15rem;
 }
 
-.brand strong {
-  font-size: 1.25rem;
-  letter-spacing: -0.02em;
+.brand-link {
+  text-decoration: none;
+  color: inherit;
 }
 
-.brand strong span {
+.brand-link:hover {
+  text-decoration: none;
+}
+
+/* Site brand wordmark: yoyo + orange sup (matches tools site) */
+.brand .wordmark {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.brand .logo-sup {
   color: var(--accent);
 }
 
