@@ -22,16 +22,21 @@
         <span class="tag">News · Intersection · curious pulse</span>
       </a>
       <nav>
-        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Pulse</a>
-        <a href="/search" class="{% if request.url.path.startswith('/search') %}active{% endif %}">Intersection</a>
         <a href="https://www.yoyosup.com/tools/hub/" rel="noopener">Tools</a>
+        <a href="/" class="{% if request.url.path == '/' or request.url.path.startswith('/topic') %}active{% endif %}">News</a>
+        <a href="https://finance.yoyosup.com/" rel="noopener">Finance</a>
+        <a href="/search" class="{% if request.url.path.startswith('/search') %}active{% endif %}">Intersection</a>
       </nav>
     </header>
 
     {% block content %}{% endblock %}
 
     <footer class="site">
-      <span>Part of <a href="https://www.yoyosup.com/">yoyosup.com</a></span>
+      <span>Part of <a href="https://www.yoyosup.com/">yoyosup.com</a>
+        · <a href="https://www.yoyosup.com/tools/hub/" rel="noopener">Tools</a>
+        · <a href="https://news.yoyosup.com/">News</a>
+        · <a href="https://finance.yoyosup.com/" rel="noopener">Finance</a>
+      </span>
       <span>
         <a href="/safety">Safety</a>
         · <a href="/api/pulse">JSON API</a>
