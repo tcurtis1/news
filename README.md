@@ -19,6 +19,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **Safety** — guidelines + OpenAI/local moderation + report | Live |
 | **Polymarket** — top markets by 24h volume | Live |
 | **YoyoSup logo** — SVG wordmark + mark | Live |
+| **MyNews** — personal topic board (`/my`, localStorage, no auth) | Live |
 
 ## Feature backlog (product todo)
 

@@ -14,14 +14,15 @@
   <p class="lede">
     Mass attention map — search, video, social, and prediction markets
     (Google, Bing, YouTube, X, Polymarket, TikTok, Facebook, Instagram).
-    Search any term for a rank map. Change location for country or U.S. state boards.
+    Search any term for a rank map. Customize a personal board in
+    <a href="/my?geo={{ geo_code }}">MyNews</a>. Location is collapsed below — open it to change.
   </p>
 
-  <aside class="network-callout" aria-label="Yoyosup Finance">
+  <aside class="network-callout" aria-label="Finance">
     <b>Rates &amp; markets</b>
     <span>
       Looking up Fed, housing, or tickers?
-      <a href="https://finance.yoyosup.com/?ref=news-intersection" rel="noopener">Yoyosup Finance</a>
+      <a href="https://finance.yoyosup.com/?ref=news-intersection" rel="noopener">Finance</a>
       has Treasury &amp; mortgage rates, FX, crypto, and market headlines (free).
     </span>
   </aside>
@@ -40,64 +41,17 @@
     <button type="submit">Rank map</button>
   </form>
 
-  <div class="geo-bar" id="geo-bar">
-    <div class="geo-current">
-      <span class="geo-pin" aria-hidden="true">📍</span>
-      <span class="geo-label-text">Trends for</span>
-      <strong class="geo-place-name">{{ place_label }}</strong>
-      <span class="badge geo-code-badge">{{ geo_code }}</span>
-      <button type="button" class="geo-change-btn" id="geo-toggle" aria-expanded="false" aria-controls="geo-panel">
-        Change
-      </button>
+  {% set places_ui = pui %}
+  {% set geo_reset_href = '/search?geo=US' %}
+  {% include "_geo_bar.html" %}
+
+  {# Jump strip when user has MyNews topics on this device #}
+  <div class="my-jump" id="my-jump" hidden>
+    <div class="my-jump-head">
+      <span class="my-jump-label">Your topics</span>
+      <a href="/my?geo={{ geo_code }}">Edit MyNews →</a>
     </div>
-    <div class="geo-panel" id="geo-panel" hidden>
-      <label class="geo-field">
-        <span>Country</span>
-        <select id="geo-country" name="geo_country">
-          {% set country_sel = place.country if place else 'US' %}
-          {% for c in pui.countries or [] %}
-          <option value="{{ c.code }}" {% if c.code == country_sel %}selected{% endif %}>{{ c.label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label class="geo-field" id="geo-state-wrap" {% if not (place and place.country == 'US') %}hidden{% endif %}>
-        <span>U.S. state <span class="muted-hint">(optional)</span></span>
-        <select id="geo-state">
-          <option value="">Whole country</option>
-          {% for s in pui.us_states or [] %}
-          <option value="{{ s.code }}" {% if geo_code == s.code %}selected{% endif %}>{{ s.label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label class="geo-field geo-type">
-        <span>Or type a place</span>
-        <input
-          type="text"
-          id="geo-typeahead"
-          list="geo-suggestions"
-          placeholder="Utah, England, France, GB…"
-          maxlength="80"
-          autocomplete="off"
-        />
-        <datalist id="geo-suggestions">
-          {% for c in pui.countries or [] %}
-          <option value="{{ c.label }}"></option>
-          {% endfor %}
-          {% for s in pui.us_states or [] %}
-          <option value="{{ s.label }}"></option>
-          {% endfor %}
-        </datalist>
-      </label>
-      <div class="geo-actions">
-        <button type="button" class="geo-apply-btn" id="geo-apply">Apply location</button>
-        <a class="muted-hint" href="/search?geo=US">Reset to United States</a>
-      </div>
-      <p class="geo-hint muted-hint">
-        Countries refresh most boards. U.S. states: Google is state-level; Bing/Facebook/Instagram/TikTok
-        use local news buzz; YouTube &amp; X stay on the U.S. country chart; Polymarket is global.
-        Unknown places fall back to the default.
-      </p>
-    </div>
+    <div class="my-jump-chips" id="my-jump-chips"></div>
   </div>
 
   {% if results and results.mode == 'trends' and results.trends %}
@@ -436,93 +390,45 @@
     <div class="disclaimer">{{ results.disclaimer }}</div>
   {% endif %}
 
+  <script src="/static/geo.js?v={{ app_version }}"></script>
   <script>
   (function () {
-    var STORAGE_KEY = "yoyonews_geo";
-    var toggle = document.getElementById("geo-toggle");
-    var panel = document.getElementById("geo-panel");
-    var country = document.getElementById("geo-country");
-    var state = document.getElementById("geo-state");
-    var stateWrap = document.getElementById("geo-state-wrap");
-    var typeahead = document.getElementById("geo-typeahead");
-    var applyBtn = document.getElementById("geo-apply");
-    var geoHidden = document.getElementById("geo-hidden");
-    var form = document.getElementById("search-form");
-    if (!toggle || !panel || !form || !geoHidden) return;
-
-    var current = (geoHidden.value || "US").toUpperCase();
-    try {
-      // Server prefers yoyonews_geo cookie (no paint-then-redirect). Mirror to localStorage.
-      var params = new URLSearchParams(window.location.search);
-      if (params.has("geo")) {
-        localStorage.setItem(STORAGE_KEY, current);
-        document.cookie =
-          "yoyonews_geo=" +
-          encodeURIComponent(current) +
-          "; path=/; max-age=31536000; samesite=lax";
-      } else {
-        // Fallback only if cookie missing but localStorage has a place (first visit after deploy)
-        var saved = localStorage.getItem(STORAGE_KEY);
-        if (saved && saved.toUpperCase() !== current) {
-          params.set("geo", saved);
-          window.location.replace("/search" + (params.toString() ? "?" + params.toString() : ""));
-          return;
-        }
-      }
-    } catch (e) {}
-
-    function syncStateVisibility() {
-      if (!country || !stateWrap) return;
-      var show = country.value === "US";
-      stateWrap.hidden = !show;
-      if (!show && state) state.value = "";
-    }
-
-    function resolvedGeo() {
-      var typed = (typeahead && typeahead.value || "").trim();
-      if (typed) return typed;
-      if (country && country.value === "US" && state && state.value) return state.value;
-      return (country && country.value) || current || "US";
-    }
-
-    function go(geo) {
-      try {
-        localStorage.setItem(STORAGE_KEY, geo);
-        document.cookie =
-          "yoyonews_geo=" +
-          encodeURIComponent(geo) +
-          "; path=/; max-age=31536000; samesite=lax";
-      } catch (e) {}
-      geoHidden.value = geo;
-      var qInput = form.querySelector('input[name="q"]');
-      var q = qInput ? qInput.value : "";
-      var url = "/search?geo=" + encodeURIComponent(geo);
-      if (q) url += "&q=" + encodeURIComponent(q);
-      window.location.href = url;
-    }
-
-    toggle.addEventListener("click", function () {
-      var open = panel.hasAttribute("hidden");
-      if (open) {
-        panel.removeAttribute("hidden");
-        toggle.setAttribute("aria-expanded", "true");
-      } else {
-        panel.setAttribute("hidden", "");
-        toggle.setAttribute("aria-expanded", "false");
-      }
-    });
-
-    if (country) country.addEventListener("change", syncStateVisibility);
-    if (applyBtn) applyBtn.addEventListener("click", function () { go(resolvedGeo()); });
-    if (typeahead) {
-      typeahead.addEventListener("keydown", function (ev) {
-        if (ev.key === "Enter") {
-          ev.preventDefault();
-          go(resolvedGeo());
-        }
+    var geoCode = {{ (geo or 'US') | tojson }};
+    if (window.YoyoNewsGeo) {
+      YoyoNewsGeo.init({
+        currentGeo: geoCode,
+        redirectIfSaved: true,
+        redirectBase: "/search",
       });
     }
-    syncStateVisibility();
+    // Surface MyNews topics as a visible jump filter on Intersection
+    try {
+      var raw = localStorage.getItem("yoyonews_my_topics");
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      var topics = (data && data.topics) || [];
+      if (!topics.length) return;
+      var jump = document.getElementById("my-jump");
+      var chips = document.getElementById("my-jump-chips");
+      if (!jump || !chips) return;
+      jump.hidden = false;
+      chips.innerHTML = topics
+        .slice(0, 20)
+        .map(function (t) {
+          var label = (t.label || t.slug || "").replace(/</g, "");
+          var slug = encodeURIComponent(t.slug || "");
+          return (
+            '<a class="my-jump-chip" href="/topic/' +
+            slug +
+            "?geo=" +
+            encodeURIComponent(geoCode) +
+            '">' +
+            label +
+            "</a>"
+          );
+        })
+        .join("");
+    } catch (e) {}
   })();
   </script>
 {% endblock %}
