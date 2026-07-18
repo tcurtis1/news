@@ -208,6 +208,26 @@ h1 {
   color: var(--ok);
 }
 
+.network-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.network-callout b {
+  color: var(--text);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .list {
   list-style: none;
   margin: 0;
