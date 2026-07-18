@@ -33,7 +33,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.9.5"
+APP_VERSION = "0.9.6"
 GEO_COOKIE = "yoyonews_geo"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
 
