@@ -357,21 +357,73 @@ footer.site {
   cursor: not-allowed;
 }
 
-/* ── Location / geo control ───────────────────────────────────────── */
+/* ── Location / geo control (collapsed by default) ────────────────── */
 .geo-bar {
   margin: -0.35rem 0 1.15rem;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0.65rem 0.85rem;
+  padding: 0.35rem 0.5rem;
 }
 
-.geo-current {
+.geo-toggle-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem 0.55rem;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0.4rem 0.4rem;
+  border-radius: 8px;
+}
+
+.geo-toggle-row:hover {
+  background: var(--panel-2);
+}
+
+.geo-toggle-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.geo-current-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
   font-size: 0.9rem;
+  min-width: 0;
+}
+
+.geo-open-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 0.25rem 0.55rem;
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  border-radius: 999px;
+  background: var(--accent-dim);
+}
+
+.geo-toggle-row[aria-expanded="true"] .geo-open-hint {
+  border-color: var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.geo-chevron {
+  font-size: 0.75rem;
+  line-height: 1;
 }
 
 .geo-pin {
@@ -394,42 +446,31 @@ footer.site {
   font-weight: 600;
 }
 
-.geo-change-btn,
 .geo-apply-btn {
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--border);
+  background: var(--accent);
+  color: #111;
+  border: 1px solid transparent;
   border-radius: 8px;
-  padding: 0.3rem 0.7rem;
+  padding: 0.45rem 0.9rem;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
 }
 
-.geo-change-btn:hover,
 .geo-apply-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.geo-apply-btn {
-  background: var(--accent);
-  color: #111;
-  border-color: transparent;
-  padding: 0.45rem 0.9rem;
-}
-
-.geo-apply-btn:hover {
-  color: #111;
   filter: brightness(1.08);
 }
 
 .geo-panel {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
+  margin: 0.35rem 0.35rem 0.5rem;
+  padding: 0.75rem 0.5rem 0.5rem;
   border-top: 1px solid var(--border);
   display: grid;
   gap: 0.65rem;
+}
+
+.geo-panel[hidden] {
+  display: none !important;
 }
 
 .geo-field {
@@ -1209,4 +1250,271 @@ footer.site {
   .search-box {
     flex-direction: column;
   }
+}
+
+/* ── MyNews ───────────────────────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.my-filter {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin: 0 0 1.25rem;
+}
+
+.my-filter-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.my-filter-title {
+  font-size: 1rem;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.my-clear-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.my-clear-btn:hover {
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.my-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  min-height: 1.75rem;
+}
+
+.my-chip-empty {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.my-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.35rem 0.2rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.my-chip a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.my-chip a:hover {
+  color: var(--accent);
+}
+
+.my-chip-remove {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+}
+
+.my-chip-remove:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.my-add-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.my-add-form input {
+  flex: 1;
+  min-width: 12rem;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.95rem;
+}
+
+.my-add-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.my-add-form button {
+  background: var(--accent);
+  color: #111;
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.my-add-form button:hover {
+  filter: brightness(1.08);
+}
+
+.my-filter-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+}
+
+.my-code {
+  font-size: 0.78rem;
+  background: var(--panel-2);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.my-empty {
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: rgba(249, 115, 22, 0.04);
+}
+
+.my-empty-lead {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.my-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.my-suggest-chip {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.my-suggest-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.my-feed {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+
+.my-topic-card {
+  display: block;
+  padding: 1rem 1.1rem;
+}
+
+.my-topic-title {
+  font-size: 1.1rem;
+  margin: 0 0 0.35rem;
+}
+
+.my-hit-list {
+  margin: 0.65rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+}
+
+.my-hit-list li {
+  margin: 0.3rem 0;
+}
+
+.my-loading {
+  margin: 0;
+}
+
+/* Intersection jump strip for saved MyNews topics */
+.my-jump {
+  margin: -0.5rem 0 1.15rem;
+  padding: 0.65rem 0.85rem;
+  background: rgba(249, 115, 22, 0.06);
+  border: 1px solid rgba(249, 115, 22, 0.28);
+  border-radius: var(--radius);
+}
+
+.my-jump-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.85rem;
+}
+
+.my-jump-label {
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+}
+
+.my-jump-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.my-jump-chip {
+  display: inline-block;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.my-jump-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  text-decoration: none;
 }

@@ -33,7 +33,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.9.3"
+APP_VERSION = "0.9.4"
 GEO_COOKIE = "yoyonews_geo"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
 
@@ -177,6 +177,36 @@ async def search_page(
         },
     )
     # Remember location for next visit (server-side; avoids FOUC redirect)
+    if (geo or "").strip():
+        _set_geo_cookie(resp, place.code)
+    return resp
+
+
+@app.get("/my", response_class=HTMLResponse)
+@app.get("/mynews", response_class=HTMLResponse)
+async def mynews_page(request: Request, geo: str = ""):
+    """
+    Personal topic board (client-side localStorage). No auth.
+    Shell is server-rendered; topics + headlines hydrate in the browser.
+    """
+    if not (geo or "").strip():
+        saved = _geo_cookie_place(request)
+        if saved is not None:
+            return RedirectResponse(f"/my?geo={quote(saved.code)}", status_code=302)
+
+    place = resolve_place(geo or None)
+    places_ui = list_places_for_ui()
+    resp = templates.TemplateResponse(
+        request,
+        "mynews.html",
+        {
+            "public_base": PUBLIC_BASE,
+            "geo": place.code,
+            "place": place.to_dict(),
+            "places_ui": places_ui,
+            "page_title": "MyNews",
+        },
+    )
     if (geo or "").strip():
         _set_geo_cookie(resp, place.code)
     return resp

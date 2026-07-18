@@ -1,0 +1,72 @@
+{# Collapsed-by-default location control. Expects: geo_code, place_label, place, places_ui (pui). #}
+{% set pui = places_ui or {} %}
+{% set geo_code = geo_code or (place.code if place else 'US') %}
+{% set place_label = place_label or (place.label if place else 'United States') %}
+{% set country_sel = place.country if place else 'US' %}
+
+<div class="geo-bar" id="geo-bar">
+  <button
+    type="button"
+    class="geo-toggle-row"
+    id="geo-toggle"
+    aria-expanded="false"
+    aria-controls="geo-panel"
+  >
+    <span class="geo-current-inner">
+      <span class="geo-pin" aria-hidden="true">📍</span>
+      <span class="geo-label-text">Location</span>
+      <strong class="geo-place-name">{{ place_label }}</strong>
+      <span class="badge geo-code-badge">{{ geo_code }}</span>
+    </span>
+    <span class="geo-open-hint">
+      <span class="geo-open-label">Change</span>
+      <span class="geo-chevron" id="geo-chevron" aria-hidden="true">▾</span>
+    </span>
+  </button>
+  <div class="geo-panel" id="geo-panel" hidden>
+    <label class="geo-field">
+      <span>Country</span>
+      <select id="geo-country" name="geo_country">
+        {% for c in pui.countries or [] %}
+        <option value="{{ c.code }}" {% if c.code == country_sel %}selected{% endif %}>{{ c.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="geo-field" id="geo-state-wrap" {% if country_sel != 'US' %}hidden{% endif %}>
+      <span>U.S. state <span class="muted-hint">(optional)</span></span>
+      <select id="geo-state">
+        <option value="">Whole country</option>
+        {% for s in pui.us_states or [] %}
+        <option value="{{ s.code }}" {% if geo_code == s.code %}selected{% endif %}>{{ s.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="geo-field geo-type">
+      <span>Or type a place</span>
+      <input
+        type="text"
+        id="geo-typeahead"
+        list="geo-suggestions"
+        placeholder="Utah, England, France, GB…"
+        maxlength="80"
+        autocomplete="off"
+      />
+      <datalist id="geo-suggestions">
+        {% for c in pui.countries or [] %}
+        <option value="{{ c.label }}"></option>
+        {% endfor %}
+        {% for s in pui.us_states or [] %}
+        <option value="{{ s.label }}"></option>
+        {% endfor %}
+      </datalist>
+    </label>
+    <div class="geo-actions">
+      <button type="button" class="geo-apply-btn" id="geo-apply">Apply location</button>
+      <a class="muted-hint" href="{{ geo_reset_href or '/search?geo=US' }}">Reset to United States</a>
+    </div>
+    <p class="geo-hint muted-hint">
+      Countries refresh most boards. U.S. states: Google is state-level; Bing/Facebook/Instagram/TikTok
+      use local news buzz; YouTube &amp; X stay on the U.S. country chart; Polymarket is global.
+    </p>
+  </div>
+</div>

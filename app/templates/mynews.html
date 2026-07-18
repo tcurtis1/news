@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+  {% set geo_code = geo or (place.code if place else 'US') %}
+  {% set place_label = place.label if place else 'United States' %}
+
+  <h1>MyNews</h1>
+  <p class="lede">
+    Your personal topic board — pick what you care about and we’ll pull today’s ranks
+    and headlines. <strong>Saved on this device only</strong> (no account). Change location
+    anytime with the control below.
+  </p>
+
+  <input type="hidden" id="geo-hidden" value="{{ geo_code }}" />
+  {% set geo_reset_href = '/my?geo=US' %}
+  {% include "_geo_bar.html" %}
+
+  {# Always-visible customize filter #}
+  <section class="my-filter" aria-label="Your topic filter">
+    <div class="my-filter-head">
+      <h2 class="my-filter-title">Your topics</h2>
+      <span class="badge" id="my-topic-count">…</span>
+      <button type="button" class="my-clear-btn" id="my-clear">Clear all</button>
+    </div>
+    <div class="my-filter-chips" id="my-filter-chips" aria-live="polite"></div>
+    <form class="my-add-form" id="my-add-form" autocomplete="off">
+      <label class="sr-only" for="my-add-input">Add a topic</label>
+      <input
+        type="text"
+        id="my-add-input"
+        maxlength="80"
+        placeholder="Add a topic — e.g. Fed, housing, Spain…"
+      />
+      <button type="submit">Add</button>
+    </form>
+    <p class="muted-hint my-filter-hint">
+      Up to 20 topics. Share link example:
+      <code class="my-code">/my?topics=fed,housing</code>
+      · <a href="/search?geo={{ geo_code }}">Full Intersection</a>
+    </p>
+  </section>
+
+  <div id="my-empty" class="my-empty" hidden>
+    <p class="my-empty-lead">No topics yet. Add a few to build your board.</p>
+    <p class="muted-hint">Ideas from today’s consensus for {{ place_label }}:</p>
+    <div class="my-suggestions" id="my-suggestions"></div>
+  </div>
+
+  <div id="my-feed" class="my-feed" aria-live="polite"></div>
+
+  <p class="disclaimer">
+    MyNews runs in your browser. Topics never leave this device unless you open a topic page
+    or share a <code>?topics=</code> link. Not affiliated with listed platforms.
+  </p>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/geo.js?v={{ app_version }}"></script>
+  <script src="/static/mynews.js?v={{ app_version }}"></script>
+  <script>
+    YoyoMyNews.init({ geo: {{ (geo or 'US') | tojson }} });
+  </script>
+{% endblock %}
