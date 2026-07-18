@@ -42,63 +42,47 @@ a:hover {
   padding: 1.25rem 1rem 3rem;
 }
 
-header.site {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+/* Match network chrome (money/finance): pill nav + large wordmark */
+.site-header {
+  margin: 0 0 1.25rem;
+  padding-bottom: 0.85rem;
   border-bottom: 1px solid var(--border);
 }
 
-.brand {
+.site-header-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.55rem;
 }
 
-.brand-link {
+.site-brand {
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
-  color: inherit;
+  line-height: 0;
 }
 
-.brand-link:hover {
+.site-brand:hover {
   text-decoration: none;
 }
 
-.brand-logo {
-  display: block;
-  height: 36px;
+.site-brand-logo {
+  height: 44px;
   width: auto;
+  display: block;
 }
 
-.brand strong {
-  font-size: 1.25rem;
-  letter-spacing: -0.02em;
-}
-
-.brand-link:hover {
-  text-decoration: none;
-}
-
-/* Site brand wordmark: yoyo + orange sup (matches tools site) */
-.brand .wordmark {
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--text);
-  line-height: 1.2;
-}
-
-.brand .logo-sup {
-  color: var(--accent);
-}
-
-.brand .tag {
+.site-product {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--muted);
-  font-size: 0.85rem;
+  border-left: 1px solid var(--border);
+  padding-left: 0.75rem;
+  line-height: 1.1;
 }
 
 /* Outlet lean badges — accessible, not cartoon red/blue politics */
@@ -150,23 +134,31 @@ header.site {
   margin: 0.35rem 0 0;
 }
 
-nav {
+.site-nav {
   display: flex;
-  gap: 0.75rem;
-  font-size: 0.95rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
-nav a {
+.site-nav a {
   color: var(--muted);
-  padding: 0.35rem 0.6rem;
-  border-radius: 8px;
+  text-decoration: none;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
 }
 
-nav a:hover,
-nav a.active {
+.site-nav a:hover,
+.site-nav a.active {
   color: var(--text);
-  background: var(--panel-2);
+  border-color: var(--accent);
   text-decoration: none;
+  background: transparent;
+}
+
+.site-nav a.active {
+  color: var(--accent);
 }
 
 h1 {
@@ -300,16 +292,32 @@ h1 {
   font-size: 0.88rem;
 }
 
-footer.site {
+.site-footer {
   margin-top: 2rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.85rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
-  justify-content: space-between;
+  gap: 0.45rem 0.85rem;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.site-footer a {
+  color: #71717a;
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--accent);
+}
+
+.site-footer-brand {
+  margin-left: auto;
+  color: #52525b;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .empty {

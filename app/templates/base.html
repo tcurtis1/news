@@ -6,7 +6,7 @@
   <title>{{ page_title }} · yoyosup News</title>
   <meta name="description" content="Daily Intersection (mass attention) and Curious Pulse on yoyosup.com." />
   <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.9.2') }}" />
-  <link rel="icon" href="/static/logo-mark.svg?v=flat1" type="image/svg+xml" />
+  <link rel="icon" href="/static/logo-mark.svg" type="image/svg+xml" />
   <link rel="canonical" href="{{ public_base }}{{ request.url.path }}" />
   {% if request.url.path in ['/', '/search', '/safety'] or request.url.path.startswith('/topic/') %}
   <meta name="robots" content="index,follow" />
@@ -16,32 +16,37 @@
 </head>
 <body>
   <div class="wrap">
-    <header class="site">
-      <a class="brand brand-link" href="/">
-        <img class="brand-logo" src="/static/logo.svg?v=flat1" width="160" height="32" alt="yoyosup" />
-        <span class="tag">News · Intersection · curious pulse</span>
-      </a>
-      <nav>
+    <header class="site-header">
+      <div class="site-header-row">
+        <a class="site-brand" href="/" aria-label="yoyosup News home">
+          <img class="site-brand-logo" src="/static/logo.svg" width="200" height="40" alt="yoyosup" />
+        </a>
+        <span class="site-product">News</span>
+      </div>
+      <nav class="site-nav" aria-label="Main">
         <a href="https://www.yoyosup.com/tools/hub/" rel="noopener">Tools</a>
         <a href="/" class="{% if request.url.path == '/' or request.url.path.startswith('/topic') %}active{% endif %}">News</a>
-        <a href="https://finance.yoyosup.com/" rel="noopener">Finance</a>
         <a href="/search" class="{% if request.url.path.startswith('/search') %}active{% endif %}">Intersection</a>
+        <a href="https://finance.yoyosup.com/" rel="noopener">Finance</a>
+        <a href="https://www.yoyosup.com/tools/scamcheck/" rel="noopener">ScamCheck</a>
+        <a href="https://www.yoyosup.com/tools/blog/" rel="noopener">Guides</a>
+        <a href="https://www.yoyosup.com/tools/shop/" rel="noopener">Shop</a>
       </nav>
     </header>
 
     {% block content %}{% endblock %}
 
-    <footer class="site">
-      <span>Part of <a href="https://www.yoyosup.com/">yoyosup.com</a>
-        · <a href="https://www.yoyosup.com/tools/hub/" rel="noopener">Tools</a>
-        · <a href="https://news.yoyosup.com/">News</a>
-        · <a href="https://finance.yoyosup.com/" rel="noopener">Finance</a>
-      </span>
-      <span>
-        <a href="/safety">Safety</a>
-        · <a href="/api/pulse">JSON API</a>
-        · lean badges are outlet labels, not truth scores
-      </span>
+    <footer class="site-footer">
+      <a href="https://www.yoyosup.com/tools/hub/" rel="noopener">Tools</a>
+      <a href="https://news.yoyosup.com/">News</a>
+      <a href="https://finance.yoyosup.com/" rel="noopener">Finance</a>
+      <a href="https://www.yoyosup.com/tools/scamcheck/" rel="noopener">ScamCheck</a>
+      <a href="https://www.yoyosup.com/tools/blog/" rel="noopener">Guides</a>
+      <a href="https://www.yoyosup.com/tools/shop/" rel="noopener">$5 kit</a>
+      <a href="https://www.yoyosup.com/privacy.html" rel="noopener">Privacy</a>
+      <a href="/safety">Safety</a>
+      <a href="/api/pulse">JSON API</a>
+      <span class="site-footer-brand">yoyosup · lean badges are outlet labels, not truth scores</span>
     </footer>
   </div>
   {% block scripts %}{% endblock %}
