@@ -351,6 +351,31 @@ def query_matches_title(q: str, title: str) -> bool:
     return len(inter) / len(tq) >= 0.6
 
 
+def or_phrases(q: str) -> list[str]:
+    """
+    Comma-separated segments are ORed (each phrase searched alone).
+    Words within a segment match as a sentence (AND-ish via query_matches_title).
+    """
+    raw = (q or "").strip()
+    if not raw:
+        return []
+    parts = [re.sub(r"\s+", " ", p).strip() for p in raw.split(",")]
+    out: list[str] = []
+    seen: set[str] = set()
+    for p in parts:
+        if not p:
+            continue
+        p = p[:120]
+        key = p.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+        if len(out) >= 8:
+            break
+    return out
+
+
 # ── fetchers ──────────────────────────────────────────────────────────────
 
 
@@ -1046,9 +1071,8 @@ def build_consensus(
     return out
 
 
-def rank_lookup(q: str, trends: dict[str, Any]) -> dict[str, Any]:
-    """Where does q sit on each platform's daily list?"""
-    query = re.sub(r"\s+", " ", (q or "").strip())[:200]
+def _rank_lookup_one(query: str, trends: dict[str, Any]) -> dict[str, Any]:
+    """Where does a single phrase sit on each platform's daily list?"""
     platforms = trends.get("platforms") or {}
     rows: dict[str, Any] = {}
     hits = 0
@@ -1084,7 +1108,6 @@ def rank_lookup(q: str, trends: dict[str, Any]) -> dict[str, Any]:
                 "label": PLATFORM_LABELS.get(plat, plat),
             }
 
-    # Also note if in consensus
     in_consensus = False
     consensus_rank = None
     for c in trends.get("consensus") or []:
@@ -1100,7 +1123,6 @@ def rank_lookup(q: str, trends: dict[str, Any]) -> dict[str, Any]:
         if in_consensus:
             break
 
-    # Explicit hit list so every platform (incl. Polymarket) is named in the summary
     hit_bits = []
     for plat in PLATFORM_ORDER:
         row = rows.get(plat) or {}
@@ -1117,6 +1139,95 @@ def rank_lookup(q: str, trends: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "q": query,
+        "phrases": [query],
+        "match_mode": "phrase",
+        "platforms_hit": hits,
+        "best_rank": best,
+        "in_consensus": in_consensus,
+        "consensus_rank": consensus_rank,
+        "platforms": rows,
+        "hit_summary": hit_bits,
+        "summary": summary,
+    }
+
+
+def rank_lookup(q: str, trends: dict[str, Any]) -> dict[str, Any]:
+    """
+    Where does q sit on each platform's daily list?
+
+    Comma-separated segments are ORed (each phrase matched alone).
+    Multi-word text inside a segment is one phrase (sentence / AND-ish).
+    """
+    raw = re.sub(r"\s+", " ", (q or "").strip())[:200]
+    phrases = or_phrases(raw)
+    if not phrases:
+        return _rank_lookup_one("", trends)
+    if len(phrases) == 1:
+        return _rank_lookup_one(phrases[0], trends)
+
+    parts = [_rank_lookup_one(p, trends) for p in phrases]
+    rows: dict[str, Any] = {}
+    hits = 0
+    best: int | None = None
+    for plat in PLATFORM_ORDER:
+        match = None
+        for part in parts:
+            row = (part.get("platforms") or {}).get(plat) or {}
+            if not row.get("in_top"):
+                continue
+            rnk = int(row.get("rank") or 0) or None
+            if match is None:
+                match = dict(row)
+            elif rnk is not None:
+                prev = int(match.get("rank") or 999)
+                if rnk < prev:
+                    match = dict(row)
+        if match and match.get("in_top"):
+            hits += 1
+            rnk = int(match.get("rank") or 0) or None
+            if rnk and (best is None or rnk < best):
+                best = rnk
+            rows[plat] = match
+        else:
+            rows[plat] = {
+                "in_top": False,
+                "rank": None,
+                "title": None,
+                "url": None,
+                "snippet": "",
+                "label": PLATFORM_LABELS.get(plat, plat),
+            }
+
+    in_consensus = False
+    consensus_rank = None
+    for part in parts:
+        if part.get("in_consensus"):
+            in_consensus = True
+            cr = part.get("consensus_rank")
+            if consensus_rank is None or (
+                cr is not None and int(cr) < int(consensus_rank or 999)
+            ):
+                consensus_rank = cr
+
+    hit_bits = []
+    for plat in PLATFORM_ORDER:
+        row = rows.get(plat) or {}
+        if row.get("in_top") and row.get("rank") is not None:
+            lab = row.get("label") or PLATFORM_LABELS.get(plat, plat)
+            hit_bits.append(f"{lab} #{row['rank']}")
+
+    phrase_note = " OR ".join(f"“{p}”" for p in phrases)
+    if hits == 0:
+        summary = f"No top-list hits for {phrase_note}"
+    else:
+        summary = " · ".join(hit_bits) + f" (OR of {len(phrases)} phrases)"
+        if in_consensus and consensus_rank is not None:
+            summary += f" · consensus #{consensus_rank}"
+
+    return {
+        "q": raw,
+        "phrases": phrases,
+        "match_mode": "or_phrases",
         "platforms_hit": hits,
         "best_rank": best,
         "in_consensus": in_consensus,

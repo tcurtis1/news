@@ -14,7 +14,7 @@ import httpx
 
 from app.bias import aggregate_lean, enrich_hits
 from app.places import resolve_place
-from app.trends import build_trends, rank_lookup
+from app.trends import build_trends, or_phrases, rank_lookup
 
 log = logging.getLogger("search")
 
@@ -274,31 +274,11 @@ def _merge_hits(lists: list[list[SearchHit]]) -> list[SearchHit]:
     return sorted(seen.values(), key=lambda h: h.score, reverse=True)[:MAX_RESULTS]
 
 
-async def run_search(
-    q: str, force_trends: bool = False, geo: str | None = None
+async def _run_search_one(
+    query: str, force_trends: bool = False, geo: str | None = None
 ) -> dict[str, Any]:
-    query = _clean_query(q)
+    """Single phrase search (words in the phrase match as a sentence / AND-ish)."""
     place = resolve_place(geo)
-
-    # Empty query → daily platform trends dashboard
-    if not query:
-        trends = await build_trends(force=force_trends, geo=place.code)
-        return {
-            "q": "",
-            "mode": "trends",
-            "geo": trends.get("geo"),
-            "place": trends.get("place"),
-            "fetched_at": trends.get("fetched_at"),
-            "count": sum((trends.get("counts") or {}).values()),
-            "hits": [],
-            "portals": [],
-            "sources_ok": trends.get("sources_ok") or [],
-            "trends": trends,
-            "rank_lookup": None,
-            "disclaimer": trends.get("disclaimer")
-            or "Daily multi-platform trends snapshot.",
-        }
-
     portals = [p.to_dict() for p in portal_links(query)]
     timeout = httpx.Timeout(14.0, connect=6.0)
     async with httpx.AsyncClient(
@@ -311,11 +291,11 @@ async def run_search(
             await _fetch_reddit(client, query),
         )
 
-    # Primary news = mass indexes; tech niche listed separately
     main_hits = _merge_hits([gnews, bnews, reddit])
     tech_hits = _merge_hits([hn])[:8]
-    # Drop tech items that already appear in main list
-    main_titles = {re.sub(r"\W+", " ", (h.title or "").lower()).strip()[:80] for h in main_hits}
+    main_titles = {
+        re.sub(r"\W+", " ", (h.title or "").lower()).strip()[:80] for h in main_hits
+    }
     tech_hits = [
         h
         for h in tech_hits
@@ -352,6 +332,8 @@ async def run_search(
         "sources_ok": sources_ok,
         "rank_lookup": ranks,
         "coverage_lean": coverage,
+        "phrases": [query],
+        "match_mode": "phrase",
         "trends": {
             "day": trends.get("day"),
             "geo": trends.get("geo"),
@@ -367,3 +349,122 @@ async def run_search(
             "Polymarket volumes are not financial advice. Verify sources."
         ),
     }
+
+
+async def _run_search_or(
+    phrases: list[str], force_trends: bool = False, geo: str | None = None, display_q: str = ""
+) -> dict[str, Any]:
+    """Run each comma-segment independently and OR the results together."""
+    import asyncio
+
+    place = resolve_place(geo)
+    parts = await asyncio.gather(
+        *[_run_search_one(p, force_trends=False, geo=place.code) for p in phrases]
+    )
+    parts_list = list(parts)
+
+    # Merge headline hits (dedupe by URL)
+    hit_maps: list[list[SearchHit]] = []
+    tech_maps: list[list[SearchHit]] = []
+    for part in parts_list:
+        for key, bucket in (("hits", hit_maps), ("tech_hits", tech_maps)):
+            items = []
+            for h in part.get(key) or []:
+                items.append(
+                    SearchHit(
+                        title=h.get("title") or "",
+                        url=h.get("url") or "",
+                        source=h.get("source") or "",
+                        snippet=h.get("snippet") or "",
+                        score=int(h.get("score") or 0),
+                        comments_url=h.get("comments_url"),
+                    )
+                )
+            if key == "hits":
+                hit_maps.append(items)
+            else:
+                tech_maps.append(items)
+
+    main_hits = _merge_hits(hit_maps)
+    tech_hits = _merge_hits(tech_maps)[:8]
+    hits = enrich_hits([h.to_dict() for h in main_hits])
+    tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
+
+    sources_ok: list[str] = []
+    for part in parts_list:
+        for s in part.get("sources_ok") or []:
+            if s not in sources_ok:
+                sources_ok.append(s)
+
+    # Portals for the combined display query
+    portals = [p.to_dict() for p in portal_links(display_q or ", ".join(phrases))]
+    # Rank map: OR phrases via shared rank_lookup
+    trends_for_rank = await build_trends(force=False, geo=place.code)
+    ranks = rank_lookup(display_q or ", ".join(phrases), trends_for_rank)
+    coverage = aggregate_lean(hits)
+    mode = "live" if (hits or tech_hit_dicts) else ("portals_only" if portals else "empty")
+    trends = trends_for_rank
+
+    return {
+        "q": display_q or ", ".join(phrases),
+        "geo": place.code,
+        "place": place.to_dict(),
+        "fetched_at": _now_iso(),
+        "mode": mode,
+        "count": len(hits),
+        "hits": hits,
+        "tech_hits": tech_hit_dicts,
+        "portals": portals,
+        "sources_ok": sources_ok,
+        "rank_lookup": ranks,
+        "coverage_lean": coverage,
+        "phrases": phrases,
+        "match_mode": "or_phrases",
+        "trends": {
+            "day": trends.get("day"),
+            "geo": trends.get("geo"),
+            "place": trends.get("place"),
+            "consensus": trends.get("consensus") or [],
+            "labels": trends.get("labels") or {},
+        },
+        "disclaimer": (
+            f"Comma-separated topics are ORed (each phrase searched alone; words inside a "
+            f"phrase match as a sentence). Phrases: {', '.join(phrases)}. "
+            f"Location: {place.label}."
+        ),
+    }
+
+
+async def run_search(
+    q: str, force_trends: bool = False, geo: str | None = None
+) -> dict[str, Any]:
+    query = _clean_query(q)
+    place = resolve_place(geo)
+
+    # Empty query → daily platform trends dashboard
+    if not query:
+        trends = await build_trends(force=force_trends, geo=place.code)
+        return {
+            "q": "",
+            "mode": "trends",
+            "geo": trends.get("geo"),
+            "place": trends.get("place"),
+            "fetched_at": trends.get("fetched_at"),
+            "count": sum((trends.get("counts") or {}).values()),
+            "hits": [],
+            "portals": [],
+            "sources_ok": trends.get("sources_ok") or [],
+            "trends": trends,
+            "rank_lookup": None,
+            "disclaimer": trends.get("disclaimer")
+            or "Daily multi-platform trends snapshot.",
+        }
+
+    phrases = or_phrases(query)
+    if len(phrases) > 1:
+        return await _run_search_or(
+            phrases, force_trends=force_trends, geo=place.code, display_q=query
+        )
+    return await _run_search_one(
+        phrases[0] if phrases else query, force_trends=force_trends, geo=place.code
+    )

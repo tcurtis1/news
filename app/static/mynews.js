@@ -18,17 +18,49 @@
     return (t.slice(0, 80) || "topic").replace(/^-+|-+$/g, "");
   }
 
+  function expandLegacyTopics(topics) {
+    // Older chips may store "a, b" as one label — split into one phrase per chip
+    var out = [];
+    var seen = {};
+    (topics || []).forEach(function (t) {
+      if (!t || !t.label) return;
+      var labels =
+        String(t.label).indexOf(",") >= 0
+          ? parseLabels(t.label)
+          : [String(t.label).trim()];
+      labels.forEach(function (label) {
+        var slug = slugify(label);
+        if (!slug || seen[slug]) return;
+        seen[slug] = true;
+        out.push({
+          slug: slug,
+          label: label,
+          addedAt: t.addedAt || new Date().toISOString(),
+        });
+      });
+    });
+    return out.slice(0, MAX);
+  }
+
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
       if (!raw) return { v: 1, topics: [] };
       var data = JSON.parse(raw);
       if (!data || !Array.isArray(data.topics)) return { v: 1, topics: [] };
-      data.topics = data.topics
-        .filter(function (t) {
+      var expanded = expandLegacyTopics(
+        data.topics.filter(function (t) {
           return t && t.slug && t.label;
         })
-        .slice(0, MAX);
+      );
+      // Persist split if we expanded any comma chips
+      var changed =
+        expanded.length !== data.topics.length ||
+        expanded.some(function (t, i) {
+          return !data.topics[i] || data.topics[i].label !== t.label;
+        });
+      data.topics = expanded;
+      if (changed) save(data);
       return data;
     } catch (e) {
       return { v: 1, topics: [] };
@@ -101,9 +133,28 @@
     });
   }
 
+  /**
+   * Comma-separated input → separate topics (OR).
+   * Each segment is one phrase (multi-word = sentence / AND-ish match).
+   * "Federal Reserve, housing, Utah" → three chips, each searched alone.
+   */
+  function parseLabels(raw) {
+    return String(raw || "")
+      .split(",")
+      .map(function (s) {
+        return s.replace(/\s+/g, " ").trim().slice(0, 80);
+      })
+      .filter(Boolean)
+      .slice(0, 10);
+  }
+
   function addTopic(label) {
     label = String(label || "").trim().slice(0, 80);
     if (!label) return false;
+    // If user pastes commas into addTopic directly, still split
+    if (label.indexOf(",") >= 0) {
+      return addTopicsFromInput(label);
+    }
     var slug = slugify(label);
     var data = load();
     if (data.topics.some(function (t) {
@@ -122,6 +173,35 @@
     });
     save(data);
     return true;
+  }
+
+  function addTopicsFromInput(raw) {
+    var labels = parseLabels(raw);
+    if (!labels.length) return false;
+    var any = false;
+    var data = load();
+    for (var i = 0; i < labels.length; i++) {
+      if (data.topics.length >= MAX) {
+        if (any) save(data);
+        alert("Max " + MAX + " topics. Some were not added.");
+        return any;
+      }
+      var label = labels[i];
+      var slug = slugify(label);
+      if (data.topics.some(function (t) {
+        return t.slug === slug;
+      })) {
+        continue;
+      }
+      data.topics.push({
+        slug: slug,
+        label: label,
+        addedAt: new Date().toISOString(),
+      });
+      any = true;
+    }
+    if (any) save(data);
+    return any;
   }
 
   function boardKeys() {
@@ -204,6 +284,8 @@
   }
 
   async function loadTopicPayload(topic) {
+    // One chip = one phrase. (Comma lists are split at add-time into chips.)
+    // If a legacy chip still has commas, API ORs those segments server-side.
     var url =
       "/api/search?q=" +
       encodeURIComponent(topic.label) +
@@ -333,11 +415,11 @@
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();
       var v = input.value;
-      if (addTopic(v)) {
+      // Commas → multiple topics (OR); each segment is one phrase
+      if (addTopicsFromInput(v)) {
         input.value = "";
         refresh();
       } else if (v.trim()) {
-        // duplicate — still clear? keep and flash
         input.select();
       }
     });
@@ -362,16 +444,19 @@
     wireAddForm();
     wireClear();
 
-    // Import ?topics= before first render
+    // Import ?topics=a,b,c before first render (commas already OR)
     try {
       var params = new URLSearchParams(window.location.search);
       if (params.get("topics")) {
-        params
-          .get("topics")
-          .split(",")
-          .forEach(function (p) {
-            addTopic(p.trim().replace(/-/g, " "));
-          });
+        addTopicsFromInput(
+          params
+            .get("topics")
+            .split(",")
+            .map(function (p) {
+              return p.trim().replace(/-/g, " ");
+            })
+            .join(",")
+        );
         params.delete("topics");
         var qs = params.toString();
         window.history.replaceState(
