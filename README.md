@@ -2,6 +2,10 @@
 
 Meta-aggregator for **https://news.yoyosup.com**
 
+**Agents (cold start):** [NETWORK.md](NETWORK.md) → [AGENTS.md](AGENTS.md) → this README / [ROADMAP.md](ROADMAP.md).
+
+**Deploy:** `DEPLOY_AGENT=grok ./deploy.sh` (or `claude` / `tony`) — remote deploy lock; see NETWORK.md.
+
 ## What’s live
 
 | Feature | Status |
