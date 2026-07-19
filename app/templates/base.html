@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ page_title }} · yoyosup News</title>
   <meta name="description" content="Daily Intersection (mass attention) and Curious Pulse on yoyosup.com." />
-  <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.9.2') }}" />
-  <link rel="icon" href="/static/logo-mark.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.9.8') }}" />
+  <link rel="icon" href="/static/logo-mark.svg?v=flat1" type="image/svg+xml" />
   <link rel="canonical" href="{{ public_base }}{{ request.url.path }}" />
   {% if request.url.path in ['/', '/search', '/my', '/safety'] or request.url.path.startswith('/topic/') %}
   <meta name="robots" content="index,follow" />
@@ -16,22 +16,27 @@
 </head>
 <body>
   <div class="wrap">
+    {# Same network chrome as tools + finance #}
     <header class="site-header">
       <div class="site-header-row">
         <a class="site-brand" href="/" aria-label="yoyosup News home">
-          <img class="site-brand-logo" src="/static/logo.svg" width="200" height="40" alt="yoyosup" />
+          <img class="site-brand-logo" src="/static/logo.svg?v=flat1" width="200" height="40" alt="yoyosup" />
         </a>
         <span class="site-product">News</span>
       </div>
       <nav class="site-nav" aria-label="Main">
         <a href="https://www.yoyosup.com/tools/hub/" rel="noopener">Tools</a>
-        <a href="/" class="{% if request.url.path == '/' or request.url.path.startswith('/topic') %}active{% endif %}">News</a>
-        <a href="/search" class="{% if request.url.path.startswith('/search') %}active{% endif %}">Intersection</a>
-        <a href="/my" class="{% if request.url.path.startswith('/my') %}active{% endif %}">MyNews</a>
+        <a href="/" class="active">News</a>
         <a href="https://finance.yoyosup.com/" rel="noopener">Finance</a>
         <a href="https://www.yoyosup.com/tools/scamcheck/" rel="noopener">ScamCheck</a>
         <a href="https://www.yoyosup.com/tools/blog/" rel="noopener">Guides</a>
         <a href="https://www.yoyosup.com/tools/shop/" rel="noopener">Shop</a>
+      </nav>
+      {# News-only destinations — same pill style, second row #}
+      <nav class="site-nav site-nav-local" aria-label="News sections">
+        <a href="/search" class="{% if request.url.path.startswith('/search') %}active{% endif %}">Intersection</a>
+        <a href="/my" class="{% if request.url.path.startswith('/my') %}active{% endif %}">MyNews</a>
+        <a href="/safety" class="{% if request.url.path.startswith('/safety') %}active{% endif %}">Safety</a>
       </nav>
     </header>
 
@@ -44,9 +49,11 @@
       <a href="https://www.yoyosup.com/tools/scamcheck/" rel="noopener">ScamCheck</a>
       <a href="https://www.yoyosup.com/tools/blog/" rel="noopener">Guides</a>
       <a href="https://www.yoyosup.com/tools/shop/" rel="noopener">$5 kit</a>
-      <a href="https://www.yoyosup.com/privacy.html" rel="noopener">Privacy</a>
+      <a href="/search">Intersection</a>
+      <a href="/my">MyNews</a>
       <a href="/safety">Safety</a>
       <a href="/api/pulse">JSON API</a>
+      <a href="https://www.yoyosup.com/privacy.html" rel="noopener">Privacy</a>
       <span class="site-footer-brand">yoyosup · lean badges are outlet labels, not truth scores</span>
     </footer>
   </div>

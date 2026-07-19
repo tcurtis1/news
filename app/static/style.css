@@ -42,7 +42,7 @@ a:hover {
   padding: 1.25rem 1rem 3rem;
 }
 
-/* Match network chrome (money/finance): pill nav + large wordmark */
+/* Match tools site-chrome + finance pill nav (logo row + product + pills) */
 .site-header {
   margin: 0 0 1.25rem;
   padding-bottom: 0.85rem;
@@ -83,6 +83,88 @@ a:hover {
   border-left: 1px solid var(--border);
   padding-left: 0.75rem;
   line-height: 1.1;
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.site-nav a:hover,
+.site-nav a.active {
+  color: var(--text);
+  border-color: var(--accent);
+  text-decoration: none;
+  background: transparent;
+}
+
+.site-nav a.active {
+  color: var(--accent);
+}
+
+/* Second row: News-only (Intersection / MyNews / Safety) */
+.site-nav-local {
+  margin-top: 0.45rem;
+}
+
+/* Legacy aliases (old header.site / brand / bare nav) */
+header.site {
+  margin: 0 0 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.brand-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-link:hover {
+  text-decoration: none;
+}
+
+.brand-logo {
+  display: block;
+  height: 44px;
+  width: auto;
+}
+
+.brand strong {
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.brand .wordmark {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.brand .logo-sup {
+  color: var(--accent);
+}
+
+.brand .tag {
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 /* Outlet lean badges — accessible, not cartoon red/blue politics */
@@ -134,30 +216,31 @@ a:hover {
   margin: 0.35rem 0 0;
 }
 
-.site-nav {
+/* Bare nav = same pills as .site-nav (in case a template still uses <nav> alone) */
+nav {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  font-size: 0.78rem;
 }
 
-.site-nav a {
+nav a {
   color: var(--muted);
   text-decoration: none;
-  font-size: 0.78rem;
   padding: 0.3rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: 999px;
 }
 
-.site-nav a:hover,
-.site-nav a.active {
+nav a:hover,
+nav a.active {
   color: var(--text);
   border-color: var(--accent);
-  text-decoration: none;
   background: transparent;
+  text-decoration: none;
 }
 
-.site-nav a.active {
+nav a.active {
   color: var(--accent);
 }
 
@@ -292,7 +375,9 @@ h1 {
   font-size: 0.88rem;
 }
 
-.site-footer {
+/* Match tools/finance footer chrome */
+.site-footer,
+footer.site {
   margin-top: 2rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
@@ -301,21 +386,24 @@ h1 {
   gap: 0.45rem 0.85rem;
   align-items: center;
   font-size: 0.78rem;
-  color: var(--muted);
+  color: #52525b;
 }
 
-.site-footer a {
+.site-footer a,
+footer.site a {
   color: #71717a;
   text-decoration: none;
 }
 
-.site-footer a:hover {
+.site-footer a:hover,
+footer.site a:hover {
   color: var(--accent);
+  text-decoration: none;
 }
 
 .site-footer-brand {
   margin-left: auto;
-  color: #52525b;
+  color: #3f3f46;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
