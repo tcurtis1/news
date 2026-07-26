@@ -378,7 +378,9 @@ CENTER_NAMES: frozenset[str] = frozenset(
     }
 )
 
-# Domains used in Google News site: OR batches (highest-signal first)
+# Domains used in Google News site: OR batches (highest-signal first).
+# Conservative list covers the full Feedspot set so site: queries don't
+# stop after the first 16 big names (which made results look "severely limited").
 _FETCH_PRIORITY: dict[str, list[str]] = {
     PREF_CONSERVATIVE: [
         "foxnews.com",
@@ -405,6 +407,42 @@ _FETCH_PRIORITY: dict[str, list[str]] = {
         "dailysignal.com",
         "thehill.com",
         "politico.com",
+        "americanthinker.com",
+        "pjmedia.com",
+        "wnd.com",
+        "spectator.org",
+        "theamericanconservative.com",
+        "powerlineblog.com",
+        "judicialwatch.org",
+        "heritage.org",
+        "hannity.com",
+        "newsbusters.org",
+        "lifesitenews.com",
+        "cbn.com",
+        "commentary.org",
+        "firstthings.com",
+        "frontpagemag.com",
+        "bizpacreview.com",
+        "thenewamerican.com",
+        "bonginoreport.com",
+        "twitchy.com",
+        "patriotpost.us",
+        "theconservativetreehouse.com",
+        "conservativereview.com",
+        "charliekirk.com",
+        "hughhewitt.com",
+        "mrctv.org",
+        "voanews.com",
+        "csmonitor.com",
+        "canadafreepress.com",
+        "lifezette.com",
+        "afn.net",
+        "cnav.news",
+        "thetexashorn.com",
+        "newscats.org",
+        "theothermccain.com",
+        "dennisprager.com",
+        "reason.com",
     ],
     PREF_LIBERAL: [
         "nytimes.com",
@@ -431,6 +469,24 @@ _FETCH_PRIORITY: dict[str, list[str]] = {
         "rawstory.com",
         "commondreams.org",
         "democracynow.org",
+        "talkingpointsmemo.com",
+        "newrepublic.com",
+        "jacobin.com",
+        "alternet.org",
+        "truthout.org",
+        "counterpunch.org",
+        "latimes.com",
+        "cbsnews.com",
+        "abcnews.go.com",
+        "pbs.org",
+        "time.com",
+        "vanityfair.com",
+        "esquire.com",
+        "19thnews.org",
+        "prospect.org",
+        "mediamatters.org",
+        "therealnews.com",
+        "progressive.org",
     ],
     PREF_BALANCED: [
         "reuters.com",
@@ -455,8 +511,140 @@ _FETCH_PRIORITY: dict[str, list[str]] = {
         "nbcnews.com",
         "aljazeera.com",
         "economist.com",
+        "ft.com",
+        "cbsnews.com",
+        "abcnews.go.com",
+        "cnbc.com",
+        "forbes.com",
+        "newsweek.com",
+        "dw.com",
     ],
 }
+
+# Native outlet RSS feeds (no Feedspot proxy). Used to diversify beyond
+# Google News site: ranking, which over-weights a few mega-domains.
+# (name, domain, feed_url)
+OUTLET_RSS: dict[str, list[tuple[str, str, str]]] = {
+    PREF_CONSERVATIVE: [
+        ("Fox News", "foxnews.com", "https://moxie.foxnews.com/google-publisher/latest.xml"),
+        ("Fox News Politics", "foxnews.com", "https://moxie.foxnews.com/google-publisher/politics.xml"),
+        ("New York Post", "nypost.com", "https://nypost.com/feed/"),
+        ("Breitbart", "breitbart.com", "https://feeds.feedburner.com/breitbart"),
+        ("Daily Wire", "dailywire.com", "https://www.dailywire.com/feeds/rss.xml"),
+        ("Daily Caller", "dailycaller.com", "https://dailycaller.com/feed/"),
+        ("National Review", "nationalreview.com", "https://www.nationalreview.com/feed/"),
+        ("The Federalist", "thefederalist.com", "https://thefederalist.com/feed/"),
+        ("Free Beacon", "freebeacon.com", "https://freebeacon.com/feed/"),
+        ("Washington Examiner", "washingtonexaminer.com", "https://www.washingtonexaminer.com/feed/"),
+        ("Washington Times", "washingtontimes.com", "https://www.washingtontimes.com/rss/headlines/news/"),
+        ("The Blaze", "theblaze.com", "https://www.theblaze.com/feeds/feed.rss"),
+        ("Gateway Pundit", "thegatewaypundit.com", "https://www.thegatewaypundit.com/feed/"),
+        ("Daily Signal", "dailysignal.com", "https://www.dailysignal.com/feed/"),
+        ("HotAir", "hotair.com", "https://hotair.com/feed"),
+        ("RedState", "redstate.com", "https://redstate.com/feed/"),
+        ("PJ Media", "pjmedia.com", "https://pjmedia.com/feed"),
+        ("American Thinker", "americanthinker.com", "https://www.americanthinker.com/rss.xml"),
+        ("Epoch Times", "theepochtimes.com", "https://www.theepochtimes.com/c-us/feed"),
+        ("OANN", "oann.com", "https://www.oann.com/feed/"),
+        ("Townhall", "townhall.com", "https://townhall.com/rss.xml"),
+        ("Western Journal", "westernjournal.com", "https://www.westernjournal.com/feed/"),
+        ("Newsmax", "newsmax.com", "https://www.newsmax.com/rss/Newsfront/16/"),
+        ("The Hill", "thehill.com", "https://thehill.com/homenews/feed/"),
+        ("American Spectator", "spectator.org", "https://spectator.org/feed/"),
+        ("American Conservative", "theamericanconservative.com", "https://www.theamericanconservative.com/feed/"),
+        ("Power Line", "powerlineblog.com", "https://www.powerlineblog.com/feed"),
+        ("Judicial Watch", "judicialwatch.org", "https://www.judicialwatch.org/feed/"),
+        ("WND", "wnd.com", "https://www.wnd.com/feed/"),
+        ("CBN News", "cbn.com", "https://www1.cbn.com/rss-cbn-articles-cbnnews.xml"),
+        ("First Things", "firstthings.com", "https://firstthings.com/feed/"),
+        ("Commentary", "commentary.org", "https://www.commentary.org/feed/"),
+        ("Twitchy", "twitchy.com", "https://twitchy.com/feed/"),
+        ("NewsBusters", "newsbusters.org", "https://www.newsbusters.org/blog/feed"),
+        ("LifeSite", "lifesitenews.com", "https://www.lifesitenews.com/feed/"),
+        ("Reason", "reason.com", "https://reason.com/feed/"),
+        ("WSJ Opinion", "wsj.com", "https://feeds.content.dowjones.io/public/rss/RSSOpinion"),
+        ("WSJ World", "wsj.com", "https://feeds.content.dowjones.io/public/rss/RSSWorldNews"),
+    ],
+    PREF_LIBERAL: [
+        ("NYTimes", "nytimes.com", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"),
+        ("NYTimes Politics", "nytimes.com", "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml"),
+        ("Washington Post", "washingtonpost.com", "https://feeds.washingtonpost.com/rss/national"),
+        ("CNN", "cnn.com", "http://rss.cnn.com/rss/cnn_topstories.rss"),
+        ("CNN Politics", "cnn.com", "http://rss.cnn.com/rss/cnn_allpolitics.rss"),
+        ("The Guardian US", "theguardian.com", "https://www.theguardian.com/us-news/rss"),
+        ("NPR", "npr.org", "https://feeds.npr.org/1001/rss.xml"),
+        ("Vox", "vox.com", "https://www.vox.com/rss/index.xml"),
+        ("Mother Jones", "motherjones.com", "https://www.motherjones.com/feed/"),
+        ("The Atlantic", "theatlantic.com", "https://www.theatlantic.com/feed/all/"),
+        ("HuffPost", "huffpost.com", "https://www.huffpost.com/section/front-page/feed"),
+        ("Politico", "politico.com", "https://rss.politico.com/politics-news.xml"),
+        ("The Intercept", "theintercept.com", "https://theintercept.com/feed/?lang=en"),
+        ("The Nation", "thenation.com", "https://www.thenation.com/feed/?post_type=article"),
+        ("Daily Kos", "dailykos.com", "https://www.dailykos.com/blogs/main.rss"),
+        ("ProPublica", "propublica.org", "https://www.propublica.org/feeds/propublica/main"),
+        ("Slate", "slate.com", "https://slate.com/feeds/all.rss"),
+        ("Daily Beast", "thedailybeast.com", "https://feeds.thedailybeast.com/rss/articles"),
+        ("Axios", "axios.com", "https://api.axios.com/feed/"),
+        ("Salon", "salon.com", "https://www.salon.com/feed/"),
+        ("Raw Story", "rawstory.com", "https://www.rawstory.com/feeds/feed.rss"),
+        ("Common Dreams", "commondreams.org", "https://www.commondreams.org/rss.xml"),
+        ("Democracy Now", "democracynow.org", "https://www.democracynow.org/democracynow.rss"),
+        ("Talking Points Memo", "talkingpointsmemo.com", "https://talkingpointsmemo.com/feed"),
+        ("New Republic", "newrepublic.com", "https://newrepublic.com/rss.xml"),
+        ("Jacobin", "jacobin.com", "https://jacobin.com/feed"),
+        ("NBC News", "nbcnews.com", "https://feeds.nbcnews.com/nbcnews/public/news"),
+        ("MSNBC", "msnbc.com", "https://www.msnbc.com/feeds/latest"),
+    ],
+    PREF_BALANCED: [
+        ("Reuters", "reuters.com", "https://www.reutersagency.com/feed/?taxonomy=best-topics&post_type=best"),
+        ("AP", "apnews.com", "https://rsshub.app/apnews/topics/apf-topnews"),
+        ("BBC", "bbc.com", "https://feeds.bbci.co.uk/news/rss.xml"),
+        ("BBC World", "bbc.com", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+        ("Bloomberg", "bloomberg.com", "https://feeds.bloomberg.com/politics/news.rss"),
+        ("The Hill", "thehill.com", "https://thehill.com/homenews/feed/"),
+        ("USA Today", "usatoday.com", "http://rssfeeds.usatoday.com/usatoday-NewsTopStories"),
+        ("NPR", "npr.org", "https://feeds.npr.org/1001/rss.xml"),
+        ("Christian Science Monitor", "csmonitor.com", "https://rss.csmonitor.com/feeds/all"),
+        ("Al Jazeera", "aljazeera.com", "https://www.aljazeera.com/xml/rss/all.xml"),
+        ("DW", "dw.com", "https://rss.dw.com/rdf/rss-en-top"),
+        ("CNBC", "cnbc.com", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"),
+        ("Axios", "axios.com", "https://api.axios.com/feed/"),
+        ("WSJ World", "wsj.com", "https://feeds.content.dowjones.io/public/rss/RSSWorldNews"),
+        ("NYTimes", "nytimes.com", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"),
+        ("Fox News", "foxnews.com", "https://moxie.foxnews.com/google-publisher/latest.xml"),
+        ("CNN", "cnn.com", "http://rss.cnn.com/rss/cnn_topstories.rss"),
+        ("Washington Post", "washingtonpost.com", "https://feeds.washingtonpost.com/rss/national"),
+        ("Politico", "politico.com", "https://rss.politico.com/politics-news.xml"),
+    ],
+}
+
+
+def google_batch_budget(pref: str | None, *, lite: bool = False) -> tuple[int, int]:
+    """
+    (batch_size, max_batches) for Google News site: queries.
+    Conservative gets the widest crawl so mid-tier outlets aren't starved.
+    """
+    p = normalize_pref(pref)
+    if lite:
+        if p == PREF_CONSERVATIVE:
+            return 6, 8  # up to 48 domains
+        if p == PREF_LIBERAL:
+            return 6, 6
+        return 6, 4
+    # Full search
+    if p == PREF_CONSERVATIVE:
+        return 6, 10  # up to 60 domains — full Feedspot set
+    if p == PREF_LIBERAL:
+        return 6, 7
+    return 6, 5
+
+
+def rss_feeds_for(pref: str | None, *, limit: int | None = None) -> list[tuple[str, str, str]]:
+    p = normalize_pref(pref)
+    feeds = list(OUTLET_RSS.get(p) or [])
+    if limit is not None:
+        return feeds[:limit]
+    return feeds
 
 
 def normalize_pref(raw: str | None) -> str:
@@ -513,10 +701,17 @@ def names_for(pref: str | None) -> frozenset[str]:
     return BALANCED_NAMES | CENTER_NAMES
 
 
-def fetch_domains_for(pref: str | None, limit: int = 24) -> list[str]:
-    """Ordered domains for Google News site: queries."""
+def fetch_domains_for(pref: str | None, limit: int = 60) -> list[str]:
+    """Ordered domains for Google News site: queries (full list when limit high)."""
     p = normalize_pref(pref)
-    return list(_FETCH_PRIORITY.get(p, _FETCH_PRIORITY[PREF_BALANCED])[:limit])
+    ordered = list(_FETCH_PRIORITY.get(p, _FETCH_PRIORITY[PREF_BALANCED]))
+    # Append any allow-list domains missing from priority so nothing is skipped
+    known = set(ordered)
+    for d in sorted(domains_for(p)):
+        if d not in known:
+            ordered.append(d)
+            known.add(d)
+    return ordered[:limit]
 
 
 def _host(url: str) -> str:
@@ -623,13 +818,19 @@ def site_query_batches(
     pref: str | None,
     topic: str = "",
     *,
-    batch_size: int = 8,
-    max_batches: int = 3,
+    batch_size: int | None = None,
+    max_batches: int | None = None,
+    lite: bool = False,
 ) -> list[str]:
     """
     Build Google News RSS queries: optional topic + (site:a OR site:b …).
-    Split into batches so URLs stay reasonable.
+    Split into batches so URLs stay reasonable. Defaults cover most of the
+    preferred domain list (esp. conservative).
     """
+    if batch_size is None or max_batches is None:
+        bs, mb = google_batch_budget(pref, lite=lite)
+        batch_size = batch_size or bs
+        max_batches = max_batches or mb
     domains = fetch_domains_for(pref, limit=batch_size * max_batches)
     topic_q = _topic_for_google(topic)
     batches: list[str] = []

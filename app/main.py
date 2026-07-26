@@ -39,7 +39,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.10.0"
+APP_VERSION = "0.10.2"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -271,11 +271,20 @@ async def api_search(
     force: bool = False,
     geo: str = "",
     lean: str = "",
+    lite: bool = False,
 ):
+    """
+    Full search by default. Pass lite=1 for MyNews cards (faster:
+    preferred headlines + rank map only, parallel pulls).
+    """
     place = resolve_place(geo or None)
     lean_pref = _lean_from_request(request, lean)
     data = await run_search(
-        q, force_trends=force, geo=place.code, lean=lean_pref
+        q,
+        force_trends=force,
+        geo=place.code,
+        lean=lean_pref,
+        lite=bool(lite),
     )
     if q.strip():
         data["topic_path"] = (
