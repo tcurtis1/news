@@ -39,7 +39,10 @@ def _consensus_match(q: str, trends: dict[str, Any]) -> dict[str, Any] | None:
 
 
 async def build_topic(
-    slug: str, force: bool = False, geo: str | None = None
+    slug: str,
+    force: bool = False,
+    geo: str | None = None,
+    lean: str | None = None,
 ) -> dict[str, Any]:
     """
     Assemble topic page payload from slug.
@@ -49,7 +52,7 @@ async def build_topic(
     query = unslug(raw_slug)
     canonical = slugify(query)
 
-    search = await run_search(query, force_trends=force, geo=geo)
+    search = await run_search(query, force_trends=force, geo=geo, lean=lean)
     trends = await build_trends(force=False, geo=geo)
     ranks = search.get("rank_lookup") or rank_lookup(query, trends)
     consensus = _consensus_match(query, trends)
@@ -83,12 +86,16 @@ async def build_topic(
         "portals": search.get("portals") or [],
         "sources_ok": search.get("sources_ok") or [],
         "coverage_lean": coverage,
+        "lean_pref": search.get("lean_pref"),
+        "lean_pref_label": search.get("lean_pref_label"),
+        "lean_pref_tip": search.get("lean_pref_tip"),
         "day": trends.get("day"),
         "delta_vs": trends.get("delta_vs"),
         "comments": comments,
         "comment_count": len(comments),
         "disclaimer": (
             "Topic pages combine today’s rank map, free news indexes, and public comments. "
+            "Headlines follow your source preference (Conservative / Balanced / Liberal). "
             "Lean badges use curated outlet labels — not a fact-check or endorsement. "
             "Not affiliated with listed platforms. Be civil — comments are public."
         ),

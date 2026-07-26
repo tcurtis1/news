@@ -6,13 +6,14 @@
   <h1>MyNews</h1>
   <p class="lede">
     Your personal topic board — pick what you care about and we’ll pull today’s ranks
-    and headlines. <strong>Saved on this device only</strong> (no account). Change location
-    anytime with the control below.
+    and headlines. <strong>Saved on this device only</strong> (no account). Set location
+    and source lean (Conservative / Balanced / Liberal) below.
   </p>
 
   <input type="hidden" id="geo-hidden" value="{{ geo_code }}" />
   {% set geo_reset_href = '/my?geo=US' %}
   {% include "_geo_bar.html" %}
+  {% include "_lean_bar.html" %}
 
   {# Always-visible customize filter #}
   <section class="my-filter" aria-label="Your topic filter">
@@ -50,14 +51,21 @@
 
   <p class="disclaimer">
     MyNews runs in your browser. Topics never leave this device unless you open a topic page
-    or share a <code>?topics=</code> link. Not affiliated with listed platforms.
+    or share a <code>?topics=</code> link. Headlines follow your source preference.
+    Not affiliated with listed platforms.
   </p>
 {% endblock %}
 
 {% block scripts %}
   <script src="/static/geo.js?v={{ app_version }}"></script>
+  <script src="/static/lean-pref.js?v={{ app_version }}"></script>
   <script src="/static/mynews.js?v={{ app_version }}"></script>
   <script>
-    YoyoMyNews.init({ geo: {{ (geo or 'US') | tojson }} });
+    var leanPref = {{ (lean_pref or 'balanced') | tojson }};
+    if (window.YoyoLeanPrefInit) YoyoLeanPrefInit({ lean: leanPref });
+    YoyoMyNews.init({
+      geo: {{ (geo or 'US') | tojson }},
+      lean: leanPref,
+    });
   </script>
 {% endblock %}

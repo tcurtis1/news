@@ -1,0 +1,39 @@
+{# Source lean preference: Conservative / Balanced / Liberal. Expects lean_pref, optional lean_meta. #}
+{% set lean_pref = lean_pref or (lean_meta.lean_pref if lean_meta else 'balanced') %}
+{% set lean_tip = (lean_meta.lean_pref_tip if lean_meta else '') %}
+
+<div class="lean-bar" id="lean-bar" data-lean="{{ lean_pref }}">
+  <div class="lean-bar-inner">
+    <span class="lean-bar-label" id="lean-bar-label">Sources</span>
+    <div class="lean-seg" role="radiogroup" aria-labelledby="lean-bar-label">
+      <button
+        type="button"
+        class="lean-seg-btn {% if lean_pref == 'conservative' %}active{% endif %}"
+        data-lean="conservative"
+        role="radio"
+        aria-checked="{{ 'true' if lean_pref == 'conservative' else 'false' }}"
+      >Conservative</button>
+      <button
+        type="button"
+        class="lean-seg-btn {% if lean_pref == 'balanced' %}active{% endif %}"
+        data-lean="balanced"
+        role="radio"
+        aria-checked="{{ 'true' if lean_pref == 'balanced' else 'false' }}"
+      >Balanced</button>
+      <button
+        type="button"
+        class="lean-seg-btn {% if lean_pref == 'liberal' %}active{% endif %}"
+        data-lean="liberal"
+        role="radio"
+        aria-checked="{{ 'true' if lean_pref == 'liberal' else 'false' }}"
+      >Liberal</button>
+    </div>
+  </div>
+  <p class="lean-bar-hint muted-hint" id="lean-bar-hint">
+    {% if lean_tip %}
+      {{ lean_tip }}
+    {% else %}
+      Saved on this device. Headlines prefer outlets matching your choice.
+    {% endif %}
+  </p>
+</div>

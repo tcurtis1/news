@@ -6,6 +6,7 @@
   var KEY = "yoyonews_my_topics";
   var MAX = 20;
   var geo = "US";
+  var lean = "balanced";
 
   function slugify(text) {
     var t = String(text || "")
@@ -256,29 +257,43 @@
       .join("");
 
     var summary = rank.summary || "Loading ranks…";
+    var leanNow =
+      (window.YoyoLeanPref && YoyoLeanPref.current()) || lean || "balanced";
+    var leanLabel =
+      (payload && payload.lean_pref_label) ||
+      (leanNow === "conservative"
+        ? "Conservative"
+        : leanNow === "liberal"
+          ? "Liberal"
+          : "Balanced");
+    var topicHref =
+      "/topic/" +
+      encodeURIComponent(topic.slug) +
+      "?geo=" +
+      encodeURIComponent(geo) +
+      "&lean=" +
+      encodeURIComponent(leanNow);
     return (
       '<article class="my-topic-card card" data-slug="' +
       escapeHtml(topic.slug) +
       '">' +
       "<div>" +
-      '<h2 class="my-topic-title"><a href="/topic/' +
-      encodeURIComponent(topic.slug) +
-      "?geo=" +
-      encodeURIComponent(geo) +
+      '<h2 class="my-topic-title"><a href="' +
+      topicHref +
       '">' +
       escapeHtml(topic.label) +
       "</a></h2>" +
       '<p class="summary">' +
       escapeHtml(summary) +
-      ' · <a href="/topic/' +
-      encodeURIComponent(topic.slug) +
-      "?geo=" +
-      encodeURIComponent(geo) +
+      " · " +
+      escapeHtml(leanLabel) +
+      " sources · <a href=\"" +
+      topicHref +
       '#comments">discuss</a></p>' +
       (pills ? '<div class="rank-pills">' + pills + "</div>" : "") +
       (hitHtml
         ? '<ul class="my-hit-list">' + hitHtml + "</ul>"
-        : '<p class="muted-hint">No free-index headlines right now — open the topic page or portals.</p>') +
+        : '<p class="muted-hint">No preferred-source headlines right now — open the topic page or try another source lean.</p>') +
       "</div></article>"
     );
   }
@@ -286,11 +301,15 @@
   async function loadTopicPayload(topic) {
     // One chip = one phrase. (Comma lists are split at add-time into chips.)
     // If a legacy chip still has commas, API ORs those segments server-side.
+    var leanNow =
+      (window.YoyoLeanPref && YoyoLeanPref.current()) || lean || "balanced";
     var url =
       "/api/search?q=" +
       encodeURIComponent(topic.label) +
       "&geo=" +
-      encodeURIComponent(geo);
+      encodeURIComponent(geo) +
+      "&lean=" +
+      encodeURIComponent(leanNow);
     var res = await fetch(url);
     if (!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
@@ -438,6 +457,10 @@
   function init(opts) {
     opts = opts || {};
     geo = (opts.geo || "US").toUpperCase();
+    lean = (opts.lean || "balanced").toLowerCase();
+    if (window.YoyoLeanPref) {
+      lean = YoyoLeanPref.normalize(opts.lean || YoyoLeanPref.load());
+    }
     var geoHidden = el("geo-hidden");
     if (geoHidden && geoHidden.value) geo = geoHidden.value.toUpperCase();
 
@@ -475,8 +498,13 @@
         redirectIfSaved: true,
         redirectBase: "/my",
         onApply: function (newGeo) {
+          var leanNow =
+            (window.YoyoLeanPref && YoyoLeanPref.current()) || lean || "balanced";
           window.location.href =
-            "/my?geo=" + encodeURIComponent(newGeo);
+            "/my?geo=" +
+            encodeURIComponent(newGeo) +
+            "&lean=" +
+            encodeURIComponent(leanNow);
         },
       });
     }

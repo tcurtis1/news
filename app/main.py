@@ -24,6 +24,12 @@ from app.pulse import build_pulse
 from app.search import run_search
 from app.seo import collect_sitemap_urls, render_robots_txt, render_sitemap_xml
 from app.places import default_place, list_places_for_ui, resolve_place
+from app.source_prefs import (
+    PREF_DEFAULT,
+    list_catalog,
+    normalize_pref,
+    pref_meta,
+)
 from app.topics import build_topic, slugify, unslug
 from app.trends import build_trends, rank_lookup
 
@@ -33,9 +39,11 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.9.8"
+APP_VERSION = "0.10.0"
 GEO_COOKIE = "yoyonews_geo"
+LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
+LEAN_COOKIE_MAX_AGE = GEO_COOKIE_MAX_AGE
 
 app = FastAPI(title="Yoyosup News", version=APP_VERSION)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
@@ -62,6 +70,28 @@ def _set_geo_cookie(response: Response, geo_code: str) -> None:
         value=geo_code,
         max_age=GEO_COOKIE_MAX_AGE,
         httponly=False,  # JS mirrors to localStorage
+        samesite="lax",
+        secure=PUBLIC_BASE.startswith("https"),
+        path="/",
+    )
+
+
+def _lean_from_request(request: Request, lean: str = "") -> str:
+    """Explicit ?lean= wins; else cookie; else default (balanced)."""
+    if (lean or "").strip():
+        return normalize_pref(lean)
+    raw = (request.cookies.get(LEAN_COOKIE) or "").strip()
+    if raw:
+        return normalize_pref(raw)
+    return PREF_DEFAULT
+
+
+def _set_lean_cookie(response: Response, lean: str) -> None:
+    response.set_cookie(
+        key=LEAN_COOKIE,
+        value=normalize_pref(lean),
+        max_age=LEAN_COOKIE_MAX_AGE,
+        httponly=False,  # JS can read/sync with localStorage
         samesite="lax",
         secure=PUBLIC_BASE.startswith("https"),
         path="/",
@@ -144,7 +174,11 @@ async def api_pulse(force: bool = False):
 
 @app.get("/search", response_class=HTMLResponse)
 async def search_page(
-    request: Request, q: str = "", force: bool = False, geo: str = ""
+    request: Request,
+    q: str = "",
+    force: bool = False,
+    geo: str = "",
+    lean: str = "",
 ):
     # Prefer explicit ?geo=; else cookie (no client paint-then-redirect flash)
     if not (geo or "").strip():
@@ -156,10 +190,16 @@ async def search_page(
             if force:
                 params.append("force=1")
             params.append(f"geo={quote(saved.code)}")
+            lean_saved = _lean_from_request(request, lean)
+            if lean_saved:
+                params.append(f"lean={quote(lean_saved)}")
             return RedirectResponse("/search?" + "&".join(params), status_code=302)
 
     place = resolve_place(geo or None)
-    results = await run_search(q, force_trends=force, geo=place.code)
+    lean_pref = _lean_from_request(request, lean)
+    results = await run_search(
+        q, force_trends=force, geo=place.code, lean=lean_pref
+    )
     title = f"Rank map: {q.strip()}" if q.strip() else "Daily Intersection"
     places_ui = list_places_for_ui()
     resp = templates.TemplateResponse(
@@ -172,6 +212,8 @@ async def search_page(
             "place": place.to_dict(),
             "places_ui": places_ui,
             "results": results,
+            "lean_pref": lean_pref,
+            "lean_meta": pref_meta(lean_pref),
             "page_title": title,
             "topic_slug": slugify(q) if q.strip() else "",
         },
@@ -179,12 +221,14 @@ async def search_page(
     # Remember location for next visit (server-side; avoids FOUC redirect)
     if (geo or "").strip():
         _set_geo_cookie(resp, place.code)
+    # Always persist lean so next visit matches the control
+    _set_lean_cookie(resp, lean_pref)
     return resp
 
 
 @app.get("/my", response_class=HTMLResponse)
 @app.get("/mynews", response_class=HTMLResponse)
-async def mynews_page(request: Request, geo: str = ""):
+async def mynews_page(request: Request, geo: str = "", lean: str = ""):
     """
     Personal topic board (client-side localStorage). No auth.
     Shell is server-rendered; topics + headlines hydrate in the browser.
@@ -192,9 +236,14 @@ async def mynews_page(request: Request, geo: str = ""):
     if not (geo or "").strip():
         saved = _geo_cookie_place(request)
         if saved is not None:
-            return RedirectResponse(f"/my?geo={quote(saved.code)}", status_code=302)
+            lean_saved = _lean_from_request(request, lean)
+            return RedirectResponse(
+                f"/my?geo={quote(saved.code)}&lean={quote(lean_saved)}",
+                status_code=302,
+            )
 
     place = resolve_place(geo or None)
+    lean_pref = _lean_from_request(request, lean)
     places_ui = list_places_for_ui()
     resp = templates.TemplateResponse(
         request,
@@ -204,21 +253,43 @@ async def mynews_page(request: Request, geo: str = ""):
             "geo": place.code,
             "place": place.to_dict(),
             "places_ui": places_ui,
+            "lean_pref": lean_pref,
+            "lean_meta": pref_meta(lean_pref),
             "page_title": "MyNews",
         },
     )
     if (geo or "").strip():
         _set_geo_cookie(resp, place.code)
+    _set_lean_cookie(resp, lean_pref)
     return resp
 
 
 @app.get("/api/search")
-async def api_search(q: str = "", force: bool = False, geo: str = ""):
+async def api_search(
+    request: Request,
+    q: str = "",
+    force: bool = False,
+    geo: str = "",
+    lean: str = "",
+):
     place = resolve_place(geo or None)
-    data = await run_search(q, force_trends=force, geo=place.code)
+    lean_pref = _lean_from_request(request, lean)
+    data = await run_search(
+        q, force_trends=force, geo=place.code, lean=lean_pref
+    )
     if q.strip():
-        data["topic_path"] = f"/topic/{slugify(q)}?geo={place.code}"
+        data["topic_path"] = (
+            f"/topic/{slugify(q)}?geo={place.code}&lean={lean_pref}"
+        )
     return JSONResponse(data)
+
+
+@app.get("/api/source-prefs")
+async def api_source_prefs(lean: str = ""):
+    """Catalog of Conservative / Balanced / Liberal source lists."""
+    if (lean or "").strip():
+        return JSONResponse(list_catalog(lean))
+    return JSONResponse(list_catalog())
 
 
 @app.get("/api/trends")
@@ -250,16 +321,22 @@ async def topic_redirect(q: str = "", geo: str = ""):
 
 @app.get("/topic/{slug}", response_class=HTMLResponse)
 async def topic_page(
-    request: Request, slug: str, force: bool = False, geo: str = ""
+    request: Request,
+    slug: str,
+    force: bool = False,
+    geo: str = "",
+    lean: str = "",
 ):
     place = resolve_place(geo or None)
-    topic = await build_topic(slug, force=force, geo=place.code)
+    lean_pref = _lean_from_request(request, lean)
+    topic = await build_topic(slug, force=force, geo=place.code, lean=lean_pref)
     if slugify(slug) != topic["slug"] and unslug(slug):
         return RedirectResponse(
-            f"/topic/{topic['slug']}?geo={place.code}", status_code=302
+            f"/topic/{topic['slug']}?geo={place.code}&lean={lean_pref}",
+            status_code=302,
         )
 
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request,
         "topic.html",
         {
@@ -267,6 +344,8 @@ async def topic_page(
             "topic": topic,
             "geo": place.code,
             "place": place.to_dict(),
+            "lean_pref": lean_pref,
+            "lean_meta": pref_meta(lean_pref),
             "page_title": topic["title"],
             "flash_error": request.query_params.get("err") or "",
             "flash_ok": request.query_params.get("ok") or "",
@@ -274,6 +353,8 @@ async def topic_page(
             "form_body": "",
         },
     )
+    _set_lean_cookie(resp, lean_pref)
+    return resp
 
 
 @app.post("/topic/{slug}/comments")

@@ -9,8 +9,9 @@
   {% set rl = topic.rank_lookup %}
 
   {% set geo_code = geo or (topic.geo if topic.geo else 'US') %}
+  {% set lean_pref = lean_pref or topic.lean_pref or 'balanced' %}
   <p class="crumb">
-    <a href="/search?geo={{ geo_code }}">Intersection</a>
+    <a href="/search?geo={{ geo_code }}&lean={{ lean_pref }}">Intersection</a>
     <span class="crumb-sep">/</span>
     <span>Topic</span>
   </p>
@@ -21,6 +22,8 @@
     {% if place %}<span class="muted-hint">· {{ place.label }}</span>{% endif %}
     {% if topic.day %}<span class="muted-hint">· Snapshot day {{ topic.day }}</span>{% endif %}
   </p>
+
+  {% include "_lean_bar.html" %}
 
   <div class="meta-row">
     {% if rl and rl.platforms_hit %}
@@ -33,8 +36,9 @@
       <span class="lean-badge lean-{{ topic.coverage_lean.lean }}" title="{{ topic.coverage_lean.lean_tip }}">{{ topic.coverage_lean.lean_label }}</span>
     {% endif %}
     {% if place %}<span class="badge geo-code-badge">{{ geo_code }}</span>{% endif %}
+    <span class="badge">{{ lean_meta.lean_pref_label if lean_meta else (topic.lean_pref_label or 'Balanced') }} sources</span>
     <span>{{ topic.comment_count }} comment{{ 's' if topic.comment_count != 1 else '' }}</span>
-    <a href="/search?q={{ topic.q | urlencode }}&geo={{ geo_code }}">Rank map search</a>
+    <a href="/search?q={{ topic.q | urlencode }}&geo={{ geo_code }}&lean={{ lean_pref }}">Rank map search</a>
   </div>
   {% if topic.coverage_lean and topic.coverage_lean.lean_sample %}
   <p class="lean-note">{{ topic.coverage_lean.lean_tip }}</p>
@@ -129,7 +133,10 @@
   {% endif %}
 
   {% if topic.hits %}
-  <h2 class="section-title section-title-lg">News hits</h2>
+  <h2 class="section-title section-title-lg">
+    News hits
+    <span class="muted-hint">{{ lean_meta.lean_pref_label if lean_meta else (topic.lean_pref_label or 'Balanced') }} sources</span>
+  </h2>
   <ol class="list">
     {% for item in topic.hits[:15] %}
     <li class="card">
@@ -201,5 +208,11 @@
   <div class="disclaimer">{{ topic.disclaimer }}</div>
 {% endblock %}
 {% block scripts %}
+  <script src="/static/lean-pref.js?v={{ app_version }}"></script>
   <script src="/static/comment-name.js?v={{ app_version | default('0.9.0') }}" defer></script>
+  <script>
+    if (window.YoyoLeanPrefInit) {
+      YoyoLeanPrefInit({ lean: {{ (lean_pref or 'balanced') | tojson }} });
+    }
+  </script>
 {% endblock %}

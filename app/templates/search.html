@@ -29,6 +29,7 @@
 
   <form class="search-box" action="/search" method="get" role="search" id="search-form">
     <input type="hidden" name="geo" id="geo-hidden" value="{{ geo_code }}" />
+    <input type="hidden" name="lean" id="lean-hidden" value="{{ lean_pref or 'balanced' }}" />
     <input
       type="search"
       name="q"
@@ -44,6 +45,7 @@
   {% set places_ui = pui %}
   {% set geo_reset_href = '/search?geo=US' %}
   {% include "_geo_bar.html" %}
+  {% include "_lean_bar.html" %}
 
   {# Jump strip when user has MyNews topics on this device #}
   <div class="my-jump" id="my-jump" hidden>
@@ -216,6 +218,33 @@
       {% endfor %}
     </div>
 
+    {# Preferred-source headlines (Conservative / Balanced / Liberal) #}
+    {% if results.hits %}
+    <section class="pref-headlines" aria-label="Headlines from your sources">
+      <h2 class="section-title section-title-lg">
+        Headlines from your sources
+        <span class="muted-hint">{{ results.lean_pref_label or lean_meta.lean_pref_label or 'Balanced' }}</span>
+      </h2>
+      <ol class="list">
+        {% for item in results.hits[:16] %}
+        <li class="card">
+          <div class="rank">{{ loop.index }}</div>
+          <div>
+            <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
+            <div class="links">
+              <span>{{ item.source }}</span>
+              {% if item.lean_label %}
+              <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
+              {% endif %}
+              <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comments">Discuss here</a>
+            </div>
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+    {% endif %}
+
     <div class="disclaimer">{{ results.disclaimer }}</div>
 
   {% elif results and q %}
@@ -327,7 +356,10 @@
     {% endif %}
 
     {% if results.hits %}
-    <h2 class="section-title">News hits (Google · Bing · Reddit)</h2>
+    <h2 class="section-title">
+      News hits
+      <span class="muted-hint">{{ results.lean_pref_label or lean_meta.lean_pref_label or 'Balanced' }} sources</span>
+    </h2>
     <ol class="list">
       {% for item in results.hits %}
       <li class="card">
@@ -345,7 +377,7 @@
             {% if item.comments_url %}
             <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
             {% endif %}
-            <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}#comments">Discuss here</a>
+            <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comments">Discuss here</a>
           </div>
         </div>
       </li>
@@ -353,8 +385,8 @@
     </ol>
     {% else %}
     <div class="empty">
-      No mainstream free-index hits for “{{ q }}”. Use portals above or
-      <a href="/search?geo={{ geo_code }}">return to today’s intersection</a>.
+      No preferred-source hits for “{{ q }}” right now. Try another source preference above, or
+      <a href="/search?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}">return to today’s intersection</a>.
     </div>
     {% endif %}
 
@@ -391,9 +423,18 @@
   {% endif %}
 
   <script src="/static/geo.js?v={{ app_version }}"></script>
+  <script src="/static/lean-pref.js?v={{ app_version }}"></script>
   <script>
   (function () {
     var geoCode = {{ (geo or 'US') | tojson }};
+    var leanPref = {{ (lean_pref or 'balanced') | tojson }};
+    if (window.YoyoLeanPrefInit) {
+      YoyoLeanPrefInit({ lean: leanPref });
+    }
+    var leanHidden = document.getElementById("lean-hidden");
+    if (leanHidden && window.YoyoLeanPref) {
+      leanHidden.value = YoyoLeanPref.current();
+    }
     if (window.YoyoNewsGeo) {
       YoyoNewsGeo.init({
         currentGeo: geoCode,
@@ -412,6 +453,8 @@
       var chips = document.getElementById("my-jump-chips");
       if (!jump || !chips) return;
       jump.hidden = false;
+      var leanQ =
+        (window.YoyoLeanPref && YoyoLeanPref.current()) || leanPref || "balanced";
       chips.innerHTML = topics
         .slice(0, 20)
         .map(function (t) {
@@ -422,6 +465,8 @@
             slug +
             "?geo=" +
             encodeURIComponent(geoCode) +
+            "&lean=" +
+            encodeURIComponent(leanQ) +
             '">' +
             label +
             "</a>"

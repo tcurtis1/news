@@ -14,6 +14,13 @@ import httpx
 
 from app.bias import aggregate_lean, enrich_hits
 from app.places import resolve_place
+from app.source_prefs import (
+    filter_hits,
+    normalize_pref,
+    prefer_topical,
+    pref_meta,
+    site_query_batches,
+)
 from app.trends import build_trends, or_phrases, rank_lookup
 
 log = logging.getLogger("search")
@@ -24,6 +31,7 @@ USER_AGENT = (
 )
 MAX_PER_SOURCE = 12
 MAX_RESULTS = 40
+MAX_LEAN_PER_BATCH = 16
 
 
 @dataclass
@@ -127,7 +135,13 @@ async def _fetch_hn(client: httpx.AsyncClient, q: str) -> list[SearchHit]:
         return []
 
 
-async def _fetch_google_news(client: httpx.AsyncClient, q: str) -> list[SearchHit]:
+async def _fetch_google_news(
+    client: httpx.AsyncClient,
+    q: str,
+    *,
+    limit: int = MAX_PER_SOURCE,
+    score_base: int = 1000,
+) -> list[SearchHit]:
     try:
         r = await client.get(
             "https://news.google.com/rss/search",
@@ -140,7 +154,7 @@ async def _fetch_google_news(client: httpx.AsyncClient, q: str) -> list[SearchHi
         r.raise_for_status()
         root = ET.fromstring(r.content)
         out: list[SearchHit] = []
-        for i, entry in enumerate(root.findall(".//item")[:MAX_PER_SOURCE]):
+        for i, entry in enumerate(root.findall(".//item")[:limit]):
             title = (entry.findtext("title") or "").strip()
             link = (entry.findtext("link") or "").strip()
             if not title:
@@ -152,13 +166,44 @@ async def _fetch_google_news(client: httpx.AsyncClient, q: str) -> list[SearchHi
                     url=link or f"https://news.google.com/search?q={quote_plus(q)}",
                     source=f"Google News · {source}" if source != "Google News" else "Google News",
                     snippet="Google News",
-                    score=1000 - i,
+                    score=score_base - i,
                 )
             )
         return out
     except Exception as e:
         log.warning("Google News search failed: %s", e)
         return []
+
+
+async def _fetch_google_news_for_pref(
+    client: httpx.AsyncClient,
+    topic: str,
+    lean: str,
+) -> list[SearchHit]:
+    """
+    Pull headlines from preferred outlet domains via Google News site: operators.
+    Batches domains so the query URL stays reasonable.
+    """
+    import asyncio
+
+    batches = site_query_batches(lean, topic, batch_size=8, max_batches=3)
+    if not batches:
+        return []
+    results = await asyncio.gather(
+        *[
+            _fetch_google_news(
+                client,
+                bq,
+                limit=MAX_LEAN_PER_BATCH,
+                score_base=1200 - (i * 40),
+            )
+            for i, bq in enumerate(batches)
+        ]
+    )
+    merged: list[SearchHit] = []
+    for lst in results:
+        merged.extend(lst)
+    return merged
 
 
 async def _fetch_bing_news(client: httpx.AsyncClient, q: str) -> list[SearchHit]:
@@ -275,23 +320,29 @@ def _merge_hits(lists: list[list[SearchHit]]) -> list[SearchHit]:
 
 
 async def _run_search_one(
-    query: str, force_trends: bool = False, geo: str | None = None
+    query: str,
+    force_trends: bool = False,
+    geo: str | None = None,
+    lean: str | None = None,
 ) -> dict[str, Any]:
     """Single phrase search (words in the phrase match as a sentence / AND-ish)."""
     place = resolve_place(geo)
+    lean_pref = normalize_pref(lean)
     portals = [p.to_dict() for p in portal_links(query)]
     timeout = httpx.Timeout(14.0, connect=6.0)
     async with httpx.AsyncClient(
         timeout=timeout, headers={"User-Agent": USER_AGENT}, follow_redirects=True
     ) as client:
-        gnews, bnews, hn, reddit = (
+        gnews, gnews_lean, bnews, hn, reddit = (
             await _fetch_google_news(client, query),
+            await _fetch_google_news_for_pref(client, query, lean_pref),
             await _fetch_bing_news(client, query),
             await _fetch_hn(client, query),
             await _fetch_reddit(client, query),
         )
 
-    main_hits = _merge_hits([gnews, bnews, reddit])
+    # Preferred-source Google News first, then general indexes
+    main_hits = _merge_hits([gnews_lean, gnews, bnews, reddit])
     tech_hits = _merge_hits([hn])[:8]
     main_titles = {
         re.sub(r"\W+", " ", (h.title or "").lower()).strip()[:80] for h in main_hits
@@ -303,8 +354,10 @@ async def _run_search_one(
     ]
 
     sources_ok = []
-    if gnews:
+    if gnews_lean or gnews:
         sources_ok.append("Google News")
+    if gnews_lean:
+        sources_ok.append(f"Preferred sources ({lean_pref})")
     if bnews:
         sources_ok.append("Bing News")
     if reddit:
@@ -313,11 +366,16 @@ async def _run_search_one(
         sources_ok.append("Hacker News (tech, secondary)")
 
     hits = enrich_hits([h.to_dict() for h in main_hits])
+    hits = filter_hits(hits, lean_pref, keep_unmatched=False)
+    hits = prefer_topical(hits, query)[:MAX_RESULTS]
+    # Re-sort after score boost from filter + topical
+    hits = sorted(hits, key=lambda h: int(h.get("score") or 0), reverse=True)
     tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
     mode = "live" if (hits or tech_hit_dicts) else ("portals_only" if portals else "empty")
     trends = await build_trends(force=False, geo=place.code)
     ranks = rank_lookup(query, trends)
     coverage = aggregate_lean(hits)
+    meta = pref_meta(lean_pref)
 
     return {
         "q": query,
@@ -334,6 +392,7 @@ async def _run_search_one(
         "coverage_lean": coverage,
         "phrases": [query],
         "match_mode": "phrase",
+        **meta,
         "trends": {
             "day": trends.get("day"),
             "geo": trends.get("geo"),
@@ -343,8 +402,7 @@ async def _run_search_one(
         },
         "disclaimer": (
             f"Rank map for {place.label} = mass platforms on Daily Intersection (not Hacker News). "
-            "Primary news hits: Google News, Bing News, Reddit. "
-            "Hacker News is a secondary tech niche index only. "
+            f"Headlines filtered for your {meta['lean_pref_label'].lower()} source preference. "
             "Lean badges = curated outlet labels (not a truth score). "
             "Polymarket volumes are not financial advice. Verify sources."
         ),
@@ -352,14 +410,22 @@ async def _run_search_one(
 
 
 async def _run_search_or(
-    phrases: list[str], force_trends: bool = False, geo: str | None = None, display_q: str = ""
+    phrases: list[str],
+    force_trends: bool = False,
+    geo: str | None = None,
+    display_q: str = "",
+    lean: str | None = None,
 ) -> dict[str, Any]:
     """Run each comma-segment independently and OR the results together."""
     import asyncio
 
     place = resolve_place(geo)
+    lean_pref = normalize_pref(lean)
     parts = await asyncio.gather(
-        *[_run_search_one(p, force_trends=False, geo=place.code) for p in phrases]
+        *[
+            _run_search_one(p, force_trends=False, geo=place.code, lean=lean_pref)
+            for p in phrases
+        ]
     )
     parts_list = list(parts)
 
@@ -388,6 +454,10 @@ async def _run_search_or(
     main_hits = _merge_hits(hit_maps)
     tech_hits = _merge_hits(tech_maps)[:8]
     hits = enrich_hits([h.to_dict() for h in main_hits])
+    hits = filter_hits(hits, lean_pref, keep_unmatched=False)
+    display = display_q or ", ".join(phrases)
+    hits = prefer_topical(hits, display)[:MAX_RESULTS]
+    hits = sorted(hits, key=lambda h: int(h.get("score") or 0), reverse=True)
     tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
 
     sources_ok: list[str] = []
@@ -397,16 +467,17 @@ async def _run_search_or(
                 sources_ok.append(s)
 
     # Portals for the combined display query
-    portals = [p.to_dict() for p in portal_links(display_q or ", ".join(phrases))]
+    portals = [p.to_dict() for p in portal_links(display)]
     # Rank map: OR phrases via shared rank_lookup
     trends_for_rank = await build_trends(force=False, geo=place.code)
-    ranks = rank_lookup(display_q or ", ".join(phrases), trends_for_rank)
+    ranks = rank_lookup(display, trends_for_rank)
     coverage = aggregate_lean(hits)
     mode = "live" if (hits or tech_hit_dicts) else ("portals_only" if portals else "empty")
     trends = trends_for_rank
+    meta = pref_meta(lean_pref)
 
     return {
-        "q": display_q or ", ".join(phrases),
+        "q": display,
         "geo": place.code,
         "place": place.to_dict(),
         "fetched_at": _now_iso(),
@@ -420,6 +491,7 @@ async def _run_search_or(
         "coverage_lean": coverage,
         "phrases": phrases,
         "match_mode": "or_phrases",
+        **meta,
         "trends": {
             "day": trends.get("day"),
             "geo": trends.get("geo"),
@@ -430,20 +502,51 @@ async def _run_search_or(
         "disclaimer": (
             f"Comma-separated topics are ORed (each phrase searched alone; words inside a "
             f"phrase match as a sentence). Phrases: {', '.join(phrases)}. "
-            f"Location: {place.label}."
+            f"Location: {place.label}. "
+            f"Source preference: {meta['lean_pref_label']}."
         ),
     }
 
 
 async def run_search(
-    q: str, force_trends: bool = False, geo: str | None = None
+    q: str,
+    force_trends: bool = False,
+    geo: str | None = None,
+    lean: str | None = None,
 ) -> dict[str, Any]:
     query = _clean_query(q)
     place = resolve_place(geo)
+    lean_pref = normalize_pref(lean)
+    meta = pref_meta(lean_pref)
 
-    # Empty query → daily platform trends dashboard
+    # Empty query → daily platform trends dashboard + preferred-source headlines
     if not query:
         trends = await build_trends(force=force_trends, geo=place.code)
+        timeout = httpx.Timeout(14.0, connect=6.0)
+        preferred_hits: list[dict[str, Any]] = []
+        try:
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                headers={"User-Agent": USER_AGENT},
+                follow_redirects=True,
+            ) as client:
+                lean_raw = await _fetch_google_news_for_pref(client, "", lean_pref)
+            preferred_hits = enrich_hits([h.to_dict() for h in lean_raw])
+            preferred_hits = filter_hits(
+                preferred_hits, lean_pref, keep_unmatched=False
+            )[:MAX_RESULTS]
+            preferred_hits = sorted(
+                preferred_hits, key=lambda h: int(h.get("score") or 0), reverse=True
+            )
+        except Exception as e:
+            log.warning("Preferred headlines pull failed: %s", e)
+
+        sources_ok = list(trends.get("sources_ok") or [])
+        if preferred_hits:
+            sources_ok = [f"Preferred sources ({lean_pref})"] + [
+                s for s in sources_ok if s not in (f"Preferred sources ({lean_pref})",)
+            ]
+
         return {
             "q": "",
             "mode": "trends",
@@ -451,20 +554,30 @@ async def run_search(
             "place": trends.get("place"),
             "fetched_at": trends.get("fetched_at"),
             "count": sum((trends.get("counts") or {}).values()),
-            "hits": [],
+            "hits": preferred_hits,
             "portals": [],
-            "sources_ok": trends.get("sources_ok") or [],
+            "sources_ok": sources_ok,
             "trends": trends,
             "rank_lookup": None,
-            "disclaimer": trends.get("disclaimer")
-            or "Daily multi-platform trends snapshot.",
+            **meta,
+            "disclaimer": (
+                (trends.get("disclaimer") or "Daily multi-platform trends snapshot.")
+                + f" Headlines below use your {meta['lean_pref_label'].lower()} source list."
+            ),
         }
 
     phrases = or_phrases(query)
     if len(phrases) > 1:
         return await _run_search_or(
-            phrases, force_trends=force_trends, geo=place.code, display_q=query
+            phrases,
+            force_trends=force_trends,
+            geo=place.code,
+            display_q=query,
+            lean=lean_pref,
         )
     return await _run_search_one(
-        phrases[0] if phrases else query, force_trends=force_trends, geo=place.code
+        phrases[0] if phrases else query,
+        force_trends=force_trends,
+        geo=place.code,
+        lean=lean_pref,
     )

@@ -98,6 +98,12 @@
       }
       var url = "/search?geo=" + encodeURIComponent(geo);
       if (q) url += "&q=" + encodeURIComponent(q);
+      var lean =
+        (window.YoyoLeanPref && YoyoLeanPref.current && YoyoLeanPref.current()) ||
+        (document.getElementById("lean-hidden") &&
+          document.getElementById("lean-hidden").value) ||
+        "";
+      if (lean) url += "&lean=" + encodeURIComponent(lean);
       window.location.href = url;
     }
 

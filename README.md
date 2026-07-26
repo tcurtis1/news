@@ -24,6 +24,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **Polymarket** — top markets by 24h volume | Live |
 | **YoyoSup logo** — SVG wordmark + mark | Live |
 | **MyNews** — personal topic board (`/my`, localStorage, no auth) | Live |
+| **Source preference** — Conservative / Balanced / Liberal headlines | Live |
 
 ## Feature backlog (product todo)
 
@@ -31,6 +32,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 |----------|------|--------|
 | ~~P1~~ | ~~Bias / leaning badge~~ | **Shipped v1** — `app/bias.py`; expand outlet list over time |
 | ~~P1a~~ | ~~Remember comment name~~ | **Shipped** — `static/comment-name.js` |
+| ~~P1s~~ | ~~Source preference (C/B/L)~~ | **Shipped v1** — `app/source_prefs.py`; Feedspot conservative list + liberal peers + balanced mix |
 | **P1b** | **Register a name** | Lightweight account (magic-link) so name is portable; keep anonymous |
 | **P1c** | **Discuss from Intersection cards** | Search hits already link “Discuss here”; wire consensus rows too |
 | P2 | Accounts / full auth | Only if registered names need verification, moderation trust, or rate-limit relief. |
@@ -77,7 +79,8 @@ Installs app on `tony@192.168.1.44:~/apps/news` (port **3010**) and a **06:00 Am
 | `GET /api/trends` | Platforms + `consensus` + `top10` (`?geo=US` / `US-UT` / `GB`) |
 | `GET /api/places` | Country + U.S. state catalog for the picker |
 | `GET /api/rank?q=` | Rank map for a query (`?geo=`) |
-| `GET /api/search?q=` | Rank map + news hits (empty `q` = full trends; `?geo=`) |
+| `GET /api/search?q=` | Rank map + news hits (empty `q` = full trends; `?geo=` + `?lean=conservative\|balanced\|liberal`) |
+| `GET /api/source-prefs` | Source preference catalogs / domain samples |
 | `GET /search?geo=` | Intersection UI with location control |
 | `GET /topic/{slug}` | Topic page (ranks + news + comments; `?geo=`) |
 | `POST /topic/{slug}/comments` | Add comment (`name`, `body`) — moderated |
