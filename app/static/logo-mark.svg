@@ -1,14 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="yoyosup">
   <title>yoyosup</title>
-  <!-- Compass / star mark — site favicon (chalk tile + ink rose, orange north) -->
+  <!-- Compass / star mark — favicon & header (chalk tile) -->
   <rect width="64" height="64" rx="14" fill="#fafafa"/>
-  <circle cx="32" cy="32" r="24" fill="none" stroke="#0a0a0b" stroke-width="2.4"/>
-  <!-- 8-point compass rose: long N/E/S/W, short diagonals -->
+  <!-- Outer ring -->
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#0a0a0b" stroke-width="2.6"/>
+  <!-- 8-point compass rose (long N/E/S/W, short diagonals) -->
   <path fill="#0a0a0b"
-    d="M32 10 L38.4 25.6 L54 32 L38.4 38.4 L32 54 L25.6 38.4 L10 32 L25.6 25.6 Z"/>
+    d="M32 9 L37.6 26.4 L55 32 L37.6 37.6 L32 55 L26.4 37.6 L9 32 L26.4 26.4 Z"/>
   <!-- Orange north tip -->
-  <path fill="#f97316" d="M32 10 L38.4 25.6 L32 32 L25.6 25.6 Z"/>
+  <path fill="#f97316" d="M32 9 L37.6 26.4 L32 32 L26.4 26.4 Z"/>
   <!-- Hub -->
-  <circle cx="32" cy="32" r="5.2" fill="#fafafa"/>
-  <circle cx="32" cy="32" r="2.6" fill="#0a0a0b"/>
+  <circle cx="32" cy="32" r="5.5" fill="#fafafa"/>
+  <circle cx="32" cy="32" r="2.5" fill="#0a0a0b"/>
 </svg>
