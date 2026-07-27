@@ -21,7 +21,7 @@ from app.comments import (
 )
 from app.moderation import moderation_enabled
 from app.pulse import build_pulse
-from app.search import run_search
+from app.search import fetch_preferred_headlines, run_search
 from app.seo import collect_sitemap_urls, render_robots_txt, render_sitemap_xml
 from app.places import default_place, list_places_for_ui, resolve_place
 from app.source_prefs import (
@@ -39,7 +39,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.10.2"
+APP_VERSION = "0.10.3"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -197,8 +197,14 @@ async def search_page(
 
     place = resolve_place(geo or None)
     lean_pref = _lean_from_request(request, lean)
+    # Empty Intersection must stay fast: defer preferred headlines to
+    # /api/headlines (client hydrates). Topic search still runs inline.
     results = await run_search(
-        q, force_trends=force, geo=place.code, lean=lean_pref
+        q,
+        force_trends=force,
+        geo=place.code,
+        lean=lean_pref,
+        defer_headlines=not bool(q.strip()),
     )
     title = f"Rank map: {q.strip()}" if q.strip() else "Daily Intersection"
     places_ui = list_places_for_ui()
@@ -275,7 +281,7 @@ async def api_search(
 ):
     """
     Full search by default. Pass lite=1 for MyNews cards (faster:
-    preferred headlines + rank map only, parallel pulls).
+    preferred headlines + rank map only, hard time budget).
     """
     place = resolve_place(geo or None)
     lean_pref = _lean_from_request(request, lean)
@@ -285,12 +291,41 @@ async def api_search(
         geo=place.code,
         lean=lean_pref,
         lite=bool(lite),
+        # API callers who want empty-q headlines use /api/headlines
+        defer_headlines=not bool(q.strip()),
     )
     if q.strip():
         data["topic_path"] = (
             f"/topic/{slugify(q)}?geo={place.code}&lean={lean_pref}"
         )
     return JSONResponse(data)
+
+
+@app.get("/api/headlines")
+async def api_headlines(
+    request: Request,
+    lean: str = "",
+    q: str = "",
+):
+    """
+    Preferred-source headlines only (cached, hard ~5s budget).
+    Used by Intersection after the page paints — never blocks SSR.
+    """
+    lean_pref = _lean_from_request(request, lean)
+    hits = await fetch_preferred_headlines(
+        lean_pref, q, budget_sec=5.0, use_google=bool((q or "").strip())
+    )
+    meta = pref_meta(lean_pref)
+    return JSONResponse(
+        {
+            "lean_pref": lean_pref,
+            **meta,
+            "count": len(hits),
+            "hits": hits,
+            "q": (q or "").strip(),
+            "cached": True,  # process may have served from cache
+        }
+    )
 
 
 @app.get("/api/source-prefs")

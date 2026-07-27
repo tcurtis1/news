@@ -298,9 +298,13 @@
     );
   }
 
+  // Bump to ignore stale responses when the user refreshes mid-load
+  var feedGen = 0;
+  // How many topic cards to fetch at once (server-friendly)
+  var FETCH_CONCURRENCY = 3;
+
   async function loadTopicPayload(topic) {
-    // One chip = one phrase. (Comma lists are split at add-time into chips.)
-    // If a legacy chip still has commas, API ORs those segments server-side.
+    // One chip = one phrase. lite=1 = preferred headlines + ranks only (fast path).
     var leanNow =
       (window.YoyoLeanPref && YoyoLeanPref.current()) || lean || "balanced";
     var url =
@@ -309,16 +313,77 @@
       "&geo=" +
       encodeURIComponent(geo) +
       "&lean=" +
-      encodeURIComponent(leanNow);
+      encodeURIComponent(leanNow) +
+      "&lite=1";
     var res = await fetch(url);
     if (!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
+  }
+
+  function skeletonCard(topic) {
+    var leanNow =
+      (window.YoyoLeanPref && YoyoLeanPref.current()) || lean || "balanced";
+    var topicHref =
+      "/topic/" +
+      encodeURIComponent(topic.slug) +
+      "?geo=" +
+      encodeURIComponent(geo) +
+      "&lean=" +
+      encodeURIComponent(leanNow);
+    return (
+      '<article class="my-topic-card card my-topic-loading" data-slug="' +
+      escapeHtml(topic.slug) +
+      '" aria-busy="true">' +
+      "<div>" +
+      '<h2 class="my-topic-title"><a href="' +
+      topicHref +
+      '">' +
+      escapeHtml(topic.label) +
+      "</a></h2>" +
+      '<p class="summary my-card-status">Loading ranks &amp; headlines…</p>' +
+      '<div class="my-skel" aria-hidden="true">' +
+      '<div class="my-skel-line"></div>' +
+      '<div class="my-skel-line short"></div>' +
+      '<div class="my-skel-line"></div>' +
+      "</div>" +
+      "</div></article>"
+    );
+  }
+
+  function errorCard(topic, msg) {
+    return (
+      '<article class="my-topic-card card" data-slug="' +
+      escapeHtml(topic.slug) +
+      '">' +
+      '<h2 class="my-topic-title">' +
+      escapeHtml(topic.label) +
+      "</h2>" +
+      '<p class="summary">' +
+      escapeHtml(msg || "Couldn’t load — try again.") +
+      "</p>" +
+      "</article>"
+    );
+  }
+
+  function replaceCardBySlug(feed, topic, html) {
+    var node = feed.querySelector(
+      '.my-topic-card[data-slug="' +
+        String(topic.slug).replace(/"/g, "") +
+        '"]'
+    );
+    if (!node) return;
+    var wrap = document.createElement("div");
+    wrap.innerHTML = html;
+    var next = wrap.firstElementChild;
+    if (next) node.replaceWith(next);
   }
 
   async function renderFeed(topics) {
     var feed = el("my-feed");
     var empty = el("my-empty");
     if (!feed) return;
+    var gen = ++feedGen;
+
     if (!topics.length) {
       feed.innerHTML = "";
       feed.hidden = true;
@@ -328,26 +393,63 @@
     }
     if (empty) empty.hidden = true;
     feed.hidden = false;
-    feed.innerHTML =
-      '<p class="muted-hint my-loading">Loading your topics for ' +
-      escapeHtml(geo) +
-      "…</p>";
 
-    var cards = [];
-    for (var i = 0; i < topics.length; i++) {
-      var t = topics[i];
+    // Paint every card as a skeleton immediately, then fill as each returns
+    feed.innerHTML =
+      '<p class="muted-hint my-loading" id="my-load-status">Loading ' +
+      topics.length +
+      " topic" +
+      (topics.length === 1 ? "" : "s") +
+      " for " +
+      escapeHtml(geo) +
+      "…</p>" +
+      topics.map(skeletonCard).join("");
+
+    var done = 0;
+    var statusEl = el("my-load-status");
+
+    function tickStatus() {
+      if (!statusEl || gen !== feedGen) return;
+      if (done >= topics.length) {
+        statusEl.remove();
+        return;
+      }
+      statusEl.textContent =
+        "Loaded " + done + " of " + topics.length + " topics…";
+    }
+
+    async function loadOne(topic) {
+      if (gen !== feedGen) return;
       try {
-        var data = await loadTopicPayload(t);
-        cards.push(renderFeedCard(t, data));
+        var data = await loadTopicPayload(topic);
+        if (gen !== feedGen) return;
+        replaceCardBySlug(feed, topic, renderFeedCard(topic, data));
       } catch (e) {
-        cards.push(
-          '<article class="my-topic-card card"><h2>' +
-            escapeHtml(t.label) +
-            '</h2><p class="summary">Couldn’t load — try again.</p></article>'
+        if (gen !== feedGen) return;
+        replaceCardBySlug(
+          feed,
+          topic,
+          errorCard(topic, "Couldn’t load — try again.")
         );
+      } finally {
+        done += 1;
+        tickStatus();
       }
     }
-    feed.innerHTML = cards.join("");
+
+    // Parallel pool — up to FETCH_CONCURRENCY in flight
+    var cursor = 0;
+    async function worker() {
+      while (cursor < topics.length) {
+        if (gen !== feedGen) return;
+        var idx = cursor++;
+        await loadOne(topics[idx]);
+      }
+    }
+    var workers = [];
+    var n = Math.min(FETCH_CONCURRENCY, topics.length);
+    for (var w = 0; w < n; w++) workers.push(worker());
+    await Promise.all(workers);
   }
 
   async function loadSuggestions() {

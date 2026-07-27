@@ -218,32 +218,15 @@
       {% endfor %}
     </div>
 
-    {# Preferred-source headlines (Conservative / Balanced / Liberal) #}
-    {% if results.hits %}
-    <section class="pref-headlines" aria-label="Headlines from your sources">
+    {# Preferred headlines hydrate via /api/headlines so the page never waits #}
+    <section class="pref-headlines" id="pref-headlines" aria-label="Headlines from your sources">
       <h2 class="section-title section-title-lg">
         Headlines from your sources
-        <span class="muted-hint">{{ results.lean_pref_label or lean_meta.lean_pref_label or 'Balanced' }}</span>
+        <span class="muted-hint" id="pref-headlines-label">{{ results.lean_pref_label or lean_meta.lean_pref_label or 'Balanced' }}</span>
       </h2>
-      <ol class="list">
-        {% for item in results.hits[:16] %}
-        <li class="card">
-          <div class="rank">{{ loop.index }}</div>
-          <div>
-            <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
-            <div class="links">
-              <span>{{ item.source }}</span>
-              {% if item.lean_label %}
-              <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
-              {% endif %}
-              <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comments">Discuss here</a>
-            </div>
-          </div>
-        </li>
-        {% endfor %}
-      </ol>
+      <p class="muted-hint my-loading" id="pref-headlines-status">Loading headlines…</p>
+      <ol class="list" id="pref-headlines-list"></ol>
     </section>
-    {% endif %}
 
     <div class="disclaimer">{{ results.disclaimer }}</div>
 
@@ -428,6 +411,7 @@
   (function () {
     var geoCode = {{ (geo or 'US') | tojson }};
     var leanPref = {{ (lean_pref or 'balanced') | tojson }};
+    var pageQ = {{ (q or '') | tojson }};
     if (window.YoyoLeanPrefInit) {
       YoyoLeanPrefInit({ lean: leanPref });
     }
@@ -442,6 +426,118 @@
         redirectBase: "/search",
       });
     }
+
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    function slugify(text) {
+      return String(text || "")
+        .toLowerCase()
+        .trim()
+        .replace(/[#@]/g, "")
+        .replace(/[^\w\s-]/gu, "")
+        .replace(/[-\s]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80) || "topic";
+    }
+
+    // Async preferred headlines — page already painted with trends
+    var listEl = document.getElementById("pref-headlines-list");
+    var statusEl = document.getElementById("pref-headlines-status");
+    var labelEl = document.getElementById("pref-headlines-label");
+    if (listEl && !pageQ) {
+      var leanQ =
+        (window.YoyoLeanPref && YoyoLeanPref.current()) || leanPref || "balanced";
+      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      var t = setTimeout(function () {
+        if (ctrl) ctrl.abort();
+      }, 9000);
+      fetch(
+        "/api/headlines?lean=" + encodeURIComponent(leanQ),
+        ctrl ? { signal: ctrl.signal } : undefined
+      )
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          clearTimeout(t);
+          if (labelEl && data.lean_pref_label) {
+            labelEl.textContent = data.lean_pref_label;
+          }
+          var hits = data.hits || [];
+          if (!hits.length) {
+            if (statusEl) {
+              statusEl.textContent =
+                "No preferred-source headlines right now — try another Sources option above.";
+            }
+            return;
+          }
+          if (statusEl) statusEl.remove();
+          listEl.innerHTML = hits
+            .slice(0, 16)
+            .map(function (item, i) {
+              var title = esc(item.title);
+              var url = esc(item.url);
+              var src = esc(item.source);
+              var lean = esc(item.lean || "");
+              var leanLabel = esc(item.lean_label || "");
+              var leanTip = esc(item.lean_tip || "");
+              var discuss =
+                "/topic/" +
+                encodeURIComponent(slugify(item.title)) +
+                "?geo=" +
+                encodeURIComponent(geoCode) +
+                "&lean=" +
+                encodeURIComponent(leanQ) +
+                "#comments";
+              return (
+                '<li class="card">' +
+                '<div class="rank">' +
+                (i + 1) +
+                "</div><div>" +
+                "<h2><a href=\"" +
+                url +
+                '" rel="noopener noreferrer" target="_blank">' +
+                title +
+                "</a></h2>" +
+                '<div class="links"><span>' +
+                src +
+                "</span>" +
+                (leanLabel
+                  ? '<span class="lean-badge lean-' +
+                    lean +
+                    '" title="' +
+                    leanTip +
+                    '">' +
+                    leanLabel +
+                    "</span>"
+                  : "") +
+                '<a href="' +
+                discuss +
+                '">Discuss here</a></div></div></li>'
+              );
+            })
+            .join("");
+        })
+        .catch(function () {
+          clearTimeout(t);
+          if (statusEl) {
+            statusEl.textContent =
+              "Headlines took too long — refresh or pick another source lean.";
+          }
+        });
+    } else if (statusEl && pageQ) {
+      // Rank-map search page: headlines already in results.hits when present
+      statusEl.remove();
+      var section = document.getElementById("pref-headlines");
+      if (section) section.hidden = true;
+    }
+
     // Surface MyNews topics as a visible jump filter on Intersection
     try {
       var raw = localStorage.getItem("yoyonews_my_topics");
@@ -453,7 +549,7 @@
       var chips = document.getElementById("my-jump-chips");
       if (!jump || !chips) return;
       jump.hidden = false;
-      var leanQ =
+      var leanJump =
         (window.YoyoLeanPref && YoyoLeanPref.current()) || leanPref || "balanced";
       chips.innerHTML = topics
         .slice(0, 20)
@@ -466,7 +562,7 @@
             "?geo=" +
             encodeURIComponent(geoCode) +
             "&lean=" +
-            encodeURIComponent(leanQ) +
+            encodeURIComponent(leanJump) +
             '">' +
             label +
             "</a>"

@@ -36,14 +36,21 @@ USER_AGENT = (
 )
 MAX_PER_SOURCE = 12
 MAX_RESULTS = 40
-MAX_LEAN_PER_BATCH = 16
+MAX_LEAN_PER_BATCH = 12
 # In-process RSS cache so MyNews doesn't re-hit every outlet on every card
 _RSS_CACHE: dict[str, tuple[float, list["SearchHit"]]] = {}
-_RSS_CACHE_TTL = 8 * 60  # seconds
-_RSS_PER_FEED = 8
-_RSS_CONCURRENCY = 12
+_RSS_CACHE_TTL = 10 * 60  # seconds
+_RSS_PER_FEED = 6
+_RSS_CONCURRENCY = 14
 # Google News 503s when we fire too many site: batches at once
-_GNEWS_CONCURRENCY = 3
+_GNEWS_CONCURRENCY = 2
+# Merged preferred-headline cache (lean → hits) — keeps /search snappy
+_HEADLINE_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_HEADLINE_CACHE_TTL = 8 * 60
+# Hard budgets so a slow feed never times out Cloudflare/browser
+HEADLINE_BUDGET_SEC = 5.0
+LITE_BUDGET_SEC = 6.0
+SEARCH_BUDGET_SEC = 10.0
 
 
 @dataclass
@@ -174,8 +181,8 @@ async def _fetch_google_news(
                     "Accept": "application/rss+xml, application/xml, text/xml, */*",
                 },
             )
-            # Brief pause after each Google hit so parallel batches don't 503
-            await asyncio.sleep(0.12)
+            # Tiny pause so parallel batches don't 503
+            await asyncio.sleep(0.05)
         if r.status_code == 503:
             log.warning("Google News 503 for q=%s…", (q or "")[:60])
             return []
@@ -367,11 +374,12 @@ async def _fetch_outlet_rss_for_pref(
     When topic is set, keep items that match the topic; otherwise take tops.
     """
     p = normalize_pref(lean)
-    # Conservative needs the widest feed set
+    # Cap feed count so cold start stays under the page-load budget.
+    # Cache makes subsequent hits instant across all feeds we've already scraped.
     if lite:
-        limit = 28 if p == "conservative" else (20 if p == "liberal" else 14)
+        limit = 18 if p == "conservative" else (14 if p == "liberal" else 10)
     else:
-        limit = 38 if p == "conservative" else (28 if p == "liberal" else 18)
+        limit = 24 if p == "conservative" else (18 if p == "liberal" else 12)
     feeds = rss_feeds_for(lean, limit=limit)
     if not feeds:
         return []
@@ -591,58 +599,119 @@ def _merge_hits(lists: list[list[SearchHit]]) -> list[SearchHit]:
     return sorted(seen.values(), key=lambda h: h.score, reverse=True)[:MAX_RESULTS]
 
 
+async def fetch_preferred_headlines(
+    lean: str | None = None,
+    topic: str = "",
+    *,
+    budget_sec: float = HEADLINE_BUDGET_SEC,
+    use_google: bool = False,
+) -> list[dict[str, Any]]:
+    """
+    Preferred-source headlines with hard time budget + process cache.
+
+    RSS is primary (diverse, cacheable). Google site: is optional and skipped
+    when we're tight on time — it was the main source of timeouts.
+    """
+    lean_pref = normalize_pref(lean)
+    topic = (topic or "").strip()[:120]
+    cache_key = f"{lean_pref}|{topic.lower()}|g={int(use_google)}"
+    now = time.time()
+    cached = _HEADLINE_CACHE.get(cache_key)
+    if cached and (now - cached[0]) < _HEADLINE_CACHE_TTL:
+        return list(cached[1])
+
+    async def _pull() -> list[SearchHit]:
+        timeout = httpx.Timeout(3.5, connect=2.0)
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            headers={"User-Agent": USER_AGENT},
+            follow_redirects=True,
+        ) as client:
+            if use_google and topic:
+                rss_hits, gnews = await asyncio.gather(
+                    _fetch_outlet_rss_for_pref(
+                        client, lean_pref, topic, lite=True
+                    ),
+                    _fetch_google_news(client, topic, limit=12, score_base=950),
+                )
+                # Only 2 site: batches if we still have room — never 8–10
+                lean_hits = await _fetch_google_news_for_pref(
+                    client, topic, lean_pref, lite=True, max_batches=2
+                )
+                return diversify_hits(
+                    _merge_hits([rss_hits, lean_hits, gnews]),
+                    limit=40,
+                    max_per_source=3,
+                )
+            # Default: RSS only (fast + diverse)
+            rss_hits = await _fetch_outlet_rss_for_pref(
+                client, lean_pref, topic, lite=True
+            )
+            return diversify_hits(rss_hits, limit=40, max_per_source=3)
+
+    try:
+        raw = await asyncio.wait_for(_pull(), timeout=budget_sec)
+    except asyncio.TimeoutError:
+        log.warning(
+            "Preferred headlines budget %.1fs exceeded lean=%s topic=%r",
+            budget_sec,
+            lean_pref,
+            topic[:40],
+        )
+        raw = []
+    except Exception as e:
+        log.warning("Preferred headlines failed: %s", e)
+        raw = []
+
+    hits = enrich_hits([h.to_dict() for h in raw])
+    hits = filter_hits(hits, lean_pref, keep_unmatched=False)
+    if topic:
+        topical = prefer_topical(hits, topic)
+        if len(topical) >= 4:
+            hits = topical
+    hits = diversify_hits(hits, limit=MAX_RESULTS, max_per_source=2)
+    if hits:
+        _HEADLINE_CACHE[cache_key] = (time.time(), hits)
+    return hits
+
+
 async def _run_search_lite(
     query: str,
     geo: str | None = None,
     lean: str | None = None,
 ) -> dict[str, Any]:
     """
-    Fast path for MyNews cards: preferred-source headlines + rank map only.
-    Wider Google site: batches + native outlet RSS (esp. conservative).
+    Fast path for MyNews cards: rank map (cached trends) + preferred headlines.
+    Hard 6s budget — never block the browser for a minute.
     """
     place = resolve_place(geo)
     lean_pref = normalize_pref(lean)
     meta = pref_meta(lean_pref)
-    timeout = httpx.Timeout(12.0, connect=5.0)
 
-    async def _news() -> list[SearchHit]:
-        async with httpx.AsyncClient(
-            timeout=timeout,
-            headers={"User-Agent": USER_AGENT},
-            follow_redirects=True,
-        ) as client:
-            # RSS first (diverse, cached); Google site: throttled in parallel
-            lean_hits, rss_hits, general = await asyncio.gather(
-                _fetch_google_news_for_pref(
-                    client, query, lean_pref, lite=True
-                ),
-                _fetch_outlet_rss_for_pref(
-                    client, lean_pref, query, lite=True
-                ),
-                _fetch_google_news(client, query, limit=10, score_base=900),
+    async def _work():
+        headlines_task = asyncio.create_task(
+            fetch_preferred_headlines(
+                lean_pref,
+                query,
+                budget_sec=min(4.0, LITE_BUDGET_SEC - 1.0),
+                # RSS only — Google site: batches are too slow/fragile for MyNews
+                use_google=False,
             )
-            merged = _merge_hits([rss_hits, lean_hits, general])
-            return diversify_hits(merged, limit=40, max_per_source=3)
+        )
+        trends_task = asyncio.create_task(
+            build_trends(force=False, geo=place.code)
+        )
+        hits, trends = await asyncio.gather(headlines_task, trends_task)
+        return hits, trends
 
-    news_hits, trends = await asyncio.gather(
-        _news(),
-        build_trends(force=False, geo=place.code),
-    )
-    hits = enrich_hits([h.to_dict() for h in news_hits])
-    hits = filter_hits(hits, lean_pref, keep_unmatched=False)
-    # Keep topical when possible, but don't drop the diversified feed to near-zero
-    topical = prefer_topical(hits, query)
-    if len(topical) >= 6:
-        hits = topical
-    # diversify last so score-sort doesn't re-clump Fox/NYPost at the top
-    hits = diversify_hits(hits, limit=24, max_per_source=3)
+    try:
+        hits, trends = await asyncio.wait_for(_work(), timeout=LITE_BUDGET_SEC)
+    except asyncio.TimeoutError:
+        log.warning("lite search timeout q=%r lean=%s", query[:40], lean_pref)
+        hits, trends = [], await build_trends(force=False, geo=place.code)
+
     ranks = rank_lookup(query, trends)
     coverage = aggregate_lean(hits)
-    sources_ok = [
-        f"Preferred sources ({lean_pref})",
-        "Outlet RSS",
-        "Google News",
-    ]
 
     return {
         "q": query,
@@ -655,7 +724,7 @@ async def _run_search_lite(
         "hits": hits,
         "tech_hits": [],
         "portals": [],
-        "sources_ok": sources_ok,
+        "sources_ok": [f"Preferred sources ({lean_pref})", "Outlet RSS"],
         "rank_lookup": ranks,
         "coverage_lean": coverage,
         "phrases": [query],
@@ -669,8 +738,7 @@ async def _run_search_lite(
             "labels": trends.get("labels") or {},
         },
         "disclaimer": (
-            f"MyNews lite: {meta['lean_pref_label'].lower()} sources "
-            f"(Google site: + outlet RSS) + rank map. "
+            f"MyNews lite: {meta['lean_pref_label'].lower()} sources (outlet RSS). "
             "Open the topic page for full search."
         ),
     }
@@ -689,25 +757,86 @@ async def _run_search_one(
 
     place = resolve_place(geo)
     lean_pref = normalize_pref(lean)
+    meta = pref_meta(lean_pref)
     portals = [p.to_dict() for p in portal_links(query)]
-    timeout = httpx.Timeout(16.0, connect=6.0)
-    async with httpx.AsyncClient(
-        timeout=timeout, headers={"User-Agent": USER_AGENT}, follow_redirects=True
-    ) as client:
-        # All index pulls in parallel (was sequential — major latency win)
-        gnews, gnews_lean, rss_hits, bnews, hn, reddit = await asyncio.gather(
-            _fetch_google_news(client, query),
-            _fetch_google_news_for_pref(client, query, lean_pref, lite=False),
-            _fetch_outlet_rss_for_pref(client, lean_pref, query, lite=False),
-            _fetch_bing_news(client, query),
-            _fetch_hn(client, query),
-            _fetch_reddit(client, query),
-        )
 
-    # Preferred RSS + Google site: first, then general indexes
-    main_hits = _merge_hits([rss_hits, gnews_lean, gnews, bnews, reddit])
-    main_hits = diversify_hits(main_hits, limit=MAX_RESULTS * 2, max_per_source=4)
-    tech_hits = _merge_hits([hn])[:8]
+    async def _work():
+        timeout = httpx.Timeout(5.0, connect=2.5)
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            headers={"User-Agent": USER_AGENT},
+            follow_redirects=True,
+        ) as client:
+            # Cap parallel work: RSS + general GNews + Bing + HN.
+            # Skip 10× Google site: batches here — preferred headlines API
+            # and RSS already cover outlet diversity without timing out.
+            gnews, rss_hits, bnews, hn = await asyncio.gather(
+                _fetch_google_news(client, query),
+                _fetch_outlet_rss_for_pref(
+                    client, lean_pref, query, lite=True
+                ),
+                _fetch_bing_news(client, query),
+                _fetch_hn(client, query),
+            )
+        main_hits = diversify_hits(
+            _merge_hits([rss_hits, gnews, bnews]),
+            limit=MAX_RESULTS * 2,
+            max_per_source=4,
+        )
+        tech_hits = _merge_hits([hn])[:8]
+        trends = await build_trends(force=False, geo=place.code)
+        return main_hits, tech_hits, rss_hits, gnews, bnews, trends
+
+    try:
+        main_hits, tech_hits, rss_hits, gnews, bnews, trends = await asyncio.wait_for(
+            _work(), timeout=SEARCH_BUDGET_SEC
+        )
+    except asyncio.TimeoutError:
+        log.warning("full search timeout q=%r", query[:40])
+        # Degrade gracefully: ranks from cache + whatever headlines we have cached
+        main_hits = []
+        tech_hits = []
+        rss_hits = []
+        gnews = []
+        bnews = []
+        trends = await build_trends(force=False, geo=place.code)
+        cached = await fetch_preferred_headlines(
+            lean_pref, query, budget_sec=1.0, use_google=False
+        )
+        hits = cached
+        tech_hit_dicts = []
+        ranks = rank_lookup(query, trends)
+        coverage = aggregate_lean(hits)
+        return {
+            "q": query,
+            "geo": place.code,
+            "place": place.to_dict(),
+            "fetched_at": _now_iso(),
+            "mode": "live" if hits else ("portals_only" if portals else "empty"),
+            "lite": False,
+            "count": len(hits),
+            "hits": hits,
+            "tech_hits": tech_hit_dicts,
+            "portals": portals,
+            "sources_ok": ["timeout fallback"],
+            "rank_lookup": ranks,
+            "coverage_lean": coverage,
+            "phrases": [query],
+            "match_mode": "phrase",
+            **meta,
+            "trends": {
+                "day": trends.get("day"),
+                "geo": trends.get("geo"),
+                "place": trends.get("place"),
+                "consensus": trends.get("consensus") or [],
+                "labels": trends.get("labels") or {},
+            },
+            "disclaimer": (
+                f"Rank map for {place.label}. Headlines timed out — showing cached "
+                f"{meta['lean_pref_label'].lower()} sources if available."
+            ),
+        }
+
     main_titles = {
         re.sub(r"\W+", " ", (h.title or "").lower()).strip()[:80] for h in main_hits
     }
@@ -718,16 +847,12 @@ async def _run_search_one(
     ]
 
     sources_ok = []
-    if gnews_lean or gnews:
+    if gnews:
         sources_ok.append("Google News")
-    if gnews_lean:
-        sources_ok.append(f"Preferred sources ({lean_pref})")
     if rss_hits:
         sources_ok.append(f"Outlet RSS ({len(rss_hits)} items)")
     if bnews:
         sources_ok.append("Bing News")
-    if reddit:
-        sources_ok.append("Reddit")
     if tech_hits:
         sources_ok.append("Hacker News (tech, secondary)")
 
@@ -736,14 +861,11 @@ async def _run_search_one(
     topical = prefer_topical(hits, query)
     if len(topical) >= 8:
         hits = topical
-    # diversify last so mega-outlets don't monopolize the list
     hits = diversify_hits(hits, limit=MAX_RESULTS, max_per_source=3)
     tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
     mode = "live" if (hits or tech_hit_dicts) else ("portals_only" if portals else "empty")
-    trends = await build_trends(force=False, geo=place.code)
     ranks = rank_lookup(query, trends)
     coverage = aggregate_lean(hits)
-    meta = pref_meta(lean_pref)
 
     return {
         "q": query,
@@ -883,45 +1005,24 @@ async def run_search(
     geo: str | None = None,
     lean: str | None = None,
     lite: bool = False,
+    *,
+    defer_headlines: bool = False,
 ) -> dict[str, Any]:
     query = _clean_query(q)
     place = resolve_place(geo)
     lean_pref = normalize_pref(lean)
     meta = pref_meta(lean_pref)
 
-    # Empty query → daily platform trends dashboard + preferred-source headlines
+    # Empty query → daily platform trends dashboard.
+    # Preferred headlines are NOT fetched here by default (defer_headlines=True
+    # from SSR) — they load async via /api/headlines so the page never times out.
     if not query:
         trends = await build_trends(force=force_trends, geo=place.code)
-        timeout = httpx.Timeout(14.0, connect=6.0)
         preferred_hits: list[dict[str, Any]] = []
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": USER_AGENT},
-                follow_redirects=True,
-            ) as client:
-                lean_raw, rss_raw = await asyncio.gather(
-                    _fetch_google_news_for_pref(
-                        client, "", lean_pref, lite=False
-                    ),
-                    _fetch_outlet_rss_for_pref(
-                        client, lean_pref, "", lite=False
-                    ),
-                )
-            merged = diversify_hits(
-                _merge_hits([rss_raw, lean_raw]),
-                limit=MAX_RESULTS * 2,
-                max_per_source=3,
+        if not defer_headlines:
+            preferred_hits = await fetch_preferred_headlines(
+                lean_pref, "", budget_sec=HEADLINE_BUDGET_SEC, use_google=False
             )
-            preferred_hits = enrich_hits([h.to_dict() for h in merged])
-            preferred_hits = filter_hits(
-                preferred_hits, lean_pref, keep_unmatched=False
-            )
-            preferred_hits = diversify_hits(
-                preferred_hits, limit=MAX_RESULTS, max_per_source=2
-            )
-        except Exception as e:
-            log.warning("Preferred headlines pull failed: %s", e)
 
         sources_ok = list(trends.get("sources_ok") or [])
         if preferred_hits:
@@ -946,6 +1047,7 @@ async def run_search(
             "fetched_at": trends.get("fetched_at"),
             "count": sum((trends.get("counts") or {}).values()),
             "hits": preferred_hits,
+            "headlines_deferred": defer_headlines and not preferred_hits,
             "portals": [],
             "sources_ok": sources_ok,
             "trends": trends,
@@ -953,7 +1055,11 @@ async def run_search(
             **meta,
             "disclaimer": (
                 (trends.get("disclaimer") or "Daily multi-platform trends snapshot.")
-                + f" Headlines below use your {meta['lean_pref_label'].lower()} source list."
+                + (
+                    f" Headlines for your {meta['lean_pref_label'].lower()} sources load below."
+                    if defer_headlines
+                    else f" Headlines use your {meta['lean_pref_label'].lower()} source list."
+                )
             ),
         }
 

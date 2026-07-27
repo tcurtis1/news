@@ -299,16 +299,23 @@ def _merge_consensus(raw_lists: list[list[dict]]) -> list[PulseItem]:
     return items
 
 
-def _read_cache() -> dict | None:
+_MEM_PULSE: tuple[float, dict] | None = None
+_MEM_PULSE_TTL = 10 * 60
+
+
+def _read_cache(*, allow_stale: bool = False) -> dict | None:
     try:
         if not CACHE_FILE.exists():
             return None
         data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-        if time.time() - float(data.get("fetched_at_unix", 0)) > CACHE_TTL_SEC:
+        age = time.time() - float(data.get("fetched_at_unix", 0))
+        if age > CACHE_TTL_SEC and not allow_stale:
             return None
         # normalize legacy key
         if "stories" not in data and "items" in data:
             data["stories"] = data.pop("items")
+        if age > CACHE_TTL_SEC:
+            data["cache"] = "stale"
         return data
     except Exception:
         return None
@@ -322,23 +329,25 @@ def _write_cache(payload: dict) -> None:
         log.warning("cache write failed: %s", e)
 
 
-async def build_pulse(force: bool = False) -> dict:
-    if not force:
-        cached = _read_cache()
-        if cached:
-            return cached
+async def _pull_pulse_live() -> dict:
+    timeout = httpx.Timeout(5.0, connect=2.5)
+    async with httpx.AsyncClient(
+        timeout=timeout, headers={"User-Agent": USER_AGENT}
+    ) as client:
+        # Parallel — no sequential Reddit sleeps (that alone was ~2.25s+)
+        gnews, r1, r2, r3, hn = await asyncio.gather(
+            _fetch_google_news_top(client),
+            _fetch_reddit(client, "worldnews"),
+            _fetch_reddit(client, "news"),
+            _fetch_reddit(client, "technology"),
+            _fetch_hacker_news(client),
+            return_exceptions=True,
+        )
 
-    timeout = httpx.Timeout(12.0, connect=6.0)
-    async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": USER_AGENT}) as client:
-        gnews = await _fetch_google_news_top(client)
-        # Reddit first (broader), HN last and down-weighted
-        reddit_lists: list[list[dict]] = []
-        for sub in ("worldnews", "news", "technology"):
-            reddit_lists.append(await _fetch_reddit(client, sub))
-            await asyncio.sleep(0.75)
-        hn = await _fetch_hacker_news(client)
+    def _list(val) -> list:
+        return val if isinstance(val, list) else []
 
-    lists = [gnews, *reddit_lists, hn]
+    lists = [_list(gnews), _list(r1), _list(r2), _list(r3), _list(hn)]
     if not any(lists):
         lists = [_fallback_items()]
         mode = "fallback"
@@ -367,4 +376,53 @@ async def build_pulse(force: bool = False) -> dict:
         ),
     }
     _write_cache(payload)
+    return payload
+
+
+async def build_pulse(force: bool = False) -> dict:
+    global _MEM_PULSE
+    now = time.time()
+    if not force and _MEM_PULSE and (now - _MEM_PULSE[0]) < _MEM_PULSE_TTL:
+        return _MEM_PULSE[1]
+    if not force:
+        cached = _read_cache()
+        if cached:
+            _MEM_PULSE = (now, cached)
+            return cached
+
+    try:
+        payload = await asyncio.wait_for(_pull_pulse_live(), timeout=6.0)
+    except asyncio.TimeoutError:
+        log.warning("pulse pull timed out — stale/fallback")
+        stale = _read_cache(allow_stale=True)
+        if stale:
+            _MEM_PULSE = (time.time(), stale)
+            return stale
+        items = _merge_consensus([_fallback_items()])
+        payload = {
+            "fetched_at": _now_iso(),
+            "fetched_at_unix": time.time(),
+            "mode": "fallback",
+            "lane": "curious",
+            "count": len(items),
+            "stories": [it.to_dict() for it in items],
+            "disclaimer": "Pulse is warming up — showing a short fallback list.",
+        }
+    except Exception as e:
+        log.warning("pulse pull failed: %s", e)
+        stale = _read_cache(allow_stale=True)
+        if stale:
+            return stale
+        items = _merge_consensus([_fallback_items()])
+        payload = {
+            "fetched_at": _now_iso(),
+            "fetched_at_unix": time.time(),
+            "mode": "fallback",
+            "lane": "curious",
+            "count": len(items),
+            "stories": [it.to_dict() for it in items],
+            "disclaimer": "Pulse is temporarily limited.",
+        }
+
+    _MEM_PULSE = (time.time(), payload)
     return payload

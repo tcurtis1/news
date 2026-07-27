@@ -181,7 +181,12 @@ def _legacy_migrate_default(place: Place) -> None:
         log.warning("legacy cache migrate failed: %s", e)
 
 
-def _read_cache(place: Place) -> dict | None:
+# In-process cache so cold disk / concurrent requests don't stampede
+_MEM_TRENDS: dict[str, tuple[float, dict]] = {}
+_MEM_TRENDS_TTL = 15 * 60  # 15 min
+
+
+def _read_cache(place: Place, *, allow_stale: bool = False) -> dict | None:
     try:
         _legacy_migrate_default(place)
         today, yday = _place_cache_paths(place)
@@ -191,11 +196,15 @@ def _read_cache(place: Place) -> dict | None:
         # Geo mismatch (stale/wrong file) → miss
         if data.get("geo") and data.get("geo") != place.code:
             return None
-        if data.get("day") == _utc_day() or (
+        fresh = data.get("day") == _utc_day() or (
             time.time() - float(data.get("fetched_at_unix", 0)) <= CACHE_MAX_AGE_SEC
-        ):
+        )
+        if fresh or allow_stale:
             data = _ensure_derived(data, place)
-            return apply_deltas(data, _read_json(yday))
+            out = apply_deltas(data, _read_json(yday))
+            if not fresh:
+                out["cache"] = "stale"
+            return out
         return None
     except Exception:
         return None
@@ -1400,19 +1409,10 @@ def _sources_meta(
     return out
 
 
-async def build_trends(force: bool = False, geo: str | None = None) -> dict[str, Any]:
-    place = resolve_place(geo)
-    if not force:
-        cached = _read_cache(place)
-        if cached:
-            plats = cached.get("platforms") or {}
-            if all(p in plats for p in PLATFORM_ORDER):
-                cached["cache"] = "hit"
-                return cached
-
-    timeout = httpx.Timeout(30.0, connect=8.0)
+async def _pull_trends_live(place: Place) -> dict[str, Any]:
+    """Full multi-platform pull (can be slow). Caller applies time budget."""
+    timeout = httpx.Timeout(8.0, connect=3.0)
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        # Parallel platform pulls — first visit to a geo is bounded by slowest source
         (
             google,
             bing,
@@ -1431,17 +1431,24 @@ async def build_trends(force: bool = False, geo: str | None = None) -> dict[str,
             _fetch_tiktok(client, place),
             _fetch_facebook(client, place),
             _fetch_instagram(client, place),
+            return_exceptions=True,
         )
 
+    def _ok(val, name: str) -> list:
+        if isinstance(val, Exception):
+            log.warning("%s fetch failed: %s", name, val)
+            return []
+        return [it.to_dict() for it in (val or [])]
+
     platforms = {
-        "google": [it.to_dict() for it in google],
-        "bing": [it.to_dict() for it in bing],
-        "youtube": [it.to_dict() for it in youtube],
-        "x": [it.to_dict() for it in x_items],
-        "polymarket": [it.to_dict() for it in poly],
-        "tiktok": [it.to_dict() for it in tiktok],
-        "facebook": [it.to_dict() for it in facebook],
-        "instagram": [it.to_dict() for it in instagram],
+        "google": _ok(google, "google"),
+        "bing": _ok(bing, "bing"),
+        "youtube": _ok(youtube, "youtube"),
+        "x": _ok(x_items, "x"),
+        "polymarket": _ok(poly, "polymarket"),
+        "tiktok": _ok(tiktok, "tiktok"),
+        "facebook": _ok(facebook, "facebook"),
+        "instagram": _ok(instagram, "instagram"),
     }
     consensus = build_consensus(platforms, TOP_N)
     sources_ok = [name for name in PLATFORM_ORDER if platforms.get(name)]
@@ -1487,4 +1494,74 @@ async def build_trends(force: bool = False, geo: str | None = None) -> dict[str,
             _write_json(CACHE_FILE, payload)
     except Exception:
         pass
+    return payload
+
+
+def _empty_trends_shell(place: Place) -> dict[str, Any]:
+    """Never block the UI — empty boards beat a timeout."""
+    platforms = {k: [] for k in PLATFORM_ORDER}
+    notes = platform_notes_for(place)
+    return {
+        "day": _utc_day(),
+        "fetched_at": _now_iso(),
+        "fetched_at_unix": time.time(),
+        "geo": place.code,
+        "place": place.to_dict(),
+        "cache": "empty",
+        "refresh": "daily",
+        "sources_ok": [],
+        "sources": _sources_meta(platforms, place, notes),
+        "labels": dict(PLATFORM_LABELS),
+        "notes": notes,
+        "counts": {k: 0 for k in PLATFORM_ORDER},
+        "platforms": platforms,
+        "top10": platforms,
+        "consensus": [],
+        "coverage": place.coverage_summary(),
+        "disclaimer": (
+            f"Trends for {place.label} are still warming up. "
+            "Refresh in a minute, or browse MyNews / rank map search."
+        ),
+    }
+
+
+async def build_trends(force: bool = False, geo: str | None = None) -> dict[str, Any]:
+    place = resolve_place(geo)
+    mem_key = place.code
+    now = time.time()
+
+    if not force:
+        mem = _MEM_TRENDS.get(mem_key)
+        if mem and (now - mem[0]) < _MEM_TRENDS_TTL:
+            data = dict(mem[1])
+            data["cache"] = "memory"
+            return data
+        cached = _read_cache(place)
+        if cached:
+            plats = cached.get("platforms") or {}
+            if any(plats.get(p) for p in PLATFORM_ORDER):
+                cached["cache"] = cached.get("cache") or "hit"
+                _MEM_TRENDS[mem_key] = (now, cached)
+                return cached
+
+    # Live pull with hard budget — never hang the HTTP request
+    try:
+        payload = await asyncio.wait_for(_pull_trends_live(place), timeout=7.0)
+    except asyncio.TimeoutError:
+        log.warning("trends pull timed out geo=%s — serving stale/empty", place.code)
+        stale = _read_cache(place, allow_stale=True)
+        if stale and any((stale.get("platforms") or {}).values()):
+            stale["cache"] = "stale-timeout"
+            _MEM_TRENDS[mem_key] = (time.time(), stale)
+            return stale
+        payload = _empty_trends_shell(place)
+    except Exception as e:
+        log.warning("trends pull failed geo=%s: %s", place.code, e)
+        stale = _read_cache(place, allow_stale=True)
+        if stale:
+            stale["cache"] = "stale-error"
+            return stale
+        payload = _empty_trends_shell(place)
+
+    _MEM_TRENDS[mem_key] = (time.time(), payload)
     return payload
