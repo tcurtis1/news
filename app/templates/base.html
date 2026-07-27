@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ page_title }} · yoyosup News</title>
   <meta name="description" content="Daily Intersection (mass attention) and Curious Pulse on yoyosup.com." />
-  <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.9.8') }}" />
-  <link rel="icon" href="/static/logo-compass.svg?v=1" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.9.9') }}" />
+  <link rel="icon" href="/static/logo-compass.svg?v=2" type="image/svg+xml" />
   <link rel="canonical" href="{{ public_base }}{{ request.url.path }}" />
   {% if request.url.path in ['/', '/search', '/my', '/safety'] or request.url.path.startswith('/topic/') %}
   <meta name="robots" content="index,follow" />
@@ -14,13 +14,13 @@
   <meta name="robots" content="noindex,nofollow" />
   {% endif %}
 </head>
-<body>
+<body data-product="News">
   <div class="wrap">
-    {# Same network chrome as tools + finance #}
+    {# Canonical network chrome — same brand as tools + finance #}
     <header class="site-header">
       <div class="site-header-row">
         <a class="site-brand" href="/" aria-label="yoyosup News home">
-          <img class="site-brand-mark" src="/static/logo-compass.svg?v=1" width="36" height="36" alt="" aria-hidden="true" />
+          <img class="site-brand-mark" src="/static/logo-compass.svg?v=2" width="36" height="36" alt="" aria-hidden="true" />
           <img class="site-brand-logo" src="/static/logo.svg?v=flat1" width="200" height="40" alt="yoyosup" />
         </a>
         <span class="site-product">News</span>
@@ -30,7 +30,6 @@
         <a href="/" class="active">News</a>
         <a href="https://finance.yoyosup.com/" rel="noopener">Finance</a>
       </nav>
-      {# News-only destinations — same pill style, second row #}
       <nav class="site-nav site-nav-local" aria-label="News sections">
         <a href="/search" class="{% if request.url.path.startswith('/search') %}active{% endif %}">Intersection</a>
         <a href="/my" class="{% if request.url.path.startswith('/my') %}active{% endif %}">MyNews</a>
@@ -46,13 +45,15 @@
       <a href="https://finance.yoyosup.com/" rel="noopener">Finance</a>
       <a href="https://www.yoyosup.com/tools/scamcheck/" rel="noopener">ScamCheck</a>
       <a href="https://www.yoyosup.com/tools/blog/" rel="noopener">Guides</a>
-      <a href="https://www.yoyosup.com/tools/shop/" rel="noopener">$5 kit</a>
+      <a href="https://www.yoyosup.com/tools/shop/" rel="noopener">Shop</a>
       <a href="/search">Intersection</a>
       <a href="/my">MyNews</a>
       <a href="/safety">Safety</a>
-      <a href="/api/pulse">JSON API</a>
       <a href="https://www.yoyosup.com/privacy.html" rel="noopener">Privacy</a>
-      <span class="site-footer-brand">yoyosup · lean badges are outlet labels, not truth scores</span>
+      <span class="site-footer-brand">
+        <img class="site-footer-mark" src="/static/logo-compass.svg?v=2" width="16" height="16" alt="" aria-hidden="true" />
+        yoyosup
+      </span>
     </footer>
   </div>
   {% block scripts %}{% endblock %}

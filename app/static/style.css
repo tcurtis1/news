@@ -44,9 +44,11 @@ a:hover {
 
 /* Match tools site-chrome + finance pill nav (logo row + product + pills) */
 .site-header {
-  margin: 0 0 1.25rem;
+  margin: 0 0 1.15rem;
   padding-bottom: 0.85rem;
   border-bottom: 1px solid var(--border);
+  min-height: 7.25rem;
+  box-sizing: border-box;
 }
 
 .site-header-row {
@@ -410,8 +412,20 @@ footer.site a:hover {
   text-decoration: none;
 }
 
+.site-footer-mark {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  display: block;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
 .site-footer-brand {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   color: #3f3f46;
   font-weight: 600;
   letter-spacing: -0.02em;
