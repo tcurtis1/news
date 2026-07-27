@@ -60,6 +60,7 @@ a:hover {
 .site-brand {
   display: inline-flex;
   align-items: center;
+  gap: 0.55rem;
   text-decoration: none;
   line-height: 0;
 }
@@ -68,8 +69,16 @@ a:hover {
   text-decoration: none;
 }
 
+.site-brand-mark {
+  height: 36px;
+  width: 36px;
+  display: block;
+  flex-shrink: 0;
+  border-radius: 8px;
+}
+
 .site-brand-logo {
-  height: 44px;
+  height: 40px;
   width: auto;
   display: block;
 }
