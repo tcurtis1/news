@@ -15,7 +15,7 @@ from xml.etree import ElementTree as ET
 import httpx
 
 from app.bias import aggregate_lean, enrich_hits
-from app.places import resolve_place
+from app.places import Place, resolve_place
 from app.source_prefs import (
     filter_hits,
     google_batch_budget,
@@ -168,14 +168,21 @@ async def _fetch_google_news(
     client: httpx.AsyncClient,
     q: str,
     *,
+    place: Place | None = None,
     limit: int = MAX_PER_SOURCE,
     score_base: int = 1000,
 ) -> list[SearchHit]:
     try:
+        edition = place or resolve_place(None)
         async with _get_gnews_sem():
             r = await client.get(
                 "https://news.google.com/rss/search",
-                params={"q": q, "hl": "en-US", "gl": "US", "ceid": "US:en"},
+                params={
+                    "q": q,
+                    "hl": edition.news_hl,
+                    "gl": edition.news_gl,
+                    "ceid": edition.news_ceid,
+                },
                 headers={
                     "User-Agent": USER_AGENT,
                     "Accept": "application/rss+xml, application/xml, text/xml, */*",
@@ -486,7 +493,9 @@ def diversify_hits(
     return out
 
 
-async def _fetch_bing_news(client: httpx.AsyncClient, q: str) -> list[SearchHit]:
+async def _fetch_bing_news(
+    client: httpx.AsyncClient, q: str, place: Place
+) -> list[SearchHit]:
     try:
         r = await client.get(
             "https://www.bing.com/news/search",
@@ -771,11 +780,11 @@ async def _run_search_one(
             # Skip 10× Google site: batches here — preferred headlines API
             # and RSS already cover outlet diversity without timing out.
             gnews, rss_hits, bnews, hn = await asyncio.gather(
-                _fetch_google_news(client, query),
+                _fetch_google_news(client, query, place=place),
                 _fetch_outlet_rss_for_pref(
                     client, lean_pref, query, lite=True
                 ),
-                _fetch_bing_news(client, query),
+                _fetch_bing_news(client, query, place),
                 _fetch_hn(client, query),
             )
         main_hits = diversify_hits(
