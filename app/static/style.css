@@ -15,6 +15,19 @@
   --radius: 12px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
 }
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c111b;
+  --panel: #151c28;
+  --panel-2: #1d2634;
+  --border: #354052;
+  --text: #e8edf5;
+  --muted: #aab3c2;
+  --accent: #fb923c;
+  --link: #7db4ff;
+  --ok: #4ade80;
+  --bad: #f87171;
+}
 
 * {
   box-sizing: border-box;
@@ -62,6 +75,23 @@ a:hover {
   flex-wrap: wrap;
   margin-bottom: 0.55rem;
 }
+
+.theme-toggle {
+  margin-left: auto;
+  min-width: 3.7rem;
+  padding: 0.34rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.theme-toggle:hover, .theme-toggle:focus-visible { border-color: var(--link); }
+.theme-toggle-floating { position: fixed; top: 0.75rem; right: 0.75rem; z-index: 1000; }
+html[data-theme="dark"] .site-brand-logo { filter: none; }
 
 .site-brand {
   display: inline-flex;
