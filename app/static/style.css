@@ -1,13 +1,17 @@
 :root {
-  --bg: #0c0e12;
-  --panel: #141820;
-  --panel-2: #1a1f2a;
-  --border: #2a3140;
-  --text: #e8eaed;
-  --muted: #9aa3b2;
-  --accent: #f97316;
+  color-scheme: light;
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --panel-2: #f0f3f7;
+  --border: #d9dee7;
+  --text: #172033;
+  --muted: #5d6675;
+  --accent: #c2410c;
+  --accent-fill: #f97316;
+  --link: #175cd3;
   --accent-dim: rgba(249, 115, 22, 0.15);
-  --ok: #34d399;
+  --ok: #15803d;
+  --bad: #b42318;
   --radius: 12px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
 }
@@ -28,7 +32,7 @@ body {
 }
 
 a {
-  color: var(--accent);
+  color: var(--link);
   text-decoration: none;
 }
 
@@ -83,6 +87,7 @@ a:hover {
   height: 40px;
   width: auto;
   display: block;
+  filter: invert(1) sepia(0.08) saturate(0.8) hue-rotate(175deg);
 }
 
 .site-product {
@@ -194,25 +199,25 @@ header.site {
 
 .lean-left {
   background: rgba(129, 140, 248, 0.16);
-  color: #a5b4fc;
+  color: #3730a3;
   border-color: rgba(129, 140, 248, 0.35);
 }
 
 .lean-right {
   background: rgba(251, 191, 36, 0.12);
-  color: #fbbf24;
+  color: #92400e;
   border-color: rgba(251, 191, 36, 0.35);
 }
 
 .lean-center {
   background: rgba(52, 211, 153, 0.12);
-  color: #6ee7b7;
+  color: #166534;
   border-color: rgba(52, 211, 153, 0.3);
 }
 
 .lean-unclear {
   background: rgba(154, 163, 178, 0.12);
-  color: #9aa3b2;
+  color: var(--muted);
   border-color: rgba(154, 163, 178, 0.28);
 }
 
@@ -335,7 +340,7 @@ h1 {
 }
 
 .card:hover {
-  border-color: #3d4658;
+  border-color: #b8c0cc;
 }
 
 .rank {
@@ -397,12 +402,12 @@ footer.site {
   gap: 0.45rem 0.85rem;
   align-items: center;
   font-size: 0.78rem;
-  color: #52525b;
+  color: var(--muted);
 }
 
 .site-footer a,
 footer.site a {
-  color: #71717a;
+  color: var(--link);
   text-decoration: none;
 }
 
@@ -426,7 +431,7 @@ footer.site a:hover {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: #3f3f46;
+  color: var(--muted);
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -457,7 +462,7 @@ footer.site a:hover {
 }
 
 .search-box button {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #111;
   border: none;
   border-radius: 10px;
@@ -636,7 +641,7 @@ footer.site a:hover {
 }
 
 .geo-apply-btn {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #111;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -759,7 +764,7 @@ footer.site a:hover {
 }
 
 .portal-video {
-  border-color: #3d4658;
+  border-color: #b8c0cc;
 }
 
 .muted-hint {
@@ -812,25 +817,25 @@ footer.site a:hover {
 
 .scope-pill-full {
   background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
+  color: var(--ok);
   border: 1px solid rgba(34, 197, 94, 0.35);
 }
 
 .scope-pill-partial {
   background: rgba(249, 115, 22, 0.12);
-  color: #fb923c;
+  color: var(--accent);
   border: 1px solid rgba(249, 115, 22, 0.3);
 }
 
 .scope-pill-country {
   background: rgba(148, 163, 184, 0.12);
-  color: #94a3b8;
+  color: var(--muted);
   border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
 .scope-pill-global {
   background: rgba(96, 165, 250, 0.12);
-  color: #60a5fa;
+  color: var(--link);
   border: 1px solid rgba(96, 165, 250, 0.3);
 }
 
@@ -893,7 +898,7 @@ footer.site a:hover {
 }
 
 .source-chip.ok {
-  border-color: #3d4658;
+  border-color: #b8c0cc;
 }
 
 .source-chip.off {
@@ -1087,7 +1092,7 @@ footer.site a:hover {
 
 .comment-fields button {
   align-self: flex-start;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #111;
   border: none;
   border-radius: 10px;
@@ -1147,7 +1152,7 @@ footer.site a:hover {
 .flash.error {
   background: rgba(248, 113, 113, 0.12);
   border: 1px solid rgba(248, 113, 113, 0.35);
-  color: #fca5a5;
+  color: var(--bad);
 }
 
 .flash.ok {
@@ -1259,13 +1264,13 @@ footer.site a:hover {
 
 .delta-pill.up {
   background: rgba(96, 165, 250, 0.18);
-  color: #93c5fd;
+  color: var(--link);
   border-color: rgba(96, 165, 250, 0.35);
 }
 
 .delta-pill.down {
   background: rgba(248, 113, 113, 0.15);
-  color: #fca5a5;
+  color: var(--bad);
   border-color: rgba(248, 113, 113, 0.3);
 }
 
@@ -1379,7 +1384,7 @@ footer.site a:hover {
 .plat-tag.plat-x {
   background: #e7e9ea !important;
   background-color: #e7e9ea !important;
-  border-color: #3d4658;
+  border-color: #b8c0cc;
 }
 /* Polymarket: bright chip — must beat dark table + long name */
 .plat-tag.plat-polymarket {
@@ -1489,8 +1494,8 @@ footer.site a:hover {
 }
 
 .my-clear-btn:hover {
-  border-color: #ef4444;
-  color: #fca5a5;
+  border-color: var(--bad);
+  color: var(--bad);
 }
 
 .my-filter-chips {
@@ -1539,7 +1544,7 @@ footer.site a:hover {
 }
 
 .my-chip-remove:hover {
-  color: #fca5a5;
+  color: var(--bad);
   background: rgba(239, 68, 68, 0.12);
 }
 
@@ -1566,7 +1571,7 @@ footer.site a:hover {
 }
 
 .my-add-form button {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #111;
   border: none;
   border-radius: 10px;

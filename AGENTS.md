@@ -20,7 +20,7 @@ Server lock: `~/apps/news/.deploy.lock`.
 
 ## Conventions
 
-- Dark UI, `#f97316`, shared network header/footer pattern with tools/finance.  
+- Calm safety UI: warm off-white, white panels, navy text, blue links, and `#f97316` for primary actions; shared network header/footer pattern with tools/finance.
 - Geo / trends caching is sensitive — don’t casually change cache keys or cron without reading `README` / app code.  
 - Keep comment UX low-friction (optional name, Anonymous OK).
 
