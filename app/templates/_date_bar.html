@@ -1,0 +1,15 @@
+{# Recency filter for MyNews cards: Any time / Today / Past week / Past month. Client-side only (no SSR dependency). #}
+<div class="date-bar" id="date-bar" data-days="0">
+  <div class="date-bar-inner">
+    <span class="date-bar-label" id="date-bar-label">Recency</span>
+    <div class="date-seg" role="radiogroup" aria-labelledby="date-bar-label">
+      <button type="button" class="date-seg-btn active" data-days="0" role="radio" aria-checked="true">Any time</button>
+      <button type="button" class="date-seg-btn" data-days="1" role="radio" aria-checked="false">Today</button>
+      <button type="button" class="date-seg-btn" data-days="7" role="radio" aria-checked="false">Past week</button>
+      <button type="button" class="date-seg-btn" data-days="30" role="radio" aria-checked="false">Past month</button>
+    </div>
+  </div>
+  <p class="date-bar-hint muted-hint" id="date-bar-hint">
+    Saved on this device. Undated headlines are hidden once you pick a window — we only show what we can verify.
+  </p>
+</div>

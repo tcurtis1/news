@@ -743,6 +743,7 @@ async def _run_search_lite(
     query: str,
     geo: str | None = None,
     lean: str | None = None,
+    days: int | None = None,
 ) -> dict[str, Any]:
     """
     Fast path for MyNews cards: rank map (cached trends) + preferred headlines.
@@ -774,6 +775,7 @@ async def _run_search_lite(
         log.warning("lite search timeout q=%r lean=%s", query[:40], lean_pref)
         hits, trends = [], await build_trends(force=False, geo=place.code)
 
+    hits = _filter_recent(hits, days)
     ranks = rank_lookup(query, trends)
     coverage = aggregate_lean(hits)
 
@@ -818,7 +820,7 @@ async def _run_search_one(
 ) -> dict[str, Any]:
     """Single phrase search (words in the phrase match as a sentence / AND-ish)."""
     if lite:
-        return await _run_search_lite(query, geo=geo, lean=lean)
+        return await _run_search_lite(query, geo=geo, lean=lean, days=days)
 
     place = resolve_place(geo)
     lean_pref = normalize_pref(lean)
@@ -1137,7 +1139,7 @@ async def run_search(
     if lite:
         phrase = phrases[0] if phrases else query
         return await _run_search_one(
-            phrase, force_trends=False, geo=place.code, lean=lean_pref, lite=True
+            phrase, force_trends=False, geo=place.code, lean=lean_pref, lite=True, days=days
         )
     if len(phrases) > 1:
         return await _run_search_or(

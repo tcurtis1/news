@@ -293,7 +293,7 @@
       (pills ? '<div class="rank-pills">' + pills + "</div>" : "") +
       (hitHtml
         ? '<ul class="my-hit-list">' + hitHtml + "</ul>"
-        : '<p class="muted-hint">No preferred-source headlines right now — open the topic page or try another source lean.</p>') +
+        : '<p class="muted-hint">No preferred-source headlines right now — open the topic page, try another source lean, or widen the recency filter.</p>') +
       "</div></article>"
     );
   }
@@ -307,6 +307,7 @@
     // One chip = one phrase. lite=1 = preferred headlines + ranks only (fast path).
     var leanNow =
       (window.YoyoLeanPref && YoyoLeanPref.current()) || lean || "balanced";
+    var daysNow = (window.YoyoDatePref && YoyoDatePref.current()) || 0;
     var url =
       "/api/search?q=" +
       encodeURIComponent(topic.label) +
@@ -315,6 +316,7 @@
       "&lean=" +
       encodeURIComponent(leanNow) +
       "&lite=1";
+    if (daysNow) url += "&days=" + encodeURIComponent(daysNow);
     var res = await fetch(url);
     if (!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
@@ -612,5 +614,5 @@
     }
   }
 
-  window.YoyoMyNews = { init: init, load: load, KEY: KEY };
+  window.YoyoMyNews = { init: init, load: load, refresh: refresh, KEY: KEY };
 })();
