@@ -278,10 +278,13 @@ async def api_search(
     geo: str = "",
     lean: str = "",
     lite: bool = False,
+    days: int = 0,
 ):
     """
     Full search by default. Pass lite=1 for MyNews cards (faster:
     preferred headlines + rank map only, hard time budget).
+    Pass days=N to keep only hits with a parsed publish date in the last N days
+    (undated hits are dropped, since recency can't be verified for them).
     """
     place = resolve_place(geo or None)
     lean_pref = _lean_from_request(request, lean)
@@ -293,6 +296,7 @@ async def api_search(
         lite=bool(lite),
         # API callers who want empty-q headlines use /api/headlines
         defer_headlines=not bool(q.strip()),
+        days=days or None,
     )
     if q.strip():
         data["topic_path"] = (

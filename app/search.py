@@ -8,6 +8,7 @@ import re
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import quote_plus, urlparse
 from xml.etree import ElementTree as ET
@@ -61,6 +62,7 @@ class SearchHit:
     snippet: str = ""
     score: int = 0
     comments_url: str | None = None
+    published: str | None = None  # ISO 8601 UTC, when the source provided one
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -78,6 +80,25 @@ class PortalLink:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_feed_date(text: str | None) -> str | None:
+    """Best-effort RSS (RFC 822) / Atom (ISO 8601) date → UTC ISO string."""
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    try:
+        dt = parsedate_to_datetime(raw)
+    except (TypeError, ValueError):
+        dt = None
+    if dt is None:
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
 
 
 def _clean_query(q: str) -> str:
@@ -202,6 +223,7 @@ async def _fetch_google_news(
             if not title:
                 continue
             source = (entry.findtext("source") or "Google News").strip()
+            published = _parse_feed_date(entry.findtext("pubDate"))
             out.append(
                 SearchHit(
                     title=title,
@@ -209,6 +231,7 @@ async def _fetch_google_news(
                     source=f"Google News · {source}" if source != "Google News" else "Google News",
                     snippet="Google News",
                     score=score_base - i,
+                    published=published,
                 )
             )
         return out
@@ -319,6 +342,13 @@ def _parse_rss_items(
             or entry.findtext("{http://www.w3.org/2005/Atom}summary")
             or ""
         )
+        published = _parse_feed_date(
+            entry.findtext("pubDate")
+            or entry.findtext("published")
+            or entry.findtext("{http://www.w3.org/2005/Atom}published")
+            or entry.findtext("updated")
+            or entry.findtext("{http://www.w3.org/2005/Atom}updated")
+        )
         out.append(
             SearchHit(
                 title=title,
@@ -326,6 +356,7 @@ def _parse_rss_items(
                 source=source_name,
                 snippet=(desc[:140] + "…") if len(desc) > 140 else desc,
                 score=1100 - i,
+                published=published,
             )
         )
     return out
@@ -520,6 +551,7 @@ async def _fetch_bing_news(
             if not title:
                 continue
             desc = re.sub(r"<[^>]+>", "", entry.findtext("description") or "").strip()
+            published = _parse_feed_date(entry.findtext("pubDate"))
             out.append(
                 SearchHit(
                     title=title,
@@ -527,6 +559,7 @@ async def _fetch_bing_news(
                     source="Bing News",
                     snippet=(desc[:160] + "…") if len(desc) > 160 else desc,
                     score=900 - i,
+                    published=published,
                 )
             )
         return out
@@ -557,6 +590,7 @@ def _parse_reddit_search_atom(xml_text: str, limit: int) -> list[SearchHit]:
         if m and "reddit.com" not in m.group(1):
             url = m.group(1)
         snippet = f"r/{sub}" if sub else "Reddit search"
+        published = _parse_feed_date(entry.findtext("a:updated", default="", namespaces=ns))
         out.append(
             SearchHit(
                 title=title,
@@ -565,6 +599,7 @@ def _parse_reddit_search_atom(xml_text: str, limit: int) -> list[SearchHit]:
                 snippet=snippet,
                 score=max(1, limit - i) * 10,
                 comments_url=comments,
+                published=published,
             )
         )
     return out
@@ -606,6 +641,26 @@ def _merge_hits(lists: list[list[SearchHit]]) -> list[SearchHit]:
                 seen[k] = h
 
     return sorted(seen.values(), key=lambda h: h.score, reverse=True)[:MAX_RESULTS]
+
+
+def _filter_recent(hits: list[dict[str, Any]], days: int | None) -> list[dict[str, Any]]:
+    """Keep only hits with a parsed `published` date within the last `days`.
+    Undated hits are dropped when a window is requested — we can't verify their age."""
+    if not days or days <= 0:
+        return hits
+    cutoff = time.time() - days * 86400
+    out: list[dict[str, Any]] = []
+    for h in hits:
+        published = h.get("published")
+        if not published:
+            continue
+        try:
+            dt = datetime.fromisoformat(published)
+        except ValueError:
+            continue
+        if dt.timestamp() >= cutoff:
+            out.append(h)
+    return out
 
 
 async def fetch_preferred_headlines(
@@ -759,6 +814,7 @@ async def _run_search_one(
     geo: str | None = None,
     lean: str | None = None,
     lite: bool = False,
+    days: int | None = None,
 ) -> dict[str, Any]:
     """Single phrase search (words in the phrase match as a sentence / AND-ish)."""
     if lite:
@@ -866,6 +922,7 @@ async def _run_search_one(
         sources_ok.append("Hacker News (tech, secondary)")
 
     hits = enrich_hits([h.to_dict() for h in main_hits])
+    hits = _filter_recent(hits, days)
     hits = filter_hits(hits, lean_pref, keep_unmatched=False)
     topical = prefer_topical(hits, query)
     if len(topical) >= 8:
@@ -915,6 +972,7 @@ async def _run_search_or(
     geo: str | None = None,
     display_q: str = "",
     lean: str | None = None,
+    days: int | None = None,
 ) -> dict[str, Any]:
     """Run each comma-segment independently and OR the results together."""
     import asyncio
@@ -923,7 +981,7 @@ async def _run_search_or(
     lean_pref = normalize_pref(lean)
     parts = await asyncio.gather(
         *[
-            _run_search_one(p, force_trends=False, geo=place.code, lean=lean_pref)
+            _run_search_one(p, force_trends=False, geo=place.code, lean=lean_pref, days=days)
             for p in phrases
         ]
     )
@@ -944,6 +1002,7 @@ async def _run_search_or(
                         snippet=h.get("snippet") or "",
                         score=int(h.get("score") or 0),
                         comments_url=h.get("comments_url"),
+                        published=h.get("published"),
                     )
                 )
             if key == "hits":
@@ -1016,6 +1075,7 @@ async def run_search(
     lite: bool = False,
     *,
     defer_headlines: bool = False,
+    days: int | None = None,
 ) -> dict[str, Any]:
     query = _clean_query(q)
     place = resolve_place(geo)
@@ -1086,6 +1146,7 @@ async def run_search(
             geo=place.code,
             display_q=query,
             lean=lean_pref,
+            days=days,
         )
     return await _run_search_one(
         phrases[0] if phrases else query,
@@ -1093,4 +1154,5 @@ async def run_search(
         geo=place.code,
         lean=lean_pref,
         lite=False,
+        days=days,
     )
