@@ -12,6 +12,10 @@ services:
       - MOD_HOLD_THRESHOLD=${MOD_HOLD_THRESHOLD:-0.65}
       # Optional: token for /admin/mod queue
       - MOD_ADMIN_TOKEN=${MOD_ADMIN_TOKEN:-}
+      # Visitor analytics JSON for tools admin network rollup (falls back to MOD_ADMIN_TOKEN)
+      - ANALYTICS_ADMIN_KEY=${ANALYTICS_ADMIN_KEY:-}
+      - TZ=${TZ:-America/Denver}
+      - ANALYTICS_TZ=${ANALYTICS_TZ:-America/Denver}
     volumes:
       - news_data:/data
     restart: unless-stopped

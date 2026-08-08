@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.analytics import ADMIN_KEY as ANALYTICS_ADMIN_KEY, country_label, get_stats, record_hit
 from app.comments import (
     add_comment,
     list_all_for_admin,
@@ -50,6 +51,23 @@ app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["slugify"] = slugify
 templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["country_label"] = country_label
+
+
+@app.middleware("http")
+async def analytics_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if response.status_code < 400:
+        await record_hit(
+            path=request.url.path,
+            ref=request.query_params.get("ref"),
+            country_raw=request.headers.get("cf-ipcountry"),
+            state_raw=request.headers.get("cf-region"),
+            referer=request.headers.get("referer"),
+            city_raw=request.headers.get("cf-ipcity"),
+            region_code=request.headers.get("cf-region-code"),
+        )
+    return response
 
 
 def _geo_cookie_place(request: Request):
@@ -463,6 +481,14 @@ async def api_topic(slug: str, force: bool = False, geo: str = ""):
 async def api_topic_comments(slug: str):
     canon = slugify(unslug(slug) or slug)
     return JSONResponse({"slug": canon, "comments": list_comments(canon)})
+
+
+@app.get("/api/analytics")
+async def api_analytics(key: str = "", day: str = ""):
+    """JSON stats for tools admin network rollup (admin key required)."""
+    if not ANALYTICS_ADMIN_KEY or key != ANALYTICS_ADMIN_KEY:
+        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
+    return JSONResponse(get_stats(day=day or None))
 
 
 @app.get("/admin/mod", response_class=HTMLResponse)
