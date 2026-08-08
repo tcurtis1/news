@@ -51,6 +51,8 @@ def _empty_data() -> dict:
         "by_city_us": {},
         "by_referrer": {},
         "by_day_hour": {},
+        "by_day_city": {},
+        "by_day_city_us": {},
         "by_event": {},
         "actions": 0,
     }
@@ -179,6 +181,33 @@ def _hour_map(data: dict, day: str) -> dict:
     return {str(h): int(raw.get(str(h), raw.get(h, 0)) or 0) for h in range(24)}
 
 
+def _city_map(data: dict, day: str, us_only: bool = False) -> dict:
+    key = "by_day_city_us" if us_only else "by_day_city"
+    raw = (data.get(key) or {}).get(day) or {}
+    if not isinstance(raw, dict):
+        return {}
+    ranked = sorted(raw.items(), key=lambda x: -int(x[1] or 0))[:40]
+    return {k: int(v or 0) for k, v in ranked}
+
+
+def _trim_day_city_maps(data: dict, keep_days: int = 45) -> None:
+    for key in ("by_day_city", "by_day_city_us"):
+        bdc = data.setdefault(key, {})
+        if not isinstance(bdc, dict):
+            data[key] = {}
+            continue
+        for day in list(bdc.keys()):
+            m = bdc.get(day)
+            if not isinstance(m, dict):
+                del bdc[day]
+                continue
+            if len(m) > 80:
+                bdc[day] = dict(sorted(m.items(), key=lambda x: -int(x[1] or 0))[:40])
+        if len(bdc) > keep_days + 15:
+            for k in sorted(bdc)[:-keep_days]:
+                del bdc[k]
+
+
 async def record_hit(
     path: str,
     ref: str | None,
@@ -215,9 +244,21 @@ async def record_hit(
         data["by_country"][country] = data["by_country"].get(country, 0) + 1
         data["by_state"][state] = data["by_state"].get(state, 0) + 1
         data["by_city"][city] = data["by_city"].get(city, 0) + 1
+        day_cities = data.setdefault("by_day_city", {})
+        dcm = day_cities.setdefault(day, {})
+        if not isinstance(dcm, dict):
+            dcm = {}
+            day_cities[day] = dcm
+        dcm[city] = int(dcm.get(city, 0) or 0) + 1
         if country == "US" and city != "Unknown":
             us = data.setdefault("by_city_us", {})
             us[city] = us.get(city, 0) + 1
+            day_us = data.setdefault("by_day_city_us", {})
+            dum = day_us.setdefault(day, {})
+            if not isinstance(dum, dict):
+                dum = {}
+                day_us[day] = dum
+            dum[city] = int(dum.get(city, 0) or 0) + 1
         data["by_referrer"][ref_host] = data["by_referrer"].get(ref_host, 0) + 1
         if event:
             data["actions"] = int(data.get("actions", 0) or 0) + 1
@@ -229,10 +270,15 @@ async def record_hit(
                 del data["by_day"][k]
                 if k in data.get("by_day_hour", {}):
                     del data["by_day_hour"][k]
+                if k in data.get("by_day_city", {}):
+                    del data["by_day_city"][k]
+                if k in data.get("by_day_city_us", {}):
+                    del data["by_day_city_us"][k]
         bdh = data.get("by_day_hour") or {}
         if len(bdh) > 60:
             for k in sorted(bdh)[:-45]:
                 del bdh[k]
+        _trim_day_city_maps(data, keep_days=45)
         _trim(data["by_page"], 300, 200)
         _trim(data["by_ref"], 300, 200)
         _trim(data["by_country"], 250, 200)
@@ -257,6 +303,10 @@ def get_stats(day: str | None = None) -> dict:
     bdh = data.get("by_day_hour") or {}
     day_keys = sorted(bdh.keys(), reverse=True)[:14] or list(days.keys())[:14]
     by_day_hour = {d: _hour_map(data, d) for d in day_keys}
+    bdc = data.get("by_day_city") or {}
+    city_keys = sorted(set(list(bdh.keys()) + list(bdc.keys())), reverse=True)[:14]
+    by_day_city = {d: _city_map(data, d, us_only=False) for d in city_keys}
+    by_day_city_us = {d: _city_map(data, d, us_only=True) for d in city_keys}
     archive_day = day if day and re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) else today
     return {
         "product": "news",
@@ -275,7 +325,11 @@ def get_stats(day: str | None = None) -> dict:
         "by_referrer": dict(sorted(data["by_referrer"].items(), key=lambda x: -x[1])[:30]),
         "by_event": dict(sorted((data.get("by_event") or {}).items(), key=lambda x: -x[1])[:30]),
         "by_day_hour": by_day_hour,
+        "by_day_city": by_day_city,
+        "by_day_city_us": by_day_city_us,
         "archive_day": archive_day,
         "archive_hours": _hour_map(data, archive_day),
+        "archive_cities": _city_map(data, archive_day, us_only=False),
+        "archive_cities_us": _city_map(data, archive_day, us_only=True),
         "updated": datetime.now(timezone.utc).isoformat(),
     }
