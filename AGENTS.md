@@ -21,7 +21,7 @@ Server lock: `~/apps/news/.deploy.lock`.
 ## Conventions
 
 - Calm safety UI: warm off-white, white panels, navy text, blue links, and shared teal `#0f766e` / `#2dd4bf` actions; reserve orange/red for warnings. Keep the shared network header/footer and cross-site theme behavior aligned with tools/finance.
-- Geo / trends caching is sensitive — don’t casually change cache keys or cron without reading `README` / app code.  
+- Geo / trends caching is sensitive — don’t casually change cache keys or cron without reading `README` / app code.
 - Keep comment UX low-friction (optional name, Anonymous OK).
 
 ## Analytics measurement (2026-08-08)
@@ -38,6 +38,6 @@ The pre-2026-08-08 cumulative page totals include known crawler traffic and must
 
 ## Don’t
 
-- Don’t race money/finance deploys without checking locks.  
-- Don’t put hard sell ads in comment boxes.  
+- Don’t race money/finance deploys without checking locks.
+- Don’t put hard sell ads in comment boxes.
 - Don’t commit secrets (OpenAI / admin tokens belong in server env).
