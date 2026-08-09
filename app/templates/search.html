@@ -140,11 +140,13 @@
               {% if c.prev_rank and c.delta != 'new' and c.delta != 'baseline' %}
               · was #{{ c.prev_rank }}
               {% endif %}
-              · <a href="/topic/{{ slugify(c.title) }}?geo={{ geo_code }}#comments">discuss</a>
-              {% if c.url %}
-              · <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank">source</a>
-              {% endif %}
             </p>
+            <div class="links">
+              {% if c.url %}
+              <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank">Source</a>
+              {% endif %}
+              <a href="/topic/{{ slugify(c.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comments">Discuss here</a>
+            </div>
             <div class="rank-pills">
               {% for p in c.platforms %}
                 {% set r = c.ranks[p] %}
