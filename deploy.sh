@@ -12,6 +12,21 @@ SSH="ssh -i ${HOME}/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new -o Conne
 # if someone else tries to deploy at the same time. Set before invoking, e.g.
 # DEPLOY_AGENT=grok ./deploy.sh
 DEPLOY_AGENT="${DEPLOY_AGENT:-unknown}"
+# Set SKIP_TESTS=1 to bypass the preflight test run (emergency only).
+SKIP_TESTS="${SKIP_TESTS:-0}"
+
+echo "Preflight tests…"
+if [[ "$SKIP_TESTS" == "1" ]]; then
+  echo "SKIP_TESTS=1 — skipping preflight tests."
+elif python3 -m pytest --version >/dev/null 2>&1; then
+  # `python3 -m pytest` (not bare `pytest`) so the repo root lands on
+  # sys.path[0] and `from app import ...` resolves without a pytest.ini.
+  (cd "$(dirname "$0")" && python3 -m pytest tests/ -q)
+else
+  echo "WARNING: pytest not available in this shell — tests NOT run before deploy."
+  echo "  Install once: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt pytest"
+  echo "  Then: .venv/bin/python -m pytest tests/ -q"
+fi
 
 is_local_deploy() {
   case "${TARGET}" in
@@ -34,7 +49,7 @@ is_local_deploy() {
 run_stack() {
   set -euo pipefail
   cd "${REMOTE_DIR_ABS}"
-  chmod +x deploy.sh scripts/warm-trends.sh scripts/backfill-bylines.sh 2>/dev/null || true
+  chmod +x deploy.sh scripts/warm-trends.sh scripts/backfill-bylines.sh scripts/smoke-check.sh 2>/dev/null || true
 
   LOCK=".deploy.lock"
   if [[ -f "$LOCK" ]]; then
@@ -60,6 +75,10 @@ run_stack() {
     sleep 1
   done
   curl -sS -o /dev/null -w "local health: %{http_code}\n" http://127.0.0.1:3010/health || true
+
+  echo ""
+  echo "Post-deploy smoke (LAN)…"
+  bash scripts/smoke-check.sh http://127.0.0.1:3010
 
   WARM="${HOME}/apps/news/scripts/warm-trends.sh"
   MARKER_BEGIN="# BEGIN yoyosup-news-warm"
@@ -140,7 +159,7 @@ else
   $SSH "${TARGET}" "DEPLOY_AGENT='${DEPLOY_AGENT}' bash -s" <<'REMOTE'
 set -euo pipefail
 cd ~/apps/news
-chmod +x deploy.sh scripts/warm-trends.sh scripts/backfill-bylines.sh
+chmod +x deploy.sh scripts/warm-trends.sh scripts/backfill-bylines.sh scripts/smoke-check.sh
 
 LOCK=".deploy.lock"
 if [[ -f "$LOCK" ]]; then
@@ -161,6 +180,11 @@ docker compose ps
 echo ""
 sleep 2
 curl -sS -o /dev/null -w "local health: %{http_code}\n" http://127.0.0.1:3010/health || true
+
+echo ""
+echo "Post-deploy smoke (LAN)…"
+bash scripts/smoke-check.sh http://127.0.0.1:3010
+
 WARM="${HOME}/apps/news/scripts/warm-trends.sh"
 MARKER_BEGIN="# BEGIN yoyosup-news-warm"
 MARKER_END="# END yoyosup-news-warm"

@@ -16,7 +16,23 @@ DEPLOY_AGENT=grok ./deploy.sh
 # or DEPLOY_AGENT=claude ./deploy.sh
 ```
 
-Server lock: `~/apps/news/.deploy.lock`.
+Server lock: `~/apps/news/.deploy.lock`. `deploy.sh` runs `pytest tests/` as a
+preflight (warns instead of blocking if no pytest is on PATH — set one up
+once with `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt pytest`)
+and `scripts/smoke-check.sh` against the running container after every
+deploy; a non-zero exit from either aborts the deploy (`SKIP_TESTS=1` /
+`SKIP_SMOKE=1` bypass in an emergency only).
+
+**Template changes need a render test, not just a Python unit test.** Jinja
+filter/attribute/global typos (e.g. `{{ x | slugify }}` when `slugify` is a
+registered *global*, not a filter — `slugify(x)` was needed) are runtime
+errors that only fire when the specific branch actually executes with real
+data. A unit test of the Python function feeding the template won't catch
+it; only rendering the template with that field populated will. See
+`tests/test_templates.py` — it renders every page with a "kitchen sink"
+fixture (every optional field populated at least once) specifically to
+catch this class of bug before it reaches production. Add a case there
+whenever a template gains a new conditional branch on optional data.
 
 ## Conventions
 
