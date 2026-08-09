@@ -12,7 +12,14 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.analytics import ADMIN_KEY as ANALYTICS_ADMIN_KEY, country_label, get_stats, record_hit
+from app.analytics import (
+    ADMIN_KEY as ANALYTICS_ADMIN_KEY,
+    country_label,
+    get_stats,
+    is_probable_bot,
+    record_client_event,
+    record_hit,
+)
 from app.comments import (
     add_comment,
     list_all_for_admin,
@@ -40,7 +47,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.10.6"
+APP_VERSION = "0.10.7"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -66,6 +73,8 @@ async def analytics_middleware(request: Request, call_next):
             referer=request.headers.get("referer"),
             city_raw=request.headers.get("cf-ipcity"),
             region_code=request.headers.get("cf-region-code"),
+            user_agent=request.headers.get("user-agent"),
+            cf_verified_bot=request.headers.get("cf-verified-bot"),
         )
     return response
 
@@ -140,6 +149,23 @@ async def health():
         "default_geo": d.code,
         "moderation": moderation_enabled(),
     }
+
+
+@app.post("/api/analytics-event")
+async def analytics_event(request: Request):
+    if is_probable_bot(request.headers.get("user-agent"), request.headers.get("cf-verified-bot")):
+        return Response(status_code=204)
+    # Normal browser beacons are same-origin. Reject cross-site submissions that
+    # could otherwise contaminate the small aggregate event counters.
+    fetch_site = (request.headers.get("sec-fetch-site") or "").lower()
+    if fetch_site and fetch_site not in {"same-origin", "same-site"}:
+        return Response(status_code=204)
+    try:
+        payload = await request.json()
+    except Exception:
+        return Response(status_code=204)
+    await record_client_event(str(payload.get("name") or ""))
+    return Response(status_code=204)
 
 
 @app.get("/api/places")

@@ -31,6 +31,25 @@ _lock = asyncio.Lock()
 SKIP_PREFIXES = ("/api/", "/static/", "/admin/")
 SKIP_EXACT = {"/health", "/robots.txt", "/sitemap.xml"}
 
+BOT_UA_RE = re.compile(
+    r"bot|crawler|spider|slurp|headless|preview|facebookexternalhit|"
+    r"googleother|google-inspectiontool|bingpreview|petalbot|bytespider|"
+    r"semrush|ahrefs|mj12bot|dotbot|dataforseo|python-requests|curl/|wget/",
+    re.IGNORECASE,
+)
+
+ALLOWED_CLIENT_EVENTS = {
+    "session_new",
+    "session_returning",
+    "mynews_topic_add",
+    "mynews_topic_remove",
+    "mynews_clear",
+    "search_submit",
+    "story_click",
+    "topic_open",
+    "share_click",
+}
+
 _COUNTRY_NAMES = {
     "US": "United States", "GB": "United Kingdom", "CA": "Canada", "AU": "Australia",
     "DE": "Germany", "FR": "France", "IN": "India", "BR": "Brazil", "MX": "Mexico",
@@ -54,7 +73,9 @@ def _empty_data() -> dict:
         "by_day_city": {},
         "by_day_city_us": {},
         "by_event": {},
+        "by_day_event": {},
         "actions": 0,
+        "meaningful_actions": 0,
     }
 
 
@@ -160,6 +181,14 @@ def should_track(path: str) -> bool:
     return not any(path.startswith(p) for p in SKIP_PREFIXES)
 
 
+def is_probable_bot(user_agent: str | None, cf_verified_bot: str | None = None) -> bool:
+    """Conservatively exclude declared crawlers and browserless HTTP clients."""
+    if (cf_verified_bot or "").strip().lower() in {"1", "true", "yes"}:
+        return True
+    ua = (user_agent or "").strip()
+    return not ua or bool(BOT_UA_RE.search(ua))
+
+
 def action_for_path(path: str) -> str | None:
     if path in ("/", ""):
         return "pulse_view"
@@ -216,8 +245,10 @@ async def record_hit(
     referer: str | None,
     city_raw: str | None = None,
     region_code: str | None = None,
+    user_agent: str | None = None,
+    cf_verified_bot: str | None = None,
 ) -> None:
-    if not should_track(path):
+    if not should_track(path) or is_probable_bot(user_agent, cf_verified_bot):
         return
     page = clean_page(path)
     ref = clean_ref(ref)
@@ -261,7 +292,6 @@ async def record_hit(
             dum[city] = int(dum.get(city, 0) or 0) + 1
         data["by_referrer"][ref_host] = data["by_referrer"].get(ref_host, 0) + 1
         if event:
-            data["actions"] = int(data.get("actions", 0) or 0) + 1
             ev = data.setdefault("by_event", {})
             ev[event] = int(ev.get(event, 0) or 0) + 1
 
@@ -290,6 +320,25 @@ async def record_hit(
         _save(data)
 
 
+async def record_client_event(name: str) -> bool:
+    """Record a small allowlisted browser event; never accept arbitrary labels."""
+    if name not in ALLOWED_CLIENT_EVENTS:
+        return False
+    async with _lock:
+        data = _load()
+        data["meaningful_actions"] = int(data.get("meaningful_actions", 0) or 0) + 1
+        events = data.setdefault("by_event", {})
+        events[name] = int(events.get(name, 0) or 0) + 1
+        day_events = data.setdefault("by_day_event", {}).setdefault(_today(), {})
+        day_events[name] = int(day_events.get(name, 0) or 0) + 1
+        if len(data["by_day_event"]) > 60:
+            for day in sorted(data["by_day_event"])[:-45]:
+                del data["by_day_event"][day]
+        _trim(events, 200, 100)
+        _save(data)
+    return True
+
+
 def country_label(code: str) -> str:
     name = _COUNTRY_NAMES.get(code)
     return f"{name} ({code})" if name else code
@@ -313,7 +362,9 @@ def get_stats(day: str | None = None) -> dict:
         "total": data["total"],
         "today": data["by_day"].get(today, 0),
         "week": sum(v for k, v in data["by_day"].items() if k >= week_start),
-        "actions": int(data.get("actions", 0) or 0),
+        # `actions` used to mirror every page view. Report only the clean,
+        # browser-generated counter while keeping the legacy field readable.
+        "actions": int(data.get("meaningful_actions", 0) or 0),
         "tz": TZ_NAME,
         "by_day": days,
         "by_page": dict(sorted(data["by_page"].items(), key=lambda x: -x[1])[:30]),
@@ -324,6 +375,11 @@ def get_stats(day: str | None = None) -> dict:
         "by_city_us": dict(sorted(data.get("by_city_us", {}).items(), key=lambda x: -x[1])[:30]),
         "by_referrer": dict(sorted(data["by_referrer"].items(), key=lambda x: -x[1])[:30]),
         "by_event": dict(sorted((data.get("by_event") or {}).items(), key=lambda x: -x[1])[:30]),
+        "by_day_event": {
+            day: dict(sorted(events.items(), key=lambda x: -x[1])[:30])
+            for day, events in sorted((data.get("by_day_event") or {}).items(), reverse=True)[:30]
+            if isinstance(events, dict)
+        },
         "by_day_hour": by_day_hour,
         "by_day_city": by_day_city,
         "by_day_city_us": by_day_city_us,

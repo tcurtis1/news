@@ -25,6 +25,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **YoyoSup logo** — SVG wordmark + mark | Live |
 | **MyNews** — personal topic board (`/my`, localStorage, no auth) | Live |
 | **Source preference** — Conservative / Balanced / Liberal headlines | Live |
+| **Privacy-friendly analytics** — bot filtering, sessions, return visits, useful actions; no visitor IDs | Live |
 
 ## Feature backlog (product todo)
 
@@ -90,6 +91,7 @@ Installs app on `tony@192.168.1.44:~/apps/news` (port **3010**) and a **06:00 Am
 | `GET /sitemap.xml` | Core pages + consensus/topic URLs |
 | `GET /admin/mod?token=` | Held/reported queue (`MOD_ADMIN_TOKEN`) |
 | `GET /api/topic/{slug}` | Topic JSON |
+| `POST /api/analytics-event` | Allowlisted, aggregate browser events; no identity or visitor ID |
 
 ### Search engines
 

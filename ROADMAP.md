@@ -38,3 +38,4 @@ Living product list. Ship small; prefer honest UX over flashy features.
 ## Done (high level)
 - Pulse, Daily Intersection, geo, consensus Top 10, deltas, rank map, topic pages, moderated comments, Polymarket, sitemap/robots.
 - Bias badges v1, comment name memory, YoyoSup logo.
+- Bot-filtered page analytics plus privacy-friendly new/returning sessions and action events (no persistent visitor identifier).

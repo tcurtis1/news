@@ -129,6 +129,7 @@
         var data = load();
         data.topics.splice(i, 1);
         save(data);
+        if (window.yoyoNewsEvent) window.yoyoNewsEvent("mynews_topic_remove");
         refresh();
       });
     });
@@ -173,6 +174,7 @@
       addedAt: new Date().toISOString(),
     });
     save(data);
+    if (window.yoyoNewsEvent) window.yoyoNewsEvent("mynews_topic_add");
     return true;
   }
 
@@ -201,7 +203,10 @@
       });
       any = true;
     }
-    if (any) save(data);
+    if (any) {
+      save(data);
+      if (window.yoyoNewsEvent) window.yoyoNewsEvent("mynews_topic_add");
+    }
     return any;
   }
 
@@ -554,6 +559,7 @@
     btn.addEventListener("click", function () {
       if (!confirm("Remove all saved topics on this device?")) return;
       save({ v: 1, topics: [] });
+      if (window.yoyoNewsEvent) window.yoyoNewsEvent("mynews_clear");
       refresh();
     });
   }
