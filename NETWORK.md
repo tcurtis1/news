@@ -30,6 +30,6 @@ See **README.md** / **ROADMAP.md** for Pulse, Intersection, MyNews, bias badges,
 
 1. `git pull` first; commit small/often.  
 2. `DEPLOY_AGENT=… ./deploy.sh` — respect deploy locks.  
-3. Match network chrome (Tools / News / Finance nav); accent `#f97316`.  
+3. Match network chrome (Tools / News / Finance nav); shared teal actions `#0f766e` / `#2dd4bf` (orange/red are warning colors).  
 4. No signup required for core reading; comments allow Anonymous.  
 5. **Small, mechanical, single-file fix?** Try the local LLM first (free, no token cost) before Grok/Claude/Codex — `~/local-llm-setup/scripts/aider-java.sh --message "…" path/to/file.py`, then `git diff` before trusting it. See money `NETWORK.md` rule 9 for the full workflow and escalation criteria.
