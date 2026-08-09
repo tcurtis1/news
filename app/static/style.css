@@ -1812,3 +1812,133 @@ footer.site a:hover {
   color: var(--accent);
   text-decoration: none;
 }
+
+/* Byline link on hit cards */
+.byline-link {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.byline-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* Journalist bias badges — a distinct 5-point scale from the outlet .lean-* system */
+.jlean-liberal {
+  background: rgba(129, 140, 248, 0.22);
+  color: #3730a3;
+  border-color: rgba(129, 140, 248, 0.45);
+}
+
+.jlean-leans_liberal {
+  background: rgba(129, 140, 248, 0.12);
+  color: #3730a3;
+  border-color: rgba(129, 140, 248, 0.3);
+}
+
+.jlean-center {
+  background: rgba(52, 211, 153, 0.12);
+  color: #166534;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.jlean-leans_conservative {
+  background: rgba(251, 191, 36, 0.12);
+  color: #92400e;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.jlean-conservative {
+  background: rgba(251, 191, 36, 0.22);
+  color: #92400e;
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.jlean-not_enough_data {
+  background: rgba(154, 163, 178, 0.12);
+  color: var(--muted);
+  border-color: rgba(154, 163, 178, 0.28);
+}
+
+/* Reader bias poll */
+.reader-rating {
+  margin-bottom: 1.25rem;
+}
+
+.rating-form {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.rating-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.rating-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.rating-form button {
+  background: var(--accent-fill);
+  color: #111;
+  border: none;
+  border-radius: 10px;
+  padding: 0.6rem 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rating-form button:hover {
+  filter: brightness(1.08);
+}
+
+.rating-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rating-bars li {
+  display: grid;
+  grid-template-columns: 9rem 1fr 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.rating-bar-label {
+  color: var(--muted);
+}
+
+.rating-bar-track {
+  background: var(--panel-2, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  height: 0.5rem;
+  overflow: hidden;
+}
+
+.rating-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-fill);
+}
+
+.rating-bar-count {
+  text-align: right;
+  color: var(--muted);
+}

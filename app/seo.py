@@ -9,6 +9,7 @@ from typing import Any
 from xml.sax.saxutils import escape
 
 from app.comments import COMMENTS_DIR
+from app.journalists import JOURNALISTS_DIR
 from app.topics import slugify
 from app.trends import build_trends
 
@@ -20,12 +21,28 @@ def _today() -> str:
 
 
 def list_comment_topic_slugs() -> list[str]:
-    """Slugs that have a comments file (user-visited topics)."""
+    """Slugs that have a comments file (user-visited topics) — excludes jrn-* journalist threads."""
     try:
         COMMENTS_DIR.mkdir(parents=True, exist_ok=True)
         out = []
         for p in sorted(COMMENTS_DIR.glob("*.json")):
-            if p.name.startswith("_"):
+            if p.name.startswith("_") or p.name.startswith("jrn-"):
+                continue
+            slug = p.stem
+            if slug and slug not in out:
+                out.append(slug)
+        return out
+    except Exception:
+        return []
+
+
+def list_journalist_slugs() -> list[str]:
+    """Slugs that have a journalist profile file."""
+    try:
+        JOURNALISTS_DIR.mkdir(parents=True, exist_ok=True)
+        out = []
+        for p in sorted(JOURNALISTS_DIR.glob("*.json")):
+            if p.name.startswith("_") or p.name.endswith(".ratings.json"):
                 continue
             slug = p.stem
             if slug and slug not in out:
@@ -104,6 +121,20 @@ async def collect_sitemap_urls() -> list[dict[str, Any]]:
                 "loc": loc,
                 "changefreq": "daily",
                 "priority": "0.75",
+                "lastmod": day,
+            }
+        )
+
+    for slug in list_journalist_slugs():
+        loc = f"{PUBLIC_BASE}/journalist/{slug}"
+        if loc in seen:
+            continue
+        seen.add(loc)
+        urls.append(
+            {
+                "loc": loc,
+                "changefreq": "weekly",
+                "priority": "0.5",
                 "lastmod": day,
             }
         )

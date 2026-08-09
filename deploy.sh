@@ -34,7 +34,7 @@ is_local_deploy() {
 run_stack() {
   set -euo pipefail
   cd "${REMOTE_DIR_ABS}"
-  chmod +x deploy.sh scripts/warm-trends.sh 2>/dev/null || true
+  chmod +x deploy.sh scripts/warm-trends.sh scripts/backfill-bylines.sh 2>/dev/null || true
 
   LOCK=".deploy.lock"
   if [[ -f "$LOCK" ]]; then
@@ -80,6 +80,23 @@ run_stack() {
   echo ""
   /bin/bash "${WARM}" || true
   tail -n 8 "${HOME}/apps/news/logs/warm-trends.log" 2>/dev/null || true
+
+  BACKFILL="${HOME}/apps/news/scripts/backfill-bylines.sh"
+  BF_BEGIN="# BEGIN yoyosup-news-byline"
+  BF_END="# END yoyosup-news-byline"
+  BF_LINE="*/20 * * * * /bin/bash ${BACKFILL}"
+
+  EXISTING="$(crontab -l 2>/dev/null || true)"
+  FILTERED="$(printf '%s\n' "${EXISTING}" | sed "/${BF_BEGIN}/,/${BF_END}/d" || true)"
+  {
+    printf '%s\n' "${FILTERED}"
+    echo "${BF_BEGIN}"
+    echo "${BF_LINE}"
+    echo "${BF_END}"
+  } | sed '/^$/N;/^\n$/D' | crontab -
+
+  echo "crontab installed (byline backfill):"
+  crontab -l | sed -n "/${BF_BEGIN}/,/${BF_END}/p"
 }
 
 RSYNC_EXCLUDES=(
@@ -90,6 +107,7 @@ RSYNC_EXCLUDES=(
   --exclude '__pycache__/'
   --exclude 'data/*.json'
   --exclude 'data/comments/'
+  --exclude 'data/journalists/'
   --exclude 'logs/'
   --exclude '.deploy.lock'
 )
@@ -122,7 +140,7 @@ else
   $SSH "${TARGET}" "DEPLOY_AGENT='${DEPLOY_AGENT}' bash -s" <<'REMOTE'
 set -euo pipefail
 cd ~/apps/news
-chmod +x deploy.sh scripts/warm-trends.sh
+chmod +x deploy.sh scripts/warm-trends.sh scripts/backfill-bylines.sh
 
 LOCK=".deploy.lock"
 if [[ -f "$LOCK" ]]; then
@@ -160,6 +178,21 @@ crontab -l | sed -n "/${MARKER_BEGIN}/,/${MARKER_END}/p"
 echo ""
 /bin/bash "${WARM}" || true
 tail -n 8 ~/apps/news/logs/warm-trends.log 2>/dev/null || true
+
+BACKFILL="${HOME}/apps/news/scripts/backfill-bylines.sh"
+BF_BEGIN="# BEGIN yoyosup-news-byline"
+BF_END="# END yoyosup-news-byline"
+BF_LINE="*/20 * * * * /bin/bash ${BACKFILL}"
+EXISTING="$(crontab -l 2>/dev/null || true)"
+FILTERED="$(printf '%s\n' "${EXISTING}" | sed "/${BF_BEGIN}/,/${BF_END}/d" || true)"
+{
+  printf '%s\n' "${FILTERED}"
+  echo "${BF_BEGIN}"
+  echo "${BF_LINE}"
+  echo "${BF_END}"
+} | sed '/^$/N;/^\n$/D' | crontab -
+echo "crontab installed (byline backfill):"
+crontab -l | sed -n "/${BF_BEGIN}/,/${BF_END}/p"
 REMOTE
 fi
 

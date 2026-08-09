@@ -25,7 +25,11 @@
         <div class="meta-row" style="margin-bottom:0.35rem;">
           <span class="badge">{{ c.status }}</span>
           <span>reports: {{ c.report_count or 0 }}</span>
+          {% if c.slug.startswith('jrn-') %}
+          <a href="/journalist/{{ c.slug[4:] }}">/journalist/{{ c.slug[4:] }}</a>
+          {% else %}
           <a href="/topic/{{ c.slug }}">/topic/{{ c.slug }}</a>
+          {% endif %}
           <span class="muted-hint">{{ c.id }}</span>
         </div>
         <p class="summary"><strong>{{ c.name }}</strong> · {{ c.created_at[:19] if c.created_at else '' }}Z</p>

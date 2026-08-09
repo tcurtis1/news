@@ -146,6 +146,9 @@
         {% if item.snippet %}<p class="summary">{{ item.snippet }}</p>{% endif %}
         <div class="links">
           <span>{{ item.source }}</span>
+          {% if item.author %}
+          <a class="byline-link" href="/journalist/{{ item.author | slugify }}">By {{ item.author }}</a>
+          {% endif %}
           {% if item.lean_label %}
           <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
           {% endif %}

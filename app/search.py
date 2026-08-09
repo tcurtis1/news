@@ -16,6 +16,7 @@ from xml.etree import ElementTree as ET
 import httpx
 
 from app.bias import aggregate_lean, enrich_hits
+from app import journalists
 from app.places import Place, resolve_place
 from app.source_prefs import (
     filter_hits,
@@ -63,6 +64,7 @@ class SearchHit:
     score: int = 0
     comments_url: str | None = None
     published: str | None = None  # ISO 8601 UTC, when the source provided one
+    author: str | None = None  # cleaned byline, when a native RSS feed provides one
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -349,6 +351,12 @@ def _parse_rss_items(
             or entry.findtext("updated")
             or entry.findtext("{http://www.w3.org/2005/Atom}updated")
         )
+        raw_author = (
+            entry.findtext("{http://purl.org/dc/elements/1.1/}creator")
+            or entry.findtext("author")
+            or entry.findtext("{http://www.w3.org/2005/Atom}author/{http://www.w3.org/2005/Atom}name")
+            or entry.findtext("{http://www.w3.org/2005/Atom}author")
+        )
         out.append(
             SearchHit(
                 title=title,
@@ -357,6 +365,7 @@ def _parse_rss_items(
                 snippet=(desc[:140] + "…") if len(desc) > 140 else desc,
                 score=1100 - i,
                 published=published,
+                author=journalists.normalize_author(raw_author),
             )
         )
     return out
@@ -736,6 +745,13 @@ async def fetch_preferred_headlines(
     hits = diversify_hits(hits, limit=MAX_RESULTS, max_per_source=2)
     if hits:
         _HEADLINE_CACHE[cache_key] = (time.time(), hits)
+        # Only reached on a genuine cache-miss pull (gated by _HEADLINE_CACHE_TTL
+        # above), never per-request — keeps this cheap, bounded I/O.
+        try:
+            journalists.record_sightings(hits)
+            journalists.queue_for_backfill(hits)
+        except Exception as e:
+            log.debug("journalist sighting/queue recording failed: %s", e)
     return hits
 
 

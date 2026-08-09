@@ -356,6 +356,9 @@
           {% endif %}
           <div class="links">
             <span>{{ item.source }}</span>
+            {% if item.author %}
+            <a class="byline-link" href="/journalist/{{ item.author | slugify }}">By {{ item.author }}</a>
+            {% endif %}
             {% if item.lean_label %}
             <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
             {% endif %}
@@ -486,6 +489,10 @@
               var title = esc(item.title);
               var url = esc(item.url);
               var src = esc(item.source);
+              var author = esc(item.author || "");
+              var authorHref = item.author
+                ? "/journalist/" + encodeURIComponent(slugify(item.author))
+                : "";
               var lean = esc(item.lean || "");
               var leanLabel = esc(item.lean_label || "");
               var leanTip = esc(item.lean_tip || "");
@@ -510,6 +517,9 @@
                 '<div class="links"><span>' +
                 src +
                 "</span>" +
+                (authorHref
+                  ? '<a class="byline-link" href="' + authorHref + '">By ' + author + "</a>"
+                  : "") +
                 (leanLabel
                   ? '<span class="lean-badge lean-' +
                     lean +

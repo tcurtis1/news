@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block content %}
+  <p class="crumb">
+    <a href="/search">Intersection</a>
+    <span class="crumb-sep">/</span>
+    <span>Journalist</span>
+  </p>
+
+  <h1>{{ journalist.name }}</h1>
+  <p class="lede">
+    {{ journalist.sighting_count }} article{{ 's' if journalist.sighting_count != 1 else '' }} we've found on this site.
+  </p>
+
+  <div class="meta-row">
+    <span class="lean-badge jlean-{{ journalist.journalist_lean }}" title="{{ journalist.journalist_lean_tip }}">{{ journalist.journalist_lean_label }}</span>
+  </div>
+  <p class="lean-note">{{ journalist.disclaimer }}</p>
+
+  {% if journalist.sightings %}
+  <h2 class="section-title section-title-lg">Articles on this site</h2>
+  <ol class="list">
+    {% for s in journalist.sightings %}
+    <li class="card">
+      <div class="rank">{{ loop.index }}</div>
+      <div>
+        <h2><a href="{{ s.url }}" rel="noopener noreferrer" target="_blank">{{ s.title }}</a></h2>
+        <div class="links">
+          <span>{{ s.source }}</span>
+          {% if s.published %}<span class="muted-hint">{{ s.published[:10] }}</span>{% endif %}
+        </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="empty">No articles indexed for this byline yet — check back soon.</div>
+  {% endif %}
+
+  {# ── Reader poll ── #}
+  <section class="reader-rating" id="rate" aria-label="Reader bias poll">
+    <h2 class="section-title section-title-lg">
+      What do readers think?
+      <span class="muted-hint">{{ journalist.reader_rating.total }} vote{{ 's' if journalist.reader_rating.total != 1 else '' }} · not verified, shown separately from the estimate above</span>
+    </h2>
+
+    {% if flash_error %}
+    <div class="flash error">{{ flash_error }}</div>
+    {% endif %}
+    {% if flash_ok %}
+    <div class="flash ok">{{ flash_ok }}</div>
+    {% endif %}
+
+    <form method="post" action="/journalist/{{ journalist.slug }}/rate" class="rating-form">
+      <div class="rating-choices" role="radiogroup" aria-label="Rate this journalist's bias">
+        {% for choice in journalist.rating_choices %}
+        <label class="rating-choice">
+          <input type="radio" name="choice" value="{{ choice.key }}" required />
+          <span>{{ choice.label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <button type="submit">Submit rating</button>
+    </form>
+
+    {% if journalist.reader_rating.total %}
+    <ul class="rating-bars">
+      {% for choice in journalist.rating_choices %}
+      {% set n = journalist.reader_rating.counts.get(choice.key, 0) %}
+      <li>
+        <span class="rating-bar-label">{{ choice.label }}</span>
+        <span class="rating-bar-track"><span class="rating-bar-fill" style="width:{{ (n / journalist.reader_rating.total * 100) | round(1) }}%"></span></span>
+        <span class="rating-bar-count">{{ n }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  {# ── Comments ── #}
+  <section class="comments" id="comments" aria-label="Comments">
+    <h2 class="section-title section-title-lg">
+      Discussion
+      <span class="muted-hint">{{ journalist.comments | length }} · optional name or Anonymous</span>
+    </h2>
+
+    <form class="comment-form" method="post" action="/journalist/{{ journalist.slug }}/comments" id="comment-form">
+      <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+      <div class="comment-fields">
+        <input type="text" name="name" id="comment-name" maxlength="40" placeholder="Name (optional)" autocomplete="nickname" value="{{ form_name or '' }}" />
+        <textarea name="body" rows="3" maxlength="2000" required placeholder="Add a thought — keep it civil."></textarea>
+        <button type="submit">Post comment</button>
+      </div>
+      <p class="t-snip">
+        Be kind. No spam. Comments are filtered for safety
+        (<a href="/safety">guidelines</a>).
+        Held comments are not public until reviewed.
+      </p>
+    </form>
+
+    {% if journalist.comments %}
+    <ol class="comment-list">
+      {% for c in journalist.comments %}
+      <li class="comment" id="c-{{ c.id }}">
+        <div class="comment-meta">
+          <strong>{{ c.name }}</strong>
+          {% if c.created_at %}<time datetime="{{ c.created_at }}">{{ c.created_at[:16].replace('T', ' ') }}Z</time>{% endif %}
+          <form class="report-form" method="post" action="/journalist/{{ journalist.slug }}/comments/{{ c.id }}/report">
+            <input type="hidden" name="reason" value="user_report" />
+            <button type="submit" class="report-btn">Report</button>
+          </form>
+        </div>
+        <p class="comment-body">{{ c.body }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="empty small">No comments yet — start the thread.</div>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script src="/static/comment-name.js?v={{ app_version }}" defer></script>
+{% endblock %}

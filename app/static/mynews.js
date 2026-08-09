@@ -256,6 +256,13 @@
           (h.source
             ? '<span class="muted-hint"> · ' + escapeHtml(h.source) + "</span>"
             : "") +
+          (h.author
+            ? ' <a class="byline-link" href="/journalist/' +
+              encodeURIComponent(slugify(h.author)) +
+              '">By ' +
+              escapeHtml(h.author) +
+              "</a>"
+            : "") +
           "</li>"
         );
       })

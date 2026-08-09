@@ -27,6 +27,7 @@ from app.comments import (
     report_comment,
     set_comment_status,
 )
+from app.journalists import add_reader_rating, build_journalist, run_backfill
 from app.moderation import moderation_enabled
 from app.pulse import build_pulse
 from app.search import fetch_preferred_headlines, run_search
@@ -47,7 +48,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.10.7"
+APP_VERSION = "0.11.0"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -507,6 +508,100 @@ async def api_topic(slug: str, force: bool = False, geo: str = ""):
 async def api_topic_comments(slug: str):
     canon = slugify(unslug(slug) or slug)
     return JSONResponse({"slug": canon, "comments": list_comments(canon)})
+
+
+@app.get("/journalist/{slug}", response_class=HTMLResponse)
+async def journalist_page(request: Request, slug: str):
+    journalist = build_journalist(slug)
+    if slugify(slug) != journalist["slug"] and unslug(slug):
+        return RedirectResponse(f"/journalist/{journalist['slug']}", status_code=302)
+
+    return templates.TemplateResponse(
+        request,
+        "journalist.html",
+        {
+            "public_base": PUBLIC_BASE,
+            "journalist": journalist,
+            "page_title": f"{journalist['name']} — journalist bias estimate",
+            "flash_error": request.query_params.get("err") or "",
+            "flash_ok": request.query_params.get("ok") or "",
+            "form_name": request.query_params.get("name") or "",
+        },
+    )
+
+
+@app.post("/journalist/{slug}/comments")
+async def journalist_comment_post(
+    request: Request,
+    slug: str,
+    name: str = Form(""),
+    body: str = Form(""),
+    website: str = Form(""),
+):
+    canon = slugify(unslug(slug) or slug)
+    ok, msg, comment = await add_comment(
+        f"jrn-{canon}",
+        name=name,
+        body=body,
+        client_ip=_client_ip(request),
+        honeypot=website,
+    )
+    if ok:
+        return RedirectResponse(
+            f"/journalist/{canon}?ok={quote(msg)}#comments",
+            status_code=303,
+        )
+    return RedirectResponse(
+        f"/journalist/{canon}?err={quote(msg)}&name={quote(name[:40])}#comment-form",
+        status_code=303,
+    )
+
+
+@app.post("/journalist/{slug}/comments/{comment_id}/report")
+async def journalist_comment_report(
+    request: Request,
+    slug: str,
+    comment_id: str,
+    reason: str = Form(""),
+):
+    canon = slugify(unslug(slug) or slug)
+    ok, msg = report_comment(
+        f"jrn-{canon}",
+        comment_id,
+        reason=reason,
+        client_ip=_client_ip(request),
+    )
+    param = "ok" if ok else "err"
+    return RedirectResponse(
+        f"/journalist/{canon}?{param}={quote(msg)}#c-{comment_id}",
+        status_code=303,
+    )
+
+
+@app.post("/journalist/{slug}/rate")
+async def journalist_rate(request: Request, slug: str, choice: str = Form("")):
+    canon = slugify(unslug(slug) or slug)
+    ok, msg = add_reader_rating(canon, choice, client_ip=_client_ip(request))
+    param = "ok" if ok else "err"
+    return RedirectResponse(
+        f"/journalist/{canon}?{param}={quote(msg)}#rate",
+        status_code=303,
+    )
+
+
+@app.get("/api/journalist/{slug}")
+async def api_journalist(slug: str):
+    return JSONResponse(build_journalist(slug))
+
+
+@app.post("/internal/backfill-bylines")
+async def internal_backfill_bylines(request: Request, limit: int = 25):
+    """Loopback-only maintenance hook — called by scripts/backfill-bylines.sh via cron."""
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1"):
+        return JSONResponse({"ok": False, "error": "Forbidden"}, status_code=403)
+    result = await run_backfill(limit=max(1, min(limit, 100)))
+    return JSONResponse({"ok": True, **result})
 
 
 @app.get("/api/analytics")
