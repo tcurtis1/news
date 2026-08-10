@@ -223,6 +223,30 @@
     ];
   }
 
+  // Preferred-source hits per topic slug (for in-card "Load more")
+  var hitsBySlug = {};
+
+  function hitLi(h) {
+    return (
+      '<li><a href="' +
+      escapeHtml(h.url) +
+      '" rel="noopener noreferrer" target="_blank">' +
+      escapeHtml(h.title) +
+      "</a>" +
+      (h.source
+        ? '<span class="muted-hint"> · ' + escapeHtml(h.source) + "</span>"
+        : "") +
+      (h.author
+        ? ' <a class="byline-link" href="/journalist/' +
+          encodeURIComponent(slugify(h.author)) +
+          '">By ' +
+          escapeHtml(h.author) +
+          "</a>"
+        : "") +
+      "</li>"
+    );
+  }
+
   function renderFeedCard(topic, payload) {
     var rank = (payload && payload.rank_lookup) || {};
     var plats = rank.platforms || {};
@@ -244,29 +268,10 @@
       .filter(Boolean)
       .join("");
 
-    var hitHtml = hits
-      .slice(0, 4)
-      .map(function (h) {
-        return (
-          '<li><a href="' +
-          escapeHtml(h.url) +
-          '" rel="noopener noreferrer" target="_blank">' +
-          escapeHtml(h.title) +
-          "</a>" +
-          (h.source
-            ? '<span class="muted-hint"> · ' + escapeHtml(h.source) + "</span>"
-            : "") +
-          (h.author
-            ? ' <a class="byline-link" href="/journalist/' +
-              encodeURIComponent(slugify(h.author)) +
-              '">By ' +
-              escapeHtml(h.author) +
-              "</a>"
-            : "") +
-          "</li>"
-        );
-      })
-      .join("");
+    var PAGE = 8;
+    var shown = Math.min(PAGE, hits.length);
+    hitsBySlug[topic.slug] = hits;
+    var hitHtml = hits.slice(0, shown).map(hitLi).join("");
 
     var summary = rank.summary || "Loading ranks…";
     var leanNow =
@@ -285,6 +290,28 @@
       encodeURIComponent(geo) +
       "&lean=" +
       encodeURIComponent(leanNow);
+    var moreBtn =
+      hits.length > PAGE
+        ? '<div class="load-more-wrap my-card-more">' +
+          '<button type="button" class="load-more-btn my-load-more" data-slug="' +
+          escapeHtml(topic.slug) +
+          '" data-shown="' +
+          PAGE +
+          '">Load 20 more</button>' +
+          '<p class="muted-hint my-load-meta">Showing ' +
+          shown +
+          " of " +
+          hits.length +
+          " · " +
+          escapeHtml(leanLabel) +
+          " sources</p></div>"
+        : hits.length
+          ? '<p class="muted-hint my-load-meta">Showing ' +
+            hits.length +
+            " · " +
+            escapeHtml(leanLabel) +
+            " sources</p>"
+          : "";
     return (
       '<article class="my-topic-card card" data-slug="' +
       escapeHtml(topic.slug) +
@@ -304,10 +331,41 @@
       '#comments">discuss</a></p>' +
       (pills ? '<div class="rank-pills">' + pills + "</div>" : "") +
       (hitHtml
-        ? '<ul class="my-hit-list">' + hitHtml + "</ul>"
+        ? '<ul class="my-hit-list">' + hitHtml + "</ul>" + moreBtn
         : '<p class="muted-hint">No preferred-source headlines right now — open the topic page, try another source lean, or widen the recency filter.</p>') +
       "</div></article>"
     );
+  }
+
+  function wireMyLoadMore(feedEl) {
+    if (!feedEl || feedEl._yoyoLoadMoreWired) return;
+    feedEl._yoyoLoadMoreWired = true;
+    feedEl.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest(".my-load-more");
+      if (!btn) return;
+      var slug = btn.getAttribute("data-slug") || "";
+      var hits = hitsBySlug[slug] || [];
+      if (!hits.length) return;
+      var shown = parseInt(btn.getAttribute("data-shown") || "8", 10) || 8;
+      var step = 20;
+      var next = Math.min(hits.length, shown + step);
+      var list = btn.closest(".my-topic-card") &&
+        btn.closest(".my-topic-card").querySelector(".my-hit-list");
+      if (!list) return;
+      list.innerHTML = hits.slice(0, next).map(hitLi).join("");
+      btn.setAttribute("data-shown", String(next));
+      var meta = btn.parentNode && btn.parentNode.querySelector(".my-load-meta");
+      if (meta) {
+        meta.textContent =
+          next >= hits.length
+            ? "Showing all " + hits.length + " with current filters"
+            : "Showing " + next + " of " + hits.length;
+      }
+      if (next >= hits.length) {
+        btn.disabled = true;
+        btn.textContent = "No more headlines";
+      }
+    });
   }
 
   // Bump to ignore stale responses when the user refreshes mid-load
@@ -407,6 +465,7 @@
     }
     if (empty) empty.hidden = true;
     feed.hidden = false;
+    wireMyLoadMore(feed);
 
     // Paint every card as a skeleton immediately, then fill as each returns
     feed.innerHTML =

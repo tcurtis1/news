@@ -549,29 +549,37 @@ _FETCH_PRIORITY: dict[str, list[str]] = {
 # Google News site: ranking, which over-weights a few mega-domains.
 # (name, domain, feed_url)
 OUTLET_RSS: dict[str, list[tuple[str, str, str]]] = {
+    # Folder-first order (user phone News folder) so conservative scrapes prioritize these.
     PREF_CONSERVATIVE: [
+        ("Gateway Pundit", "thegatewaypundit.com", "https://www.thegatewaypundit.com/feed/"),
+        ("Breitbart", "breitbart.com", "https://feeds.feedburner.com/breitbart"),
+        ("The Federalist", "thefederalist.com", "https://thefederalist.com/feed/"),
+        ("Zero Hedge", "zerohedge.com", "https://feeds.feedburner.com/zerohedge/feed"),
+        ("X22 Report", "x22report.com", "https://x22report.com/feed/"),
+        ("OANN", "oann.com", "https://www.oann.com/feed/"),
+        ("RSBN", "rsbnetwork.com", "https://www.rsbnetwork.com/feed/"),
+        ("RedState", "redstate.com", "https://redstate.com/feed/"),
+        ("The Blaze", "theblaze.com", "https://www.theblaze.com/feeds/feed.rss"),
+        ("Babylon Bee", "babylonbee.com", "https://babylonbee.com/feed"),
+        ("PJ Media", "pjmedia.com", "https://pjmedia.com/feed"),
+        ("Just the News", "justthenews.com", "https://justthenews.com/rss.xml"),
+        ("Western Journal", "westernjournal.com", "https://www.westernjournal.com/feed/"),
+        ("Epoch Times", "theepochtimes.com", "https://www.theepochtimes.com/c-us/feed"),
+        ("National Review", "nationalreview.com", "https://www.nationalreview.com/feed/"),
+        ("Daily Wire", "dailywire.com", "https://www.dailywire.com/feeds/rss.xml"),
+        ("Washington Examiner", "washingtonexaminer.com", "https://www.washingtonexaminer.com/feed/"),
+        ("Washington Times", "washingtontimes.com", "https://www.washingtontimes.com/rss/headlines/news/"),
+        ("Breaking911", "breaking911.com", "https://www.breaking911.com/feed/"),
+        ("Townhall", "townhall.com", "https://townhall.com/rss.xml"),
+        ("Military Times", "militarytimes.com", "https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml"),
+        ("The Stream", "stream.org", "https://stream.org/feed/rss"),
         ("Fox News", "foxnews.com", "https://moxie.foxnews.com/google-publisher/latest.xml"),
         ("Fox News Politics", "foxnews.com", "https://moxie.foxnews.com/google-publisher/politics.xml"),
         ("New York Post", "nypost.com", "https://nypost.com/feed/"),
-        ("Breitbart", "breitbart.com", "https://feeds.feedburner.com/breitbart"),
-        ("Daily Wire", "dailywire.com", "https://www.dailywire.com/feeds/rss.xml"),
         ("Daily Caller", "dailycaller.com", "https://dailycaller.com/feed/"),
-        ("National Review", "nationalreview.com", "https://www.nationalreview.com/feed/"),
-        ("The Federalist", "thefederalist.com", "https://thefederalist.com/feed/"),
         ("Free Beacon", "freebeacon.com", "https://freebeacon.com/feed/"),
-        ("Washington Examiner", "washingtonexaminer.com", "https://www.washingtonexaminer.com/feed/"),
-        ("Washington Times", "washingtontimes.com", "https://www.washingtontimes.com/rss/headlines/news/"),
-        ("The Blaze", "theblaze.com", "https://www.theblaze.com/feeds/feed.rss"),
-        ("Gateway Pundit", "thegatewaypundit.com", "https://www.thegatewaypundit.com/feed/"),
         ("Daily Signal", "dailysignal.com", "https://www.dailysignal.com/feed/"),
         ("HotAir", "hotair.com", "https://hotair.com/feed"),
-        ("RedState", "redstate.com", "https://redstate.com/feed/"),
-        ("PJ Media", "pjmedia.com", "https://pjmedia.com/feed"),
-        ("American Thinker", "americanthinker.com", "https://www.americanthinker.com/rss.xml"),
-        ("Epoch Times", "theepochtimes.com", "https://www.theepochtimes.com/c-us/feed"),
-        ("OANN", "oann.com", "https://www.oann.com/feed/"),
-        ("Townhall", "townhall.com", "https://townhall.com/rss.xml"),
-        ("Western Journal", "westernjournal.com", "https://www.westernjournal.com/feed/"),
         ("Newsmax", "newsmax.com", "https://www.newsmax.com/rss/Newsfront/16/"),
         ("The Hill", "thehill.com", "https://thehill.com/homenews/feed/"),
         ("American Spectator", "spectator.org", "https://spectator.org/feed/"),
@@ -588,15 +596,6 @@ OUTLET_RSS: dict[str, list[tuple[str, str, str]]] = {
         ("Reason", "reason.com", "https://reason.com/feed/"),
         ("WSJ Opinion", "wsj.com", "https://feeds.content.dowjones.io/public/rss/RSSOpinion"),
         ("WSJ World", "wsj.com", "https://feeds.content.dowjones.io/public/rss/RSSWorldNews"),
-        # Extra outlets from user conservative source folder (2026-08)
-        ("Zero Hedge", "zerohedge.com", "https://feeds.feedburner.com/zerohedge/feed"),
-        ("X22 Report", "x22report.com", "https://x22report.com/feed/"),
-        ("RSBN", "rsbnetwork.com", "https://www.rsbnetwork.com/feed/"),
-        ("Babylon Bee", "babylonbee.com", "https://babylonbee.com/feed"),
-        ("Just the News", "justthenews.com", "https://justthenews.com/rss.xml"),
-        ("Breaking911", "breaking911.com", "https://www.breaking911.com/feed/"),
-        ("Military Times", "militarytimes.com", "https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml"),
-        ("The Stream", "stream.org", "https://stream.org/feed/rss"),
     ],
     PREF_LIBERAL: [
         ("NYTimes", "nytimes.com", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"),
@@ -921,8 +920,106 @@ def _title_words(title: str, *, lower: bool = False) -> set[str]:
     return set(words)
 
 
+# Broad MyNews chips ("Politics", "Economy") rarely appear as literal title words.
+# Expand to related tokens so preferred-source cards aren't empty.
+_CATEGORY_EXPANSIONS: dict[str, tuple[str, ...]] = {
+    "politics": (
+        "trump",
+        "biden",
+        "congress",
+        "senate",
+        "house",
+        "election",
+        "democrat",
+        "republican",
+        "gop",
+        "white house",
+        "governor",
+        "campaign",
+        "president",
+        "maga",
+        "scotus",
+        "supreme court",
+        "border",
+        "immigration",
+        "doj",
+        "fbi",
+        "impeach",
+        "ballot",
+        "primary",
+        "politic",
+    ),
+    "economy": (
+        "fed",
+        "inflation",
+        "jobs",
+        "unemployment",
+        "gdp",
+        "recession",
+        "tariff",
+        "trade",
+        "market",
+        "stock",
+        "wall street",
+        "interest rate",
+        "rate cut",
+        "rate hike",
+        "treasury",
+        "debt",
+        "budget",
+        "tax",
+        "econom",
+        "price",
+        "wage",
+        "labor",
+        "housing",
+        "mortgage",
+    ),
+    "tech": (
+        "ai",
+        "apple",
+        "google",
+        "meta",
+        "microsoft",
+        "amazon",
+        "tesla",
+        "nvidia",
+        "chip",
+        "cyber",
+        "software",
+        "startup",
+        "iphone",
+        "android",
+    ),
+}
+
+
+def _query_match_terms(query: str) -> list[str]:
+    """Literal tokens plus category expansions for broad MyNews topics."""
+    raw = re.sub(r"\s+", " ", (query or "").strip())
+    if not raw:
+        return []
+    q = raw.lower()
+    terms: list[str] = [q]
+    raw_tokens = re.findall(r"[A-Za-z0-9]{2,}", raw)
+    for t in raw_tokens:
+        if t.lower() not in _STOP_TOKENS:
+            terms.append(t.lower())
+    for cat, extra in _CATEGORY_EXPANSIONS.items():
+        if q == cat or q.rstrip("s") == cat.rstrip("s") or cat in q:
+            terms.extend(extra)
+    # de-dupe preserve order
+    seen: set[str] = set()
+    out: list[str] = []
+    for t in terms:
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
 def topical_score(title: str, query: str) -> int:
-    """Rough relevance: how many query tokens appear in the title."""
+    """Rough relevance: query tokens (and category expansions) in the title."""
     raw = re.sub(r"\s+", " ", (query or "").strip())
     if not raw:
         return 1
@@ -942,23 +1039,26 @@ def topical_score(title: str, query: str) -> int:
     elif q in words_l:
         return 100
 
-    raw_tokens = re.findall(r"[A-Za-z0-9]{2,}", raw)
-    tokens = [t for t in raw_tokens if t.lower() not in _STOP_TOKENS]
-    if not tokens:
+    terms = _query_match_terms(raw)
+    if not terms:
         return 1
     hits = 0
-    for t in tokens:
+    for t in terms:
+        if " " in t:
+            if t in title_l:
+                hits += 2
+            continue
         # Short capitalized tokens (Fed): case-sensitive whole-word only
-        if len(t) <= 3 and any(c.isupper() for c in t):
-            if t in words_cs:
+        if len(t) <= 3 and any(c.isupper() for c in raw if c.isalpha()):
+            if t in words_cs or t.upper() in words_cs:
                 hits += 1
-            elif t.lower() == "fed" and (
+            elif t == "fed" and (
                 "fomc" in words_l
                 or ("federal" in words_l and "reserve" in words_l)
                 or re.search(r"\b(interest rates?|rate cut|rate hike)\b", title_l)
             ):
                 hits += 1
-        elif t.lower() in words_l:
+        elif t in words_l or t in title_l:
             hits += 1
     return hits
 
@@ -968,12 +1068,13 @@ def prefer_topical(
     query: str,
     *,
     min_keep: int = 3,
+    pad_with_general: bool = True,
 ) -> list[dict[str, Any]]:
     """
-    Prefer hits whose titles mention the query.
-    If we have any topical matches, return only those (never pad with
-    crossword / homepage noise). Only fall back to unfiltered when nothing
-    matched the topic at all.
+    Prefer hits whose titles mention the query (or related category terms).
+
+    For broad chips like "Politics", pad with other preferred-source headlines
+    so MyNews never shows an empty card when the lean pool is healthy.
     """
     if not hits:
         return []
@@ -983,6 +1084,8 @@ def prefer_topical(
     scored: list[tuple[int, dict[str, Any]]] = []
     for h in hits:
         s = topical_score(h.get("title") or "", q)
+        if s <= 0 and h.get("snippet"):
+            s = max(s, topical_score(str(h.get("snippet") or ""), q) // 2)
         out = dict(h)
         try:
             out["score"] = int(out.get("score") or 0) + (s * 15)
@@ -994,8 +1097,11 @@ def prefer_topical(
     matched = [h for s, h in scored if s > 0]
     rest = [h for s, h in scored if s == 0]
     if matched:
+        if pad_with_general and len(matched) < min_keep and rest:
+            need = min_keep - len(matched)
+            return matched + rest[:need]
         return matched
-    # Nothing topical — return rest so the UI still has something
+    # Nothing topical — still return preferred-source rest so the UI has stories
     return rest if rest else [h for _, h in scored]
 
 

@@ -687,25 +687,18 @@ def _filter_recent(hits: list[dict[str, Any]], days: int | None) -> list[dict[st
     return out
 
 
-async def fetch_preferred_headlines(
-    lean: str | None = None,
-    topic: str = "",
+async def _pull_preferred_pool(
+    lean_pref: str,
     *,
-    budget_sec: float = HEADLINE_BUDGET_SEC,
+    budget_sec: float,
     use_google: bool = False,
+    topic_for_google: str = "",
 ) -> list[dict[str, Any]]:
     """
-    Preferred-source headlines with hard time budget + process cache.
-
-    RSS is primary (diverse, cacheable). Google site: is optional and skipped
-    when we're tight on time — it was the main source of timeouts.
-
-    Returns a diversified *pool* (up to HEADLINE_POOL_LIMIT) so callers can
-    paginate with offset/limit without re-scraping.
+    Scrape + cache the lean-wide preferred pool (no per-topic RSS re-scrape).
+    MyNews cards must share this pool — re-fetching 40+ feeds per topic times out.
     """
-    lean_pref = normalize_pref(lean)
-    topic = (topic or "").strip()[:120]
-    cache_key = f"{lean_pref}|{topic.lower()}|g={int(use_google)}|pool={HEADLINE_POOL_LIMIT}"
+    cache_key = f"pool|{lean_pref}|g={int(use_google)}|t={topic_for_google.lower()[:40]}"
     now = time.time()
     cached = _HEADLINE_CACHE.get(cache_key)
     if cached and (now - cached[0]) < _HEADLINE_CACHE_TTL:
@@ -718,26 +711,28 @@ async def fetch_preferred_headlines(
             headers={"User-Agent": USER_AGENT},
             follow_redirects=True,
         ) as client:
-            if use_google and topic:
-                rss_hits, gnews = await asyncio.gather(
-                    _fetch_outlet_rss_for_pref(
-                        client, lean_pref, topic, lite=True
+            # Always scrape full lean RSS without topic filter first.
+            rss_hits = await _fetch_outlet_rss_for_pref(
+                client, lean_pref, "", lite=False
+            )
+            if use_google and topic_for_google:
+                gnews, lean_hits = await asyncio.gather(
+                    _fetch_google_news(
+                        client, topic_for_google, limit=16, score_base=950
                     ),
-                    _fetch_google_news(client, topic, limit=16, score_base=950),
-                )
-                # Only 2 site: batches if we still have room — never 8–10
-                lean_hits = await _fetch_google_news_for_pref(
-                    client, topic, lean_pref, lite=True, max_batches=2
+                    _fetch_google_news_for_pref(
+                        client,
+                        topic_for_google,
+                        lean_pref,
+                        lite=True,
+                        max_batches=2,
+                    ),
                 )
                 return diversify_hits(
                     _merge_hits([rss_hits, lean_hits, gnews]),
                     limit=HEADLINE_POOL_LIMIT,
                     max_per_source=4,
                 )
-            # Default: RSS only (fast + diverse)
-            rss_hits = await _fetch_outlet_rss_for_pref(
-                client, lean_pref, topic, lite=True
-            )
             return diversify_hits(
                 rss_hits, limit=HEADLINE_POOL_LIMIT, max_per_source=4
             )
@@ -746,33 +741,54 @@ async def fetch_preferred_headlines(
         raw = await asyncio.wait_for(_pull(), timeout=budget_sec)
     except asyncio.TimeoutError:
         log.warning(
-            "Preferred headlines budget %.1fs exceeded lean=%s topic=%r",
+            "Preferred pool budget %.1fs exceeded lean=%s",
             budget_sec,
             lean_pref,
-            topic[:40],
         )
         raw = []
     except Exception as e:
-        log.warning("Preferred headlines failed: %s", e)
+        log.warning("Preferred pool failed: %s", e)
         raw = []
 
     hits = enrich_hits([h.to_dict() for h in raw])
     hits = filter_hits(hits, lean_pref, keep_unmatched=False)
-    if topic:
-        topical = prefer_topical(hits, topic)
-        if len(topical) >= 4:
-            hits = topical
     hits = diversify_hits(hits, limit=HEADLINE_POOL_LIMIT, max_per_source=3)
     if hits:
         _HEADLINE_CACHE[cache_key] = (time.time(), hits)
-        # Only reached on a genuine cache-miss pull (gated by _HEADLINE_CACHE_TTL
-        # above), never per-request — keeps this cheap, bounded I/O.
         try:
             journalists.record_sightings(hits)
             journalists.queue_for_backfill(hits)
         except Exception as e:
             log.debug("journalist sighting/queue recording failed: %s", e)
     return hits
+
+
+async def fetch_preferred_headlines(
+    lean: str | None = None,
+    topic: str = "",
+    *,
+    budget_sec: float = HEADLINE_BUDGET_SEC,
+    use_google: bool = False,
+) -> list[dict[str, Any]]:
+    """
+    Preferred-source headlines with hard time budget + process cache.
+
+    RSS is scraped once per lean (cached). Topic filtering is applied in-memory
+    so MyNews cards for Politics/Iran/etc. don't re-hit every outlet RSS.
+    """
+    lean_pref = normalize_pref(lean)
+    topic = (topic or "").strip()[:120]
+    # Topic-only Google assist when the user is drilling a specific phrase
+    g_topic = topic if (use_google and topic) else ""
+    hits = await _pull_preferred_pool(
+        lean_pref,
+        budget_sec=budget_sec,
+        use_google=bool(use_google and topic),
+        topic_for_google=g_topic,
+    )
+    if topic:
+        hits = prefer_topical(hits, topic, min_keep=12, pad_with_general=True)
+    return list(hits)
 
 
 def paginate_hits(
@@ -820,12 +836,12 @@ async def _run_search_lite(
     meta = pref_meta(lean_pref)
 
     async def _work():
+        # Shared lean pool (cached) — topic filter is free after first warm.
         headlines_task = asyncio.create_task(
             fetch_preferred_headlines(
                 lean_pref,
                 query,
-                budget_sec=min(4.0, LITE_BUDGET_SEC - 1.0),
-                # RSS only — Google site: batches are too slow/fragile for MyNews
+                budget_sec=max(8.0, LITE_BUDGET_SEC),
                 use_google=False,
             )
         )
@@ -836,16 +852,30 @@ async def _run_search_lite(
         return hits, trends
 
     try:
-        hits, trends = await asyncio.wait_for(_work(), timeout=LITE_BUDGET_SEC)
+        hits, trends = await asyncio.wait_for(_work(), timeout=max(10.0, LITE_BUDGET_SEC + 4.0))
     except asyncio.TimeoutError:
         log.warning("lite search timeout q=%r lean=%s", query[:40], lean_pref)
-        hits, trends = [], await build_trends(force=False, geo=place.code)
+        # Last chance: lean pool without topic (still better than empty cards)
+        try:
+            hits = await fetch_preferred_headlines(
+                lean_pref, "", budget_sec=6.0, use_google=False
+            )
+            if query:
+                hits = prefer_topical(hits, query, min_keep=12, pad_with_general=True)
+        except Exception:
+            hits = []
+        trends = await build_trends(force=False, geo=place.code)
 
-    hits = _filter_recent(hits, days)
+    # Recency: keep undated preferred hits — RSS often lacks parseable dates
+    if days and days > 0:
+        dated = _filter_recent(hits, days)
+        if len(dated) >= 3:
+            hits = dated
+        # else keep full list so MyNews is never blank because of missing pubDate
     ranks = rank_lookup(query, trends)
     coverage = aggregate_lean(hits)
-    # MyNews cards only need a short sample; full pool is for /api/headlines
-    card_hits = hits[:8]
+    # Full topical list for MyNews "load more"; client slices the first page
+    card_hits = hits[:40]
 
     return {
         "q": query,
@@ -855,6 +885,8 @@ async def _run_search_lite(
         "mode": "live" if card_hits else "empty",
         "lite": True,
         "count": len(card_hits),
+        "total": len(hits),
+        "has_more": len(hits) > 8,
         "hits": card_hits,
         "tech_hits": [],
         "portals": [],

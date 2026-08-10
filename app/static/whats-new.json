@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "mynews-conservative-headlines-fix",
+      "seq": 4,
+      "date": "2026-08-10",
+      "title": "MyNews shows Conservative headlines again",
+      "detail": "Fixed empty topic cards: stories come from your preferred outlets (Gateway Pundit, Breitbart, Just the News, and more), with Load more on each card.",
+      "href": "https://news.yoyosup.com/my",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "news-pulse-load-more",
       "seq": 3,
       "date": "2026-08-10",
