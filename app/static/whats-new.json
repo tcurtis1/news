@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "site": "news",
+  "entries": [
+    {
+      "id": "news-pulse-load-more",
+      "seq": 3,
+      "date": "2026-08-10",
+      "title": "Curious Pulse: load 20 more stories",
+      "detail": "Scroll past the first 20 on the home feed and keep browsing the full consensus list.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news"
+      ]
+    },
+    {
+      "id": "news-headlines-load-more",
+      "seq": 2,
+      "date": "2026-08-10",
+      "title": "Load more headlines on Daily Intersection",
+      "detail": "Browse preferred-source headlines 20 at a time, with your Conservative / Balanced / Liberal filter applied.",
+      "href": "https://news.yoyosup.com/search",
+      "tags": [
+        "news"
+      ]
+    },
+    {
+      "id": "news-conservative-sources",
+      "seq": 1,
+      "date": "2026-08-10",
+      "title": "More conservative news sources",
+      "detail": "Conservative mode pulls Zero Hedge, Just the News, Gateway Pundit, RSBN, and other outlets from your source list.",
+      "href": "https://news.yoyosup.com/search?lean=conservative",
+      "tags": [
+        "news"
+      ]
+    }
+  ]
+}

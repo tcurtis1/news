@@ -61,6 +61,16 @@ LEAN_COOKIE_MAX_AGE = GEO_COOKIE_MAX_AGE
 
 app = FastAPI(title="Yoyosup News", version=APP_VERSION)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
+
+
+@app.middleware("http")
+async def cors_whats_new(request: Request, call_next):
+    """Allow Tools Updates widget (and others) to read the public What’s New feed."""
+    response = await call_next(request)
+    if request.url.path.rstrip("/").endswith("whats-new.json"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Cache-Control"] = "no-store"
+    return response
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["slugify"] = slugify
 templates.env.globals["app_version"] = APP_VERSION
