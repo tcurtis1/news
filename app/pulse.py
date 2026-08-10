@@ -22,12 +22,16 @@ log = logging.getLogger("pulse")
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/data"))
 CACHE_FILE = CACHE_DIR / "pulse_cache.json"
 CACHE_TTL_SEC = int(os.environ.get("PULSE_CACHE_TTL", str(30 * 60)))  # 30 min
-MAX_ITEMS = 20
+# Full consensus pool (enough for "load 20 more" on Curious Pulse)
+MAX_ITEMS = 80
+PAGE_SIZE = 20
 USER_AGENT = "YoyoNewsPulse/0.2 (+https://news.yoyosup.com; meta-aggregator)"
 # HN is high-signal but niche — cap volume and down-weight raw points vs broader feeds
-HN_MAX_ITEMS = 12
+HN_MAX_ITEMS = 18
 HN_SCORE_SCALE = 0.18
 GOOGLE_NEWS_BASE = 480
+GOOGLE_NEWS_LIMIT = 50
+REDDIT_LIMIT = 35
 
 
 @dataclass
@@ -96,7 +100,9 @@ async def _fetch_hacker_news(
         return []
 
 
-async def _fetch_google_news_top(client: httpx.AsyncClient, limit: int = 20) -> list[dict]:
+async def _fetch_google_news_top(
+    client: httpx.AsyncClient, limit: int = GOOGLE_NEWS_LIMIT
+) -> list[dict]:
     """US Google News top RSS — broad mainstream headlines."""
     import xml.etree.ElementTree as ET
 
@@ -173,7 +179,9 @@ def _parse_reddit_atom(xml_text: str, sub: str, limit: int) -> list[dict]:
     return out
 
 
-async def _fetch_reddit(client: httpx.AsyncClient, sub: str = "news", limit: int = 20) -> list[dict]:
+async def _fetch_reddit(
+    client: httpx.AsyncClient, sub: str = "news", limit: int = REDDIT_LIMIT
+) -> list[dict]:
     """Reddit public hot feed via Atom RSS (no key)."""
     try:
         r = await client.get(
@@ -360,14 +368,17 @@ async def _pull_pulse_live() -> dict:
             mode = "live"
 
     items = _merge_consensus(lists)
+    stories = [it.to_dict() for it in items]
     payload = {
         "fetched_at": _now_iso(),
         "fetched_at_unix": time.time(),
         "mode": mode,
         "lane": "curious",
-        "count": len(items),
+        "count": len(stories),
+        "page_size": PAGE_SIZE,
+        "has_more": len(stories) > PAGE_SIZE,
         # named "stories" (not "items") so Jinja dicts don't clash with dict.items
-        "stories": [it.to_dict() for it in items],
+        "stories": stories,
         "disclaimer": (
             "Pulse is a curious-consensus feed: Google News (broad) + Reddit "
             "world/news/tech + a lighter Hacker News signal (tech niche, "
@@ -379,14 +390,63 @@ async def _pull_pulse_live() -> dict:
     return payload
 
 
+def paginate_pulse(data: dict, *, offset: int = 0, limit: int = PAGE_SIZE) -> dict:
+    """Slice pulse stories for load-more (API or client)."""
+    stories = list(data.get("stories") or [])
+    try:
+        offset = max(0, int(offset))
+    except (TypeError, ValueError):
+        offset = 0
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = PAGE_SIZE
+    limit = max(1, min(limit, 50))
+    total = len(stories)
+    page = stories[offset : offset + limit]
+    next_offset = offset + len(page)
+    return {
+        "stories": page,
+        "total": total,
+        "count": len(page),
+        "offset": offset,
+        "limit": limit,
+        "next_offset": next_offset,
+        "has_more": next_offset < total,
+        "mode": data.get("mode"),
+        "lane": data.get("lane"),
+        "fetched_at": data.get("fetched_at"),
+        "disclaimer": data.get("disclaimer"),
+        "page_size": PAGE_SIZE,
+    }
+
+
+def _cache_is_current(data: dict | None) -> bool:
+    """Drop pre-pagination pulse caches (only ~20 stories, no page_size)."""
+    if not data:
+        return False
+    if data.get("page_size") != PAGE_SIZE:
+        return False
+    stories = data.get("stories") or []
+    # Old builds capped at 20; require a real pool when feeds were live
+    if data.get("mode") == "live" and len(stories) <= 20:
+        return False
+    return True
+
+
 async def build_pulse(force: bool = False) -> dict:
     global _MEM_PULSE
     now = time.time()
-    if not force and _MEM_PULSE and (now - _MEM_PULSE[0]) < _MEM_PULSE_TTL:
+    if (
+        not force
+        and _MEM_PULSE
+        and (now - _MEM_PULSE[0]) < _MEM_PULSE_TTL
+        and _cache_is_current(_MEM_PULSE[1])
+    ):
         return _MEM_PULSE[1]
     if not force:
         cached = _read_cache()
-        if cached:
+        if cached and _cache_is_current(cached):
             _MEM_PULSE = (now, cached)
             return cached
 
@@ -399,28 +459,34 @@ async def build_pulse(force: bool = False) -> dict:
             _MEM_PULSE = (time.time(), stale)
             return stale
         items = _merge_consensus([_fallback_items()])
+        stories = [it.to_dict() for it in items]
         payload = {
             "fetched_at": _now_iso(),
             "fetched_at_unix": time.time(),
             "mode": "fallback",
             "lane": "curious",
-            "count": len(items),
-            "stories": [it.to_dict() for it in items],
+            "count": len(stories),
+            "page_size": PAGE_SIZE,
+            "has_more": len(stories) > PAGE_SIZE,
+            "stories": stories,
             "disclaimer": "Pulse is warming up — showing a short fallback list.",
         }
     except Exception as e:
         log.warning("pulse pull failed: %s", e)
         stale = _read_cache(allow_stale=True)
-        if stale:
+        if stale and _cache_is_current(stale):
             return stale
         items = _merge_consensus([_fallback_items()])
+        stories = [it.to_dict() for it in items]
         payload = {
             "fetched_at": _now_iso(),
             "fetched_at_unix": time.time(),
             "mode": "fallback",
             "lane": "curious",
-            "count": len(items),
-            "stories": [it.to_dict() for it in items],
+            "count": len(stories),
+            "page_size": PAGE_SIZE,
+            "has_more": len(stories) > PAGE_SIZE,
+            "stories": stories,
             "disclaimer": "Pulse is temporarily limited.",
         }
 

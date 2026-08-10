@@ -35,9 +35,9 @@
   </div>
 
   {% if pulse.stories %}
-  <ol class="list">
+  <ol class="list" id="pulse-stories-list">
     {% for item in pulse.stories %}
-    <li class="card">
+    <li class="card pulse-story{% if loop.index > 20 %} is-extra{% endif %}"{% if loop.index > 20 %} hidden{% endif %}>
       <div class="rank">{{ item.rank }}</div>
       <div>
         <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
@@ -52,6 +52,48 @@
     </li>
     {% endfor %}
   </ol>
+  {% if pulse.stories|length > 20 %}
+  <div class="load-more-wrap" id="pulse-more-wrap">
+    <button type="button" class="load-more-btn" id="pulse-more">
+      Load 20 more
+    </button>
+    <p class="muted-hint" id="pulse-more-meta">
+      Showing 20 of {{ pulse.stories|length }} stories
+    </p>
+  </div>
+  <script>
+  (function () {
+    var btn = document.getElementById("pulse-more");
+    var meta = document.getElementById("pulse-more-meta");
+    var wrap = document.getElementById("pulse-more-wrap");
+    if (!btn) return;
+    var step = 20;
+    var shown = 20;
+    var total = {{ pulse.stories|length }};
+    btn.addEventListener("click", function () {
+      var extras = document.querySelectorAll("#pulse-stories-list .pulse-story.is-extra[hidden]");
+      var n = 0;
+      extras.forEach(function (el) {
+        if (n >= step) return;
+        el.hidden = false;
+        el.classList.remove("is-extra");
+        n++;
+      });
+      shown += n;
+      if (meta) {
+        meta.textContent =
+          shown >= total
+            ? "Showing all " + total + " stories"
+            : "Showing " + shown + " of " + total + " stories";
+      }
+      if (shown >= total && wrap) {
+        btn.disabled = true;
+        btn.textContent = "No more stories";
+      }
+    });
+  })();
+  </script>
+  {% endif %}
   {% else %}
   <div class="empty">No stories yet — try again in a minute.</div>
   {% endif %}

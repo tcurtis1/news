@@ -29,7 +29,7 @@ from app.comments import (
 )
 from app.journalists import add_reader_rating, build_journalist, run_backfill
 from app.moderation import moderation_enabled
-from app.pulse import build_pulse
+from app.pulse import build_pulse, paginate_pulse
 from app.search import (
     _filter_recent,
     fetch_preferred_headlines,
@@ -218,8 +218,19 @@ async def safety_page(request: Request):
 
 
 @app.get("/api/pulse")
-async def api_pulse(force: bool = False):
-    return JSONResponse(await build_pulse(force=force))
+async def api_pulse(
+    force: bool = False,
+    offset: int = 0,
+    limit: int = 0,
+):
+    """
+    Full pulse payload by default.
+    Pass limit>0 (and optional offset) for paged slices used by "Load 20 more".
+    """
+    data = await build_pulse(force=force)
+    if limit and int(limit) > 0:
+        return JSONResponse(paginate_pulse(data, offset=offset, limit=limit))
+    return JSONResponse(data)
 
 
 @app.get("/search", response_class=HTMLResponse)

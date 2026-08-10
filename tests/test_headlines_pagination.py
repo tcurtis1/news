@@ -1,5 +1,6 @@
-"""Preferred headlines pagination + conservative outlet coverage."""
+"""Preferred headlines pagination + conservative outlet coverage + pulse pages."""
 
+from app.pulse import PAGE_SIZE, paginate_pulse
 from app.search import paginate_hits
 from app.source_prefs import CONSERVATIVE_DOMAINS, OUTLET_RSS, PREF_CONSERVATIVE, rss_feeds_for
 
@@ -69,3 +70,21 @@ def test_conservative_folder_outlets_present():
         assert d in feed_domains
     assert len(feeds) >= 40
     assert len(OUTLET_RSS[PREF_CONSERVATIVE]) == len(feeds)
+
+
+def test_paginate_pulse():
+    data = {
+        "stories": [{"rank": i, "title": f"s{i}"} for i in range(1, 55)],
+        "mode": "live",
+        "lane": "curious",
+    }
+    p0 = paginate_pulse(data, offset=0, limit=PAGE_SIZE)
+    assert p0["count"] == 20
+    assert p0["has_more"] is True
+    assert p0["next_offset"] == 20
+    p1 = paginate_pulse(data, offset=20, limit=20)
+    assert p1["count"] == 20
+    assert p1["has_more"] is True
+    p2 = paginate_pulse(data, offset=40, limit=20)
+    assert p2["count"] == 14
+    assert p2["has_more"] is False
