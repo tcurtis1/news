@@ -3,7 +3,8 @@
 **Canonical process doc:** keep in sync with **`money/NETWORK.md`** (Tools repo). If they differ, trust **money** and update this copy.
 
 This repo: **news** → https://news.yoyosup.com/  
-Sibling: `~/work/money` (process + What’s New), `~/work/finance`
+Permanent siblings: `~/work/money` (tools + process), `~/work/finance`, `~/work/convert` (image.yoyosup.com).  
+Anything else on yoyosup is temporary.
 
 ---
 

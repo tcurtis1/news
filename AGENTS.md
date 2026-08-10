@@ -2,6 +2,13 @@
 
 **https://news.yoyosup.com/** — Daily Intersection / Pulse / MyNews.
 
+## Permanent yoyosup network
+
+Only four permanent products: **money** (`~/work/money`), **news** (`~/work/news`),
+**finance** (`~/work/finance`), **image** (`~/work/convert` → image.yoyosup.com).
+Anything else on yoyosup is temporary. Network admin: `/tools/hub/admin.html` on tools.
+See **[NETWORK.md](NETWORK.md)**.
+
 ## Cold start
 
 1. **[NETWORK.md](NETWORK.md)** — deploy lock, What’s New, multi-repo habits.  

@@ -14,18 +14,50 @@ SSH="ssh -i ${HOME}/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new -o Conne
 DEPLOY_AGENT="${DEPLOY_AGENT:-unknown}"
 # Set SKIP_TESTS=1 to bypass the preflight test run (emergency only).
 SKIP_TESTS="${SKIP_TESTS:-0}"
+ALLOW_DIRTY_DEPLOY="${ALLOW_DIRTY_DEPLOY:-0}"
+
+require_clean_git() {
+  if [[ "${ALLOW_DIRTY_DEPLOY}" == "1" ]]; then
+    echo "ALLOW_DIRTY_DEPLOY=1 — skipping clean-git check (emergency only)."
+    return 0
+  fi
+  if ! git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    return 0
+  fi
+  local dirty unpushed
+  dirty="$(git -C "${ROOT}" status --porcelain 2>/dev/null || true)"
+  if [[ -n "$dirty" ]]; then
+    echo "REFUSING DEPLOY: uncommitted changes. Commit and push first."
+    echo "  (Emergency only: ALLOW_DIRTY_DEPLOY=1 ./deploy.sh)"
+    git -C "${ROOT}" status --short
+    exit 1
+  fi
+  if git -C "${ROOT}" rev-parse '@{u}' >/dev/null 2>&1; then
+    unpushed="$(git -C "${ROOT}" rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)"
+    if [[ "${unpushed}" -gt 0 ]]; then
+      echo "REFUSING DEPLOY: ${unpushed} unpushed commit(s). git push first."
+      echo "  (Emergency only: ALLOW_DIRTY_DEPLOY=1 ./deploy.sh)"
+      exit 1
+    fi
+  fi
+}
+
+require_clean_git
 
 echo "Preflight tests…"
 if [[ "$SKIP_TESTS" == "1" ]]; then
-  echo "SKIP_TESTS=1 — skipping preflight tests."
+  echo "SKIP_TESTS=1 — skipping preflight tests (emergency only)."
+elif [[ -x "${ROOT}/.venv/bin/python" ]] && "${ROOT}/.venv/bin/python" -m pytest --version >/dev/null 2>&1; then
+  (cd "${ROOT}" && .venv/bin/python -m pytest tests/ -q)
 elif python3 -m pytest --version >/dev/null 2>&1; then
   # `python3 -m pytest` (not bare `pytest`) so the repo root lands on
   # sys.path[0] and `from app import ...` resolves without a pytest.ini.
-  (cd "$(dirname "$0")" && python3 -m pytest tests/ -q)
+  (cd "${ROOT}" && PYTHONPATH=. python3 -m pytest tests/ -q)
 else
-  echo "WARNING: pytest not available in this shell — tests NOT run before deploy."
+  echo "REFUSING DEPLOY: pytest not available — smoke/tests must run before deploy."
   echo "  Install once: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt pytest"
-  echo "  Then: .venv/bin/python -m pytest tests/ -q"
+  echo "  Emergency only: SKIP_TESTS=1 ./deploy.sh"
+  exit 1
 fi
 
 is_local_deploy() {
