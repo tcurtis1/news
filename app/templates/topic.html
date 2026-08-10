@@ -137,9 +137,9 @@
     News hits
     <span class="muted-hint">{{ lean_meta.lean_pref_label if lean_meta else (topic.lean_pref_label or 'Balanced') }} sources</span>
   </h2>
-  <ol class="list">
-    {% for item in topic.hits[:15] %}
-    <li class="card">
+  <ol class="list" id="topic-hits-list">
+    {% for item in topic.hits %}
+    <li class="card topic-hit{% if loop.index > 20 %} is-extra{% endif %}"{% if loop.index > 20 %} hidden{% endif %}>
       <div class="rank">{{ loop.index }}</div>
       <div>
         <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
@@ -157,6 +157,41 @@
     </li>
     {% endfor %}
   </ol>
+  {% if topic.hits|length > 20 %}
+  <div class="load-more-wrap" id="topic-hits-more-wrap">
+    <button type="button" class="load-more-btn" id="topic-hits-more" data-step="20">
+      Load 20 more
+    </button>
+    <p class="muted-hint" id="topic-hits-more-meta">Showing 20 of {{ topic.hits|length }} · same source filter</p>
+  </div>
+  <script>
+  (function () {
+    var btn = document.getElementById("topic-hits-more");
+    var meta = document.getElementById("topic-hits-more-meta");
+    var wrap = document.getElementById("topic-hits-more-wrap");
+    if (!btn) return;
+    var step = 20;
+    var shown = 20;
+    var total = {{ topic.hits|length }};
+    btn.addEventListener("click", function () {
+      var extras = document.querySelectorAll("#topic-hits-list .topic-hit.is-extra[hidden]");
+      var n = 0;
+      extras.forEach(function (el) {
+        if (n >= step) return;
+        el.hidden = false;
+        el.classList.remove("is-extra");
+        n++;
+      });
+      shown += n;
+      if (meta) meta.textContent = "Showing " + shown + " of " + total + " · same source filter";
+      if (shown >= total && wrap) {
+        btn.disabled = true;
+        btn.textContent = "No more headlines";
+      }
+    });
+  })();
+  </script>
+  {% endif %}
   {% endif %}
 
   {# ── Comments ── #}

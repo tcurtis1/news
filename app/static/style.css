@@ -358,6 +358,41 @@ h1 {
   gap: 0.65rem;
 }
 
+.load-more-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 1rem 0 0.25rem;
+  padding: 0.25rem 0 0.5rem;
+}
+.load-more-btn {
+  appearance: none;
+  border: 1px solid var(--border, #d5dbe6);
+  background: var(--panel, #fff);
+  color: var(--text, #0f172a);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  padding: 0.55rem 1.15rem;
+  border-radius: 999px;
+  cursor: pointer;
+  min-width: 10rem;
+}
+.load-more-btn:hover:not(:disabled) {
+  border-color: var(--accent-fill, #2dd4bf);
+  color: var(--accent, #0f766e);
+}
+.load-more-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.load-more-wrap .muted-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--border);

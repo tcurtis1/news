@@ -228,6 +228,12 @@
       </h2>
       <p class="muted-hint my-loading" id="pref-headlines-status">Loading headlines…</p>
       <ol class="list" id="pref-headlines-list"></ol>
+      <div class="load-more-wrap" id="pref-headlines-more-wrap" hidden>
+        <button type="button" class="load-more-btn" id="pref-headlines-more">
+          Load 20 more
+        </button>
+        <p class="muted-hint" id="pref-headlines-more-meta"></p>
+      </div>
     </section>
 
     <div class="disclaimer">{{ results.disclaimer }}</div>
@@ -450,99 +456,190 @@
         .slice(0, 80) || "topic";
     }
 
-    // Async preferred headlines — page already painted with trends
+    // Async preferred headlines — page already painted with trends.
+    // Paginated: first 20, then "Load 20 more" keeps the same lean + date filter.
     var listEl = document.getElementById("pref-headlines-list");
     var statusEl = document.getElementById("pref-headlines-status");
     var labelEl = document.getElementById("pref-headlines-label");
+    var moreWrap = document.getElementById("pref-headlines-more-wrap");
+    var moreBtn = document.getElementById("pref-headlines-more");
+    var moreMeta = document.getElementById("pref-headlines-more-meta");
     if (listEl && !pageQ) {
       var leanQ =
         (window.YoyoLeanPref && YoyoLeanPref.current()) || leanPref || "balanced";
-      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-      var t = setTimeout(function () {
-        if (ctrl) ctrl.abort();
-      }, 9000);
-      fetch(
-        "/api/headlines?lean=" + encodeURIComponent(leanQ),
-        ctrl ? { signal: ctrl.signal } : undefined
-      )
-        .then(function (r) {
-          if (!r.ok) throw new Error("HTTP " + r.status);
-          return r.json();
-        })
-        .then(function (data) {
-          clearTimeout(t);
-          if (labelEl && data.lean_pref_label) {
-            labelEl.textContent = data.lean_pref_label;
+      var daysQ =
+        (window.YoyoDatePref && typeof YoyoDatePref.current === "function"
+          ? YoyoDatePref.current()
+          : 0) || 0;
+      var PAGE = 20;
+      var nextOffset = 0;
+      var loadingMore = false;
+      var totalKnown = 0;
+
+      function hitRowHtml(item, rank) {
+        var title = esc(item.title);
+        var url = esc(item.url);
+        var src = esc(item.source);
+        var author = esc(item.author || "");
+        var authorHref = item.author
+          ? "/journalist/" + encodeURIComponent(slugify(item.author))
+          : "";
+        var lean = esc(item.lean || "");
+        var leanLabel = esc(item.lean_label || "");
+        var leanTip = esc(item.lean_tip || "");
+        var discuss =
+          "/topic/" +
+          encodeURIComponent(slugify(item.title)) +
+          "?geo=" +
+          encodeURIComponent(geoCode) +
+          "&lean=" +
+          encodeURIComponent(leanQ) +
+          "#comments";
+        return (
+          '<li class="card">' +
+          '<div class="rank">' +
+          rank +
+          "</div><div>" +
+          "<h2><a href=\"" +
+          url +
+          '" rel="noopener noreferrer" target="_blank">' +
+          title +
+          "</a></h2>" +
+          '<div class="links"><span>' +
+          src +
+          "</span>" +
+          (authorHref
+            ? '<a class="byline-link" href="' + authorHref + '">By ' + author + "</a>"
+            : "") +
+          (leanLabel
+            ? '<span class="lean-badge lean-' +
+              lean +
+              '" title="' +
+              leanTip +
+              '">' +
+              leanLabel +
+              "</span>"
+            : "") +
+          '<a href="' +
+          discuss +
+          '">Discuss here</a></div></div></li>'
+        );
+      }
+
+      function headlinesUrl(offset) {
+        var u =
+          "/api/headlines?lean=" +
+          encodeURIComponent(leanQ) +
+          "&offset=" +
+          encodeURIComponent(offset) +
+          "&limit=" +
+          encodeURIComponent(PAGE);
+        if (daysQ) u += "&days=" + encodeURIComponent(daysQ);
+        return u;
+      }
+
+      function updateMoreUi(data) {
+        totalKnown = data.total || 0;
+        nextOffset = data.next_offset != null ? data.next_offset : nextOffset;
+        if (!moreWrap || !moreBtn) return;
+        if (data.has_more) {
+          moreWrap.hidden = false;
+          moreBtn.disabled = false;
+          moreBtn.textContent = "Load 20 more";
+          if (moreMeta) {
+            moreMeta.textContent =
+              "Showing " +
+              nextOffset +
+              " of " +
+              totalKnown +
+              " · " +
+              (data.lean_pref_label || leanQ) +
+              " sources" +
+              (daysQ ? " · last " + daysQ + " day" + (daysQ === 1 ? "" : "s") : "");
           }
-          var hits = data.hits || [];
-          if (!hits.length) {
-            if (statusEl) {
-              statusEl.textContent =
-                "No preferred-source headlines right now — try another Sources option above.";
+        } else {
+          moreWrap.hidden = totalKnown === 0;
+          moreBtn.disabled = true;
+          moreBtn.textContent = totalKnown ? "No more headlines" : "Load 20 more";
+          if (moreMeta && totalKnown) {
+            moreMeta.textContent =
+              "Showing all " + totalKnown + " with current filters";
+          }
+        }
+      }
+
+      function appendHits(hits, startRank) {
+        var html = (hits || [])
+          .map(function (item, i) {
+            return hitRowHtml(item, startRank + i);
+          })
+          .join("");
+        listEl.insertAdjacentHTML("beforeend", html);
+      }
+
+      function loadPage(offset, isFirst) {
+        if (loadingMore) return Promise.resolve();
+        loadingMore = true;
+        if (moreBtn && !isFirst) {
+          moreBtn.disabled = true;
+          moreBtn.textContent = "Loading…";
+        }
+        var ctrl =
+          typeof AbortController !== "undefined" ? new AbortController() : null;
+        var t = setTimeout(function () {
+          if (ctrl) ctrl.abort();
+        }, isFirst ? 12000 : 10000);
+        return fetch(headlinesUrl(offset), ctrl ? { signal: ctrl.signal } : undefined)
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            clearTimeout(t);
+            if (labelEl && data.lean_pref_label) {
+              labelEl.textContent = data.lean_pref_label;
             }
-            return;
-          }
-          if (statusEl) statusEl.remove();
-          listEl.innerHTML = hits
-            .slice(0, 16)
-            .map(function (item, i) {
-              var title = esc(item.title);
-              var url = esc(item.url);
-              var src = esc(item.source);
-              var author = esc(item.author || "");
-              var authorHref = item.author
-                ? "/journalist/" + encodeURIComponent(slugify(item.author))
-                : "";
-              var lean = esc(item.lean || "");
-              var leanLabel = esc(item.lean_label || "");
-              var leanTip = esc(item.lean_tip || "");
-              var discuss =
-                "/topic/" +
-                encodeURIComponent(slugify(item.title)) +
-                "?geo=" +
-                encodeURIComponent(geoCode) +
-                "&lean=" +
-                encodeURIComponent(leanQ) +
-                "#comments";
-              return (
-                '<li class="card">' +
-                '<div class="rank">' +
-                (i + 1) +
-                "</div><div>" +
-                "<h2><a href=\"" +
-                url +
-                '" rel="noopener noreferrer" target="_blank">' +
-                title +
-                "</a></h2>" +
-                '<div class="links"><span>' +
-                src +
-                "</span>" +
-                (authorHref
-                  ? '<a class="byline-link" href="' + authorHref + '">By ' + author + "</a>"
-                  : "") +
-                (leanLabel
-                  ? '<span class="lean-badge lean-' +
-                    lean +
-                    '" title="' +
-                    leanTip +
-                    '">' +
-                    leanLabel +
-                    "</span>"
-                  : "") +
-                '<a href="' +
-                discuss +
-                '">Discuss here</a></div></div></li>'
-              );
-            })
-            .join("");
-        })
-        .catch(function () {
-          clearTimeout(t);
-          if (statusEl) {
-            statusEl.textContent =
-              "Headlines took too long — refresh or pick another source lean.";
-          }
+            var hits = data.hits || [];
+            if (isFirst) {
+              if (!hits.length) {
+                if (statusEl) {
+                  statusEl.textContent =
+                    "No preferred-source headlines right now — try another Sources option above" +
+                    (daysQ ? ", or widen the date filter" : "") +
+                    ".";
+                }
+                if (moreWrap) moreWrap.hidden = true;
+                return;
+              }
+              if (statusEl) statusEl.remove();
+              listEl.innerHTML = "";
+              appendHits(hits, 1);
+            } else if (hits.length) {
+              appendHits(hits, offset + 1);
+            }
+            updateMoreUi(data);
+          })
+          .catch(function () {
+            clearTimeout(t);
+            if (isFirst && statusEl) {
+              statusEl.textContent =
+                "Headlines took too long — refresh or pick another source lean.";
+            } else if (moreBtn) {
+              moreBtn.disabled = false;
+              moreBtn.textContent = "Retry load more";
+            }
+          })
+          .finally(function () {
+            loadingMore = false;
+          });
+      }
+
+      if (moreBtn) {
+        moreBtn.addEventListener("click", function () {
+          loadPage(nextOffset, false);
         });
+      }
+      loadPage(0, true);
     } else if (statusEl && pageQ) {
       // Rank-map search page: headlines already in results.hits when present
       statusEl.remove();

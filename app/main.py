@@ -30,7 +30,12 @@ from app.comments import (
 from app.journalists import add_reader_rating, build_journalist, run_backfill
 from app.moderation import moderation_enabled
 from app.pulse import build_pulse
-from app.search import fetch_preferred_headlines, run_search
+from app.search import (
+    _filter_recent,
+    fetch_preferred_headlines,
+    paginate_hits,
+    run_search,
+)
 from app.seo import collect_sitemap_urls, render_robots_txt, render_sitemap_xml
 from app.places import default_place, list_places_for_ui, resolve_place
 from app.source_prefs import (
@@ -355,24 +360,38 @@ async def api_headlines(
     request: Request,
     lean: str = "",
     q: str = "",
+    offset: int = 0,
+    limit: int = 20,
+    days: int = 0,
 ):
     """
-    Preferred-source headlines only (cached, hard ~5s budget).
+    Preferred-source headlines only (cached, hard budget).
     Used by Intersection after the page paints — never blocks SSR.
+
+    Pagination: `offset` + `limit` (default 20). Filter with `lean` and
+    optional `days` recency (same as MyNews date bar). `has_more` tells
+    the client whether "Load 20 more" should stay available.
     """
     lean_pref = _lean_from_request(request, lean)
     hits = await fetch_preferred_headlines(
-        lean_pref, q, budget_sec=5.0, use_google=bool((q or "").strip())
+        lean_pref, q, budget_sec=6.5, use_google=bool((q or "").strip())
     )
+    try:
+        days_n = int(days or 0)
+    except (TypeError, ValueError):
+        days_n = 0
+    if days_n > 0:
+        hits = _filter_recent(hits, days_n)
+    page = paginate_hits(hits, offset=offset, limit=limit)
     meta = pref_meta(lean_pref)
     return JSONResponse(
         {
             "lean_pref": lean_pref,
             **meta,
-            "count": len(hits),
-            "hits": hits,
             "q": (q or "").strip(),
+            "days": days_n if days_n > 0 else None,
             "cached": True,  # process may have served from cache
+            **page,
         }
     )
 

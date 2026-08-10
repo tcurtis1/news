@@ -124,6 +124,17 @@ CONSERVATIVE_DOMAINS: frozenset[str] = frozenset(
         "cnav.news",
         "foxbusiness.com",
         "reason.com",
+        # Phone-folder conservative / right-leaning outlets (2026-08)
+        "zerohedge.com",
+        "x22report.com",
+        "rsbnetwork.com",
+        "babylonbee.com",
+        "justthenews.com",
+        "breaking911.com",
+        "militarytimes.com",
+        "stripes.com",
+        "stream.org",
+        "thestream.org",
     }
 )
 
@@ -158,6 +169,19 @@ CONSERVATIVE_NAMES: frozenset[str] = frozenset(
         "western journal",
         "sean hannity",
         "heritage foundation",
+        "zero hedge",
+        "zerohedge",
+        "x22",
+        "x22 report",
+        "rsbn",
+        "real america's voice",
+        "babylon bee",
+        "just the news",
+        "breaking911",
+        "breaking 911",
+        "military times",
+        "stars and stripes",
+        "the stream",
     }
 )
 
@@ -564,6 +588,15 @@ OUTLET_RSS: dict[str, list[tuple[str, str, str]]] = {
         ("Reason", "reason.com", "https://reason.com/feed/"),
         ("WSJ Opinion", "wsj.com", "https://feeds.content.dowjones.io/public/rss/RSSOpinion"),
         ("WSJ World", "wsj.com", "https://feeds.content.dowjones.io/public/rss/RSSWorldNews"),
+        # Extra outlets from user conservative source folder (2026-08)
+        ("Zero Hedge", "zerohedge.com", "https://feeds.feedburner.com/zerohedge/feed"),
+        ("X22 Report", "x22report.com", "https://x22report.com/feed/"),
+        ("RSBN", "rsbnetwork.com", "https://www.rsbnetwork.com/feed/"),
+        ("Babylon Bee", "babylonbee.com", "https://babylonbee.com/feed"),
+        ("Just the News", "justthenews.com", "https://justthenews.com/rss.xml"),
+        ("Breaking911", "breaking911.com", "https://www.breaking911.com/feed/"),
+        ("Military Times", "militarytimes.com", "https://www.militarytimes.com/arc/outboundfeeds/rss/?outputType=xml"),
+        ("The Stream", "stream.org", "https://stream.org/feed/rss"),
     ],
     PREF_LIBERAL: [
         ("NYTimes", "nytimes.com", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"),
@@ -627,13 +660,13 @@ def google_batch_budget(pref: str | None, *, lite: bool = False) -> tuple[int, i
     p = normalize_pref(pref)
     if lite:
         if p == PREF_CONSERVATIVE:
-            return 6, 8  # up to 48 domains
+            return 6, 10  # up to 60 domains — include mid-tier + folder outlets
         if p == PREF_LIBERAL:
             return 6, 6
         return 6, 4
     # Full search
     if p == PREF_CONSERVATIVE:
-        return 6, 10  # up to 60 domains — full Feedspot set
+        return 6, 12  # up to 72 domains — full Feedspot set + folder list
     if p == PREF_LIBERAL:
         return 6, 7
     return 6, 5

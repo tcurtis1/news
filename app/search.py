@@ -38,19 +38,22 @@ USER_AGENT = (
 )
 MAX_PER_SOURCE = 12
 MAX_RESULTS = 40
+# Preferred-headline pool (cached) — large enough for "load 20 more" browsing
+HEADLINE_POOL_LIMIT = 120
+HEADLINE_PAGE_SIZE = 20
 MAX_LEAN_PER_BATCH = 12
 # In-process RSS cache so MyNews doesn't re-hit every outlet on every card
 _RSS_CACHE: dict[str, tuple[float, list["SearchHit"]]] = {}
 _RSS_CACHE_TTL = 10 * 60  # seconds
-_RSS_PER_FEED = 6
-_RSS_CONCURRENCY = 14
+_RSS_PER_FEED = 10  # more items/feed so pagination has depth
+_RSS_CONCURRENCY = 16
 # Google News 503s when we fire too many site: batches at once
 _GNEWS_CONCURRENCY = 2
 # Merged preferred-headline cache (lean → hits) — keeps /search snappy
 _HEADLINE_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _HEADLINE_CACHE_TTL = 8 * 60
 # Hard budgets so a slow feed never times out Cloudflare/browser
-HEADLINE_BUDGET_SEC = 5.0
+HEADLINE_BUDGET_SEC = 6.5
 LITE_BUDGET_SEC = 6.0
 SEARCH_BUDGET_SEC = 10.0
 
@@ -423,10 +426,22 @@ async def _fetch_outlet_rss_for_pref(
     p = normalize_pref(lean)
     # Cap feed count so cold start stays under the page-load budget.
     # Cache makes subsequent hits instant across all feeds we've already scraped.
+    # Conservative pulls the full native RSS set (incl. folder outlets) so
+    # "load more" can keep browsing without re-hitting only Fox/NYPost.
     if lite:
-        limit = 18 if p == "conservative" else (14 if p == "liberal" else 10)
+        if p == "conservative":
+            limit = None  # all OUTLET_RSS conservative feeds
+        elif p == "liberal":
+            limit = 18
+        else:
+            limit = 12
     else:
-        limit = 24 if p == "conservative" else (18 if p == "liberal" else 12)
+        if p == "conservative":
+            limit = None
+        elif p == "liberal":
+            limit = 22
+        else:
+            limit = 14
     feeds = rss_feeds_for(lean, limit=limit)
     if not feeds:
         return []
@@ -684,17 +699,20 @@ async def fetch_preferred_headlines(
 
     RSS is primary (diverse, cacheable). Google site: is optional and skipped
     when we're tight on time — it was the main source of timeouts.
+
+    Returns a diversified *pool* (up to HEADLINE_POOL_LIMIT) so callers can
+    paginate with offset/limit without re-scraping.
     """
     lean_pref = normalize_pref(lean)
     topic = (topic or "").strip()[:120]
-    cache_key = f"{lean_pref}|{topic.lower()}|g={int(use_google)}"
+    cache_key = f"{lean_pref}|{topic.lower()}|g={int(use_google)}|pool={HEADLINE_POOL_LIMIT}"
     now = time.time()
     cached = _HEADLINE_CACHE.get(cache_key)
     if cached and (now - cached[0]) < _HEADLINE_CACHE_TTL:
         return list(cached[1])
 
     async def _pull() -> list[SearchHit]:
-        timeout = httpx.Timeout(3.5, connect=2.0)
+        timeout = httpx.Timeout(4.0, connect=2.0)
         async with httpx.AsyncClient(
             timeout=timeout,
             headers={"User-Agent": USER_AGENT},
@@ -705,7 +723,7 @@ async def fetch_preferred_headlines(
                     _fetch_outlet_rss_for_pref(
                         client, lean_pref, topic, lite=True
                     ),
-                    _fetch_google_news(client, topic, limit=12, score_base=950),
+                    _fetch_google_news(client, topic, limit=16, score_base=950),
                 )
                 # Only 2 site: batches if we still have room — never 8–10
                 lean_hits = await _fetch_google_news_for_pref(
@@ -713,14 +731,16 @@ async def fetch_preferred_headlines(
                 )
                 return diversify_hits(
                     _merge_hits([rss_hits, lean_hits, gnews]),
-                    limit=40,
-                    max_per_source=3,
+                    limit=HEADLINE_POOL_LIMIT,
+                    max_per_source=4,
                 )
             # Default: RSS only (fast + diverse)
             rss_hits = await _fetch_outlet_rss_for_pref(
                 client, lean_pref, topic, lite=True
             )
-            return diversify_hits(rss_hits, limit=40, max_per_source=3)
+            return diversify_hits(
+                rss_hits, limit=HEADLINE_POOL_LIMIT, max_per_source=4
+            )
 
     try:
         raw = await asyncio.wait_for(_pull(), timeout=budget_sec)
@@ -742,7 +762,7 @@ async def fetch_preferred_headlines(
         topical = prefer_topical(hits, topic)
         if len(topical) >= 4:
             hits = topical
-    hits = diversify_hits(hits, limit=MAX_RESULTS, max_per_source=2)
+    hits = diversify_hits(hits, limit=HEADLINE_POOL_LIMIT, max_per_source=3)
     if hits:
         _HEADLINE_CACHE[cache_key] = (time.time(), hits)
         # Only reached on a genuine cache-miss pull (gated by _HEADLINE_CACHE_TTL
@@ -753,6 +773,36 @@ async def fetch_preferred_headlines(
         except Exception as e:
             log.debug("journalist sighting/queue recording failed: %s", e)
     return hits
+
+
+def paginate_hits(
+    hits: list[dict[str, Any]],
+    *,
+    offset: int = 0,
+    limit: int = HEADLINE_PAGE_SIZE,
+) -> dict[str, Any]:
+    """Slice a headline pool for load-more UI."""
+    try:
+        offset = max(0, int(offset))
+    except (TypeError, ValueError):
+        offset = 0
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = HEADLINE_PAGE_SIZE
+    limit = max(1, min(limit, 50))
+    total = len(hits)
+    page = hits[offset : offset + limit]
+    next_offset = offset + len(page)
+    return {
+        "hits": page,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "next_offset": next_offset,
+        "has_more": next_offset < total,
+        "count": len(page),
+    }
 
 
 async def _run_search_lite(
@@ -794,16 +844,18 @@ async def _run_search_lite(
     hits = _filter_recent(hits, days)
     ranks = rank_lookup(query, trends)
     coverage = aggregate_lean(hits)
+    # MyNews cards only need a short sample; full pool is for /api/headlines
+    card_hits = hits[:8]
 
     return {
         "q": query,
         "geo": place.code,
         "place": place.to_dict(),
         "fetched_at": _now_iso(),
-        "mode": "live" if hits else "empty",
+        "mode": "live" if card_hits else "empty",
         "lite": True,
-        "count": len(hits),
-        "hits": hits,
+        "count": len(card_hits),
+        "hits": card_hits,
         "tech_hits": [],
         "portals": [],
         "sources_ok": [f"Preferred sources ({lean_pref})", "Outlet RSS"],
