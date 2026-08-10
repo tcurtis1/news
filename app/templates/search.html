@@ -227,10 +227,16 @@
         <span class="muted-hint" id="pref-headlines-label">{{ results.lean_pref_label or lean_meta.lean_pref_label or 'Balanced' }}</span>
       </h2>
       <p class="muted-hint my-loading" id="pref-headlines-status">Loading headlines…</p>
+      <div class="load-more-wrap load-more-wrap-top" id="pref-headlines-more-top-wrap" hidden>
+        <button type="button" class="load-more-btn" id="pref-headlines-more-top">
+          Load next 20 stories
+        </button>
+        <p class="muted-hint" id="pref-headlines-more-top-meta"></p>
+      </div>
       <ol class="list" id="pref-headlines-list"></ol>
       <div class="load-more-wrap" id="pref-headlines-more-wrap" hidden>
         <button type="button" class="load-more-btn" id="pref-headlines-more">
-          Load 20 more
+          Load next 20 stories
         </button>
         <p class="muted-hint" id="pref-headlines-more-meta"></p>
       </div>
@@ -464,6 +470,9 @@
     var moreWrap = document.getElementById("pref-headlines-more-wrap");
     var moreBtn = document.getElementById("pref-headlines-more");
     var moreMeta = document.getElementById("pref-headlines-more-meta");
+    var moreTopWrap = document.getElementById("pref-headlines-more-top-wrap");
+    var moreTopBtn = document.getElementById("pref-headlines-more-top");
+    var moreTopMeta = document.getElementById("pref-headlines-more-top-meta");
     if (listEl && !pageQ) {
       var leanQ =
         (window.YoyoLeanPref && YoyoLeanPref.current()) || leanPref || "balanced";
@@ -541,13 +550,20 @@
       function updateMoreUi(data) {
         totalKnown = data.total || 0;
         nextOffset = data.next_offset != null ? data.next_offset : nextOffset;
-        if (!moreWrap || !moreBtn) return;
-        if (data.has_more) {
-          moreWrap.hidden = false;
-          moreBtn.disabled = false;
-          moreBtn.textContent = "Load 20 more";
-          if (moreMeta) {
-            moreMeta.textContent =
+        [
+          [moreTopWrap, moreTopBtn, moreTopMeta],
+          [moreWrap, moreBtn, moreMeta]
+        ].forEach(function (controls) {
+          var wrap = controls[0];
+          var button = controls[1];
+          var meta = controls[2];
+          if (!wrap || !button) return;
+          if (data.has_more) {
+            wrap.hidden = false;
+            button.disabled = false;
+            button.textContent = "Load next 20 stories";
+            if (meta) {
+              meta.textContent =
               "Showing " +
               nextOffset +
               " of " +
@@ -556,16 +572,17 @@
               (data.lean_pref_label || leanQ) +
               " sources" +
               (daysQ ? " · last " + daysQ + " day" + (daysQ === 1 ? "" : "s") : "");
+            }
+          } else {
+            wrap.hidden = totalKnown === 0;
+            button.disabled = true;
+            button.textContent = totalKnown ? "No more headlines" : "Load next 20 stories";
+            if (meta && totalKnown) {
+              meta.textContent =
+                "Showing all " + totalKnown + " with current filters";
+            }
           }
-        } else {
-          moreWrap.hidden = totalKnown === 0;
-          moreBtn.disabled = true;
-          moreBtn.textContent = totalKnown ? "No more headlines" : "Load 20 more";
-          if (moreMeta && totalKnown) {
-            moreMeta.textContent =
-              "Showing all " + totalKnown + " with current filters";
-          }
-        }
+        });
       }
 
       function appendHits(hits, startRank) {
@@ -580,9 +597,12 @@
       function loadPage(offset, isFirst) {
         if (loadingMore) return Promise.resolve();
         loadingMore = true;
-        if (moreBtn && !isFirst) {
-          moreBtn.disabled = true;
-          moreBtn.textContent = "Loading…";
+        if (!isFirst) {
+          [moreTopBtn, moreBtn].forEach(function (button) {
+            if (!button) return;
+            button.disabled = true;
+            button.textContent = "Loading…";
+          });
         }
         var ctrl =
           typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -608,6 +628,7 @@
                     (daysQ ? ", or widen the date filter" : "") +
                     ".";
                 }
+                if (moreTopWrap) moreTopWrap.hidden = true;
                 if (moreWrap) moreWrap.hidden = true;
                 return;
               }
@@ -624,9 +645,12 @@
             if (isFirst && statusEl) {
               statusEl.textContent =
                 "Headlines took too long — refresh or pick another source lean.";
-            } else if (moreBtn) {
-              moreBtn.disabled = false;
-              moreBtn.textContent = "Retry load more";
+            } else {
+              [moreTopBtn, moreBtn].forEach(function (button) {
+                if (!button) return;
+                button.disabled = false;
+                button.textContent = "Retry load more";
+              });
             }
           })
           .finally(function () {
@@ -634,11 +658,12 @@
           });
       }
 
-      if (moreBtn) {
-        moreBtn.addEventListener("click", function () {
+      [moreTopBtn, moreBtn].forEach(function (button) {
+        if (!button) return;
+        button.addEventListener("click", function () {
           loadPage(nextOffset, false);
         });
-      }
+      });
       loadPage(0, true);
     } else if (statusEl && pageQ) {
       // Rank-map search page: headlines already in results.hits when present

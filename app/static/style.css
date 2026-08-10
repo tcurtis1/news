@@ -366,6 +366,13 @@ h1 {
   margin: 1rem 0 0.25rem;
   padding: 0.25rem 0 0.5rem;
 }
+.load-more-wrap-top {
+  align-items: flex-start;
+  margin: 0.35rem 0 0.8rem;
+}
+.load-more-wrap-top .muted-hint {
+  text-align: left;
+}
 .load-more-btn {
   appearance: none;
   border: 1px solid var(--border, #d5dbe6);

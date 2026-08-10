@@ -139,6 +139,9 @@ class TemplateRenderTests(unittest.TestCase):
     def test_daily_intersection_renders(self):
         r = self.client.get("/search")
         self._assert_clean_200(r, "/search (Daily Intersection)")
+        self.assertIn('getElementById("pref-headlines-more-top")', r.text)
+        self.assertIn('getElementById("pref-headlines-more")', r.text)
+        self.assertIn("Load next 20 stories", r.text)
 
     def test_journalist_page_renders(self):
         from app import journalists

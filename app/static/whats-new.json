@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "intersection-visible-next-20",
+      "seq": 6,
+      "date": "2026-08-10",
+      "title": "Next 20 stories are easier to find",
+      "detail": "Daily Intersection now shows the next-20 control above the headlines as well as at the end of the list.",
+      "href": "https://news.yoyosup.com/search",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "smoke-topic-matrix",
       "seq": 5,
       "date": "2026-08-10",
