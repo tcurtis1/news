@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "smoke-topic-matrix",
+      "seq": 5,
+      "date": "2026-08-10",
+      "title": "Deploy smoke checks dozens of topics",
+      "detail": "Every news deploy now verifies preferred-source headlines for ~40 popular topics across Conservative, Balanced, Liberal, and default filters.",
+      "href": "https://news.yoyosup.com/my",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "mynews-conservative-headlines-fix",
       "seq": 4,
       "date": "2026-08-10",

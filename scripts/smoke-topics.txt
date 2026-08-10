@@ -1,0 +1,46 @@
+# Popular MyNews / search topics for post-deploy smoke (one per line).
+# Comments and blanks ignored. Keep ~30–40 high-interest US/global chips.
+Politics
+Economy
+Trump
+Biden
+Congress
+Senate
+House
+election
+Iran
+Israel
+China
+Russia
+Ukraine
+border
+immigration
+tariff
+trade
+Fed
+inflation
+jobs
+oil
+crypto
+Bitcoin
+Tesla
+Apple
+Google
+AI
+NFL
+NBA
+baseball
+Supreme Court
+DOJ
+FBI
+healthcare
+Medicare
+crime
+California
+Texas
+Florida
+New York
+NASA
+SpaceX
+hurricane
+climate
