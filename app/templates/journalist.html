@@ -23,7 +23,7 @@
     <li class="card">
       <div class="rank">{{ loop.index }}</div>
       <div>
-        <h2><a href="{{ s.url }}" rel="noopener noreferrer" target="_blank">{{ s.title }}</a></h2>
+        <h2><a href="{{ s.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ s.title }}</a></h2>
         <div class="links">
           <span>{{ s.source }}</span>
           {% if s.published %}<span class="muted-hint">{{ s.published[:10] }}</span>{% endif %}

@@ -300,7 +300,7 @@
               </td>
               <td>
                 {% if row.in_top %}
-                  <a href="{{ row.url }}" rel="noopener noreferrer" target="_blank">{{ row.title }}</a>
+                  <a href="{{ row.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ row.title }}</a>
                   {% if row.snippet %}<div class="t-snip">{{ row.snippet }}</div>{% endif %}
                 {% else %}
                   <span class="not-in">Not in today’s top list</span>
@@ -362,7 +362,7 @@
       <li class="card">
         <div class="rank">{{ loop.index }}</div>
         <div>
-          <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
+          <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ item.title }}</a></h2>
           {% if item.snippet %}
           <p class="summary">{{ item.snippet }}</p>
           {% endif %}
@@ -400,7 +400,7 @@
       <li class="card card-tech">
         <div class="rank">{{ loop.index }}</div>
         <div>
-          <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
+          <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ item.title }}</a></h2>
           {% if item.snippet %}
           <p class="summary">{{ item.snippet }}</p>
           {% endif %}
@@ -511,7 +511,7 @@
           "</div><div>" +
           "<h2><a href=\"" +
           url +
-          '" rel="noopener noreferrer" target="_blank">' +
+          '" rel="noopener noreferrer" target="_blank" data-story-link>' +
           title +
           "</a></h2>" +
           '<div class="links"><span>' +

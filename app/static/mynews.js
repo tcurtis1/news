@@ -230,7 +230,7 @@
     return (
       '<li><a href="' +
       escapeHtml(h.url) +
-      '" rel="noopener noreferrer" target="_blank">' +
+      '" rel="noopener noreferrer" target="_blank" data-story-link>' +
       escapeHtml(h.title) +
       "</a>" +
       (h.source

@@ -107,7 +107,7 @@
             </td>
             <td>
               {% if row.in_top %}
-                <a href="{{ row.url }}" rel="noopener noreferrer" target="_blank">{{ row.title }}</a>
+                <a href="{{ row.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ row.title }}</a>
                 {% if row.snippet %}<div class="t-snip">{{ row.snippet }}</div>{% endif %}
               {% else %}
                 <span class="not-in">Not in today’s top list</span>
@@ -142,7 +142,7 @@
     <li class="card topic-hit{% if loop.index > 20 %} is-extra{% endif %}"{% if loop.index > 20 %} hidden{% endif %}>
       <div class="rank">{{ loop.index }}</div>
       <div>
-        <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a></h2>
+        <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ item.title }}</a></h2>
         {% if item.snippet %}<p class="summary">{{ item.snippet }}</p>{% endif %}
         <div class="links">
           <span>{{ item.source }}</span>

@@ -400,6 +400,18 @@ h1 {
   text-align: center;
 }
 
+a[data-story-link].is-read {
+  color: var(--muted, #64748b);
+  opacity: 0.72;
+}
+a[data-story-link].is-read::after {
+  content: " \2713  " attr(data-read-label);
+  color: var(--accent, #0f766e);
+  font-size: 0.72em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--border);

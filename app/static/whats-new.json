@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "news-read-story-markers",
+      "seq": 7,
+      "date": "2026-08-10",
+      "title": "See which stories you already read",
+      "detail": "Opened headlines now show a clear Read marker on Intersection, Curious Pulse, MyNews, topics, and journalist pages. Your history stays in this browser.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "intersection-visible-next-20",
       "seq": 6,
       "date": "2026-08-10",

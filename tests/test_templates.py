@@ -142,6 +142,7 @@ class TemplateRenderTests(unittest.TestCase):
         self.assertIn('getElementById("pref-headlines-more-top")', r.text)
         self.assertIn('getElementById("pref-headlines-more")', r.text)
         self.assertIn("Load next 20 stories", r.text)
+        self.assertIn("data-story-link", r.text)
 
     def test_journalist_page_renders(self):
         from app import journalists
@@ -160,6 +161,7 @@ class TemplateRenderTests(unittest.TestCase):
         r = self.client.get("/journalist/jane-doe")
         self._assert_clean_200(r, "/journalist/{slug}")
         self.assertIn("Jane Doe", r.text)
+        self.assertIn("data-story-link", r.text)
 
     def test_journalist_page_renders_with_no_sightings(self):
         r = self.client.get("/journalist/nobody-yet")
