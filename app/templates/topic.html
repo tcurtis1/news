@@ -1,5 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "NewsArticle",
+  "headline": "{{ topic.title }}",
+  "description": "Rank map, news aggregation, and consensus tracking for {{ topic.q }}.",
+  "url": "https://news.yoyosup.com/topic/{{ topic.slug }}",
+  "publisher": {
+    "@type": "Organization",
+    "name": "yoyosup News",
+    "url": "https://news.yoyosup.com/"
+  }
+}
+</script>
   {% set labels = topic.labels or {} %}
   {% set board_keys = ['google', 'bing', 'youtube', 'x', 'polymarket', 'tiktok', 'facebook', 'instagram'] %}
   {% set short = {
