@@ -18,7 +18,8 @@ from app.analytics import (
     get_stats,
     is_probable_bot,
     record_client_event,
-    record_hit,
+    record_page_view,
+    record_server_request,
 )
 from app.comments import (
     add_comment,
@@ -53,7 +54,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.11.4"
+APP_VERSION = "0.11.5"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -81,14 +82,8 @@ templates.env.globals["country_label"] = country_label
 async def analytics_middleware(request: Request, call_next):
     response = await call_next(request)
     if response.status_code < 400:
-        await record_hit(
+        await record_server_request(
             path=request.url.path,
-            ref=request.query_params.get("ref"),
-            country_raw=request.headers.get("cf-ipcountry"),
-            state_raw=request.headers.get("cf-region"),
-            referer=request.headers.get("referer"),
-            city_raw=request.headers.get("cf-ipcity"),
-            region_code=request.headers.get("cf-region-code"),
             user_agent=request.headers.get("user-agent"),
             cf_verified_bot=request.headers.get("cf-verified-bot"),
         )
@@ -181,6 +176,32 @@ async def analytics_event(request: Request):
     except Exception:
         return Response(status_code=204)
     await record_client_event(str(payload.get("name") or ""))
+    return Response(status_code=204)
+
+
+@app.post("/api/page-view")
+async def page_view(request: Request):
+    """Record one browser-confirmed view for each full document navigation."""
+    if is_probable_bot(request.headers.get("user-agent"), request.headers.get("cf-verified-bot")):
+        return Response(status_code=204)
+    fetch_site = (request.headers.get("sec-fetch-site") or "").lower()
+    if fetch_site and fetch_site not in {"same-origin", "same-site"}:
+        return Response(status_code=204)
+    try:
+        payload = await request.json()
+    except Exception:
+        return Response(status_code=204)
+    await record_page_view(
+        path=str(payload.get("path") or "/"),
+        ref=str(payload.get("ref") or "direct"),
+        country_raw=request.headers.get("cf-ipcountry"),
+        state_raw=request.headers.get("cf-region"),
+        referer=request.headers.get("referer"),
+        city_raw=request.headers.get("cf-ipcity"),
+        region_code=request.headers.get("cf-region-code"),
+        user_agent=request.headers.get("user-agent"),
+        cf_verified_bot=request.headers.get("cf-verified-bot"),
+    )
     return Response(status_code=204)
 
 

@@ -61,6 +61,14 @@ _COUNTRY_NAMES = {
 def _empty_data() -> dict:
     return {
         "total": 0,
+        "clean_total": 0,
+        "clean_started": "",
+        "clean_by_day": {},
+        "clean_by_page": {},
+        "server_requests_total": 0,
+        "server_bot_requests_total": 0,
+        "server_requests_by_day": {},
+        "server_bot_requests_by_day": {},
         "by_day": {},
         "by_page": {},
         "by_ref": {},
@@ -237,7 +245,33 @@ def _trim_day_city_maps(data: dict, keep_days: int = 45) -> None:
                 del bdc[k]
 
 
-async def record_hit(
+async def record_server_request(
+    path: str,
+    user_agent: str | None = None,
+    cf_verified_bot: str | None = None,
+) -> None:
+    """Keep HTTP request volume as a diagnostic, separate from page views."""
+    if not should_track(path):
+        return
+    bot = is_probable_bot(user_agent, cf_verified_bot)
+    async with _lock:
+        data = _load()
+        day = _today()
+        data["server_requests_total"] = int(data.get("server_requests_total", 0) or 0) + 1
+        requests = data.setdefault("server_requests_by_day", {})
+        requests[day] = int(requests.get(day, 0) or 0) + 1
+        if bot:
+            data["server_bot_requests_total"] = int(data.get("server_bot_requests_total", 0) or 0) + 1
+            bots = data.setdefault("server_bot_requests_by_day", {})
+            bots[day] = int(bots.get(day, 0) or 0) + 1
+        for key in ("server_requests_by_day", "server_bot_requests_by_day"):
+            if len(data[key]) > 120:
+                for old_day in sorted(data[key])[:-90]:
+                    del data[key][old_day]
+        _save(data)
+
+
+async def record_page_view(
     path: str,
     ref: str | None,
     country_raw: str | None,
@@ -261,9 +295,13 @@ async def record_hit(
     async with _lock:
         data = _load()
         data["total"] += 1
+        data["clean_total"] = int(data.get("clean_total", 0) or 0) + 1
+        data["clean_started"] = data.get("clean_started") or datetime.now(timezone.utc).isoformat()
         day = _today()
         hour = str(_hour())
         data["by_day"][day] = data["by_day"].get(day, 0) + 1
+        clean_days = data.setdefault("clean_by_day", {})
+        clean_days[day] = int(clean_days.get(day, 0) or 0) + 1
         day_hours = data.setdefault("by_day_hour", {})
         hm = day_hours.setdefault(day, {})
         if not isinstance(hm, dict):
@@ -271,6 +309,8 @@ async def record_hit(
             day_hours[day] = hm
         hm[hour] = int(hm.get(hour, 0) or 0) + 1
         data["by_page"][page] = data["by_page"].get(page, 0) + 1
+        clean_pages = data.setdefault("clean_by_page", {})
+        clean_pages[page] = int(clean_pages.get(page, 0) or 0) + 1
         data["by_ref"][ref] = data["by_ref"].get(ref, 0) + 1
         data["by_country"][country] = data["by_country"].get(country, 0) + 1
         data["by_state"][state] = data["by_state"].get(state, 0) + 1
@@ -304,12 +344,15 @@ async def record_hit(
                     del data["by_day_city"][k]
                 if k in data.get("by_day_city_us", {}):
                     del data["by_day_city_us"][k]
+                if k in clean_days:
+                    del clean_days[k]
         bdh = data.get("by_day_hour") or {}
         if len(bdh) > 60:
             for k in sorted(bdh)[:-45]:
                 del bdh[k]
         _trim_day_city_maps(data, keep_days=45)
         _trim(data["by_page"], 300, 200)
+        _trim(clean_pages, 300, 200)
         _trim(data["by_ref"], 300, 200)
         _trim(data["by_country"], 250, 200)
         _trim(data["by_state"], 250, 200)
@@ -357,11 +400,25 @@ def get_stats(day: str | None = None) -> dict:
     by_day_city = {d: _city_map(data, d, us_only=False) for d in city_keys}
     by_day_city_us = {d: _city_map(data, d, us_only=True) for d in city_keys}
     archive_day = day if day and re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) else today
+    clean_days = data.get("clean_by_day") or {}
+    request_days = data.get("server_requests_by_day") or {}
+    bot_request_days = data.get("server_bot_requests_by_day") or {}
     return {
         "product": "news",
         "total": data["total"],
         "today": data["by_day"].get(today, 0),
         "week": sum(v for k, v in data["by_day"].items() if k >= week_start),
+        "clean_total": int(data.get("clean_total", 0) or 0),
+        "clean_today": int(clean_days.get(today, 0) or 0),
+        "clean_week": sum(int(v or 0) for k, v in clean_days.items() if k >= week_start),
+        "clean_started": data.get("clean_started") or None,
+        "clean_by_day": dict(sorted(clean_days.items(), reverse=True)[:30]),
+        "clean_by_page": dict(sorted((data.get("clean_by_page") or {}).items(), key=lambda x: -int(x[1] or 0))[:200]),
+        "server_requests_total": int(data.get("server_requests_total", 0) or 0),
+        "server_requests_today": int(request_days.get(today, 0) or 0),
+        "server_bot_requests_total": int(data.get("server_bot_requests_total", 0) or 0),
+        "server_bot_requests_today": int(bot_request_days.get(today, 0) or 0),
+        "collection_method": "browser_navigation_v2",
         # `actions` used to mirror every page view. Report only the clean,
         # browser-generated counter while keeping the legacy field readable.
         "actions": int(data.get("meaningful_actions", 0) or 0),

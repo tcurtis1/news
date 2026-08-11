@@ -85,6 +85,24 @@
 
   window.yoyoNewsEvent = send;
 
+  function sendPageView() {
+    var ref = new URLSearchParams(window.location.search).get("ref") || "direct";
+    var body = JSON.stringify({ path: window.location.pathname, ref: ref });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon("/api/page-view", new Blob([body], { type: "application/json" }));
+      return;
+    }
+    fetch("/api/page-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body,
+      credentials: "same-origin",
+      keepalive: true,
+    }).catch(function () {});
+  }
+
+  sendPageView();
+
   try {
     var now = Date.now();
     var lastSession = parseInt(localStorage.getItem(SESSION_KEY) || "0", 10);
