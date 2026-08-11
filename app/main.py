@@ -267,6 +267,22 @@ async def pulse_home(request: Request):
     )
 
 
+@app.get("/trending", response_class=HTMLResponse)
+async def trending_page(request: Request):
+    data = await build_pulse(force=False)
+    return templates.TemplateResponse(
+        request,
+        "trending.html",
+        {
+            "public_base": PUBLIC_BASE,
+            "pulse": data,
+            "page_title": "Surging & Trending Topics",
+            "meta_description": "Real-time surge velocity tracking top news stories across Google, Reddit, Bing, Polymarket, TikTok, and X.",
+            "slugify": slugify,
+        },
+    )
+
+
 @app.get("/safety", response_class=HTMLResponse)
 async def safety_page(request: Request):
     return templates.TemplateResponse(
