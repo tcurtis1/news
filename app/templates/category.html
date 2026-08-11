@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "{{ category_name }} News Headlines",
+  "description": "Multi-platform consensus news headlines for {{ category_name }}.",
+  "url": "https://news.yoyosup.com/category/{{ category_slug }}"
+}
+</script>
+
+<h1>{{ category_name }} News Consensus</h1>
+<p class="lede">Top consensus headlines across major platforms in <strong>{{ category_name }}</strong>.</p>
+
+<section class="card">
+  {% if pulse and pulse.consensus %}
+  <ol class="list">
+    {% for c in pulse.consensus[:15] %}
+    {% set title = c.title or '' %}
+    {% set slug = slugify(title) %}
+    <li class="card" style="margin-bottom:0.75rem; padding:1rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin:0;"><a href="/topic/{{ slug }}">{{ title }}</a></h3>
+        <span class="badge live">#{{ loop.index }}</span>
+      </div>
+      <p class="summary" style="margin:0.35rem 0 0.5rem; color:var(--muted); font-size:0.88rem;">
+        Tracked across {{ c.platform_count }} platforms · average rank #{{ c.avg_rank }}
+      </p>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted-hint">Loading headlines for {{ category_name }}…</p>
+  {% endif %}
+</section>
+{% endblock %}

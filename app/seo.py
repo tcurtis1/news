@@ -60,6 +60,10 @@ async def collect_sitemap_urls() -> list[dict[str, Any]]:
     urls: list[dict[str, Any]] = [
         {"loc": f"{PUBLIC_BASE}/", "changefreq": "hourly", "priority": "1.0", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/trending", "changefreq": "hourly", "priority": "0.95", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/category/technology", "changefreq": "hourly", "priority": "0.85", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/category/politics", "changefreq": "hourly", "priority": "0.85", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/category/business", "changefreq": "hourly", "priority": "0.85", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/category/entertainment", "changefreq": "hourly", "priority": "0.85", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/search", "changefreq": "hourly", "priority": "0.95", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/my", "changefreq": "weekly", "priority": "0.85", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/safety", "changefreq": "monthly", "priority": "0.4", "lastmod": day},

@@ -283,6 +283,25 @@ async def trending_page(request: Request):
     )
 
 
+@app.get("/category/{slug}", response_class=HTMLResponse)
+async def category_page(request: Request, slug: str):
+    data = await build_pulse(force=False)
+    cat_name = slug.replace("-", " ").capitalize()
+    return templates.TemplateResponse(
+        request,
+        "category.html",
+        {
+            "public_base": PUBLIC_BASE,
+            "pulse": data,
+            "page_title": f"{cat_name} News Consensus",
+            "meta_description": f"Multi-platform consensus news headlines and coverage for {cat_name}.",
+            "category_slug": slug,
+            "category_name": cat_name,
+            "slugify": slugify,
+        },
+    )
+
+
 @app.get("/safety", response_class=HTMLResponse)
 async def safety_page(request: Request):
     return templates.TemplateResponse(
