@@ -222,6 +222,37 @@ async def sitemap_xml():
     return Response(content=xml, media_type="application/xml")
 
 
+@app.get("/feed.xml")
+@app.get("/rss.xml")
+async def rss_feed():
+    from xml.sax.saxutils import escape
+    data = await build_pulse(force=False)
+    items = data.get("topics", [])
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
+        '  <channel>',
+        '    <title>yoyosup News — Daily Consensus</title>',
+        f'    <link>{PUBLIC_BASE}</link>',
+        '    <description>Daily multi-platform news consensus tracking Google, Reddit, Bing, YouTube, Polymarket, TikTok, X.</description>',
+        '    <language>en-us</language>',
+    ]
+    for topic in items[:30]:
+        title = escape(topic.get("title") or "Trending Story")
+        slug = topic.get("slug")
+        url = f"{PUBLIC_BASE}/topic/{slug}"
+        summary = escape(f"Multi-platform consensus story for {topic.get('q') or title}.")
+        lines.append('    <item>')
+        lines.append(f'      <title>{title}</title>')
+        lines.append(f'      <link>{url}</link>')
+        lines.append(f'      <guid>{url}</guid>')
+        lines.append(f'      <description>{summary}</description>')
+        lines.append('    </item>')
+    lines.append('  </channel>')
+    lines.append('</rss>')
+    return Response(content="\n".join(lines), media_type="application/xml")
+
+
 @app.get("/", response_class=HTMLResponse)
 async def pulse_home(request: Request):
     data = await build_pulse(force=False)
