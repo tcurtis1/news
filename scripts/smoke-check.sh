@@ -241,6 +241,27 @@ check_clean_200 "/api/trends?geo=US"
 check_clean_200 "/api/pulse"
 check_clean_200 "/static/whats-new.json"
 
+style_body="$(http_body "${BASE}/static/style.css")"
+logo_body="$(http_body "${BASE}/static/logo-compass.svg")"
+if echo "$style_body" | grep -q -- "--accent: #0f766e" && \
+   echo "$style_body" | grep -q -- "--accent: #5eead4" && \
+   echo "$style_body" | grep -q -- "--accent-fill: #2dd4bf"; then
+  pass "shared Yoyosup teal theme tokens"
+else
+  fail "News CSS is missing shared Yoyosup teal theme tokens"
+fi
+if echo "$style_body" | grep -qE '#c2410c|#f97316|#fb923c|rgba\(249, 115, 22' || \
+   echo "$logo_body" | grep -q '#f97316'; then
+  fail "old orange brand chrome remains in News CSS/logo"
+else
+  pass "old orange brand chrome removed"
+fi
+if echo "$logo_body" | grep -q '#2dd4bf'; then
+  pass "compass mark uses shared teal north tip"
+else
+  fail "compass mark is missing shared teal north tip"
+fi
+
 # Internal maintenance endpoint must reject non-loopback callers.
 internal_code="$(http_code "${BASE}/internal/backfill-bylines")"
 # POST-only route; a GET should 405, not 200/500 — either way it must not be 200.

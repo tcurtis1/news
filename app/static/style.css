@@ -6,10 +6,10 @@
   --border: #d9dee7;
   --text: #172033;
   --muted: #5d6675;
-  --accent: #c2410c;
-  --accent-fill: #f97316;
+  --accent: #0f766e;
+  --accent-fill: #2dd4bf;
   --link: #175cd3;
-  --accent-dim: rgba(249, 115, 22, 0.15);
+  --accent-dim: rgba(45, 212, 191, 0.15);
   --ok: #15803d;
   --bad: #b42318;
   --radius: 12px;
@@ -23,7 +23,8 @@ html[data-theme="dark"] {
   --border: #354052;
   --text: #e8edf5;
   --muted: #aab3c2;
-  --accent: #fb923c;
+  --accent: #5eead4;
+  --accent-fill: #2dd4bf;
   --link: #7db4ff;
   --ok: #4ade80;
   --bad: #f87171;
@@ -621,7 +622,7 @@ footer.site a:hover {
 .lean-seg-btn.active {
   background: var(--accent);
   color: #111;
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.35);
 }
 
 .lean-seg-btn:focus-visible {
@@ -691,7 +692,7 @@ footer.site a:hover {
 .date-seg-btn.active {
   background: var(--accent);
   color: #111;
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.35);
 }
 
 .date-seg-btn:focus-visible {
@@ -758,7 +759,7 @@ footer.site a:hover {
   font-weight: 600;
   color: var(--accent);
   padding: 0.25rem 0.55rem;
-  border: 1px solid rgba(249, 115, 22, 0.35);
+  border: 1px solid rgba(45, 212, 191, 0.35);
   border-radius: 999px;
   background: var(--accent-dim);
 }
@@ -855,8 +856,8 @@ footer.site a:hover {
 .coverage-banner {
   margin: 0 0 1rem;
   padding: 0.65rem 0.85rem;
-  background: rgba(249, 115, 22, 0.08);
-  border: 1px solid rgba(249, 115, 22, 0.25);
+  background: rgba(45, 212, 191, 0.08);
+  border: 1px solid rgba(45, 212, 191, 0.25);
   border-radius: var(--radius);
   color: var(--muted);
   font-size: 0.85rem;
@@ -914,7 +915,7 @@ footer.site a:hover {
 
 .portal-ai {
   background: var(--accent-dim);
-  border-color: rgba(249, 115, 22, 0.35);
+  border-color: rgba(45, 212, 191, 0.35);
 }
 
 .portal-video {
@@ -976,9 +977,9 @@ footer.site a:hover {
 }
 
 .scope-pill-partial {
-  background: rgba(249, 115, 22, 0.12);
+  background: rgba(45, 212, 191, 0.12);
   color: var(--accent);
-  border: 1px solid rgba(249, 115, 22, 0.3);
+  border: 1px solid rgba(45, 212, 191, 0.3);
 }
 
 .scope-pill-country {
@@ -1009,7 +1010,7 @@ footer.site a:hover {
 }
 
 .trend-col.scope-partial {
-  border-color: rgba(249, 115, 22, 0.28);
+  border-color: rgba(45, 212, 191, 0.28);
 }
 
 .plat-dot {
@@ -1755,7 +1756,7 @@ footer.site a:hover {
   padding: 1rem;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
-  background: rgba(249, 115, 22, 0.04);
+  background: rgba(45, 212, 191, 0.04);
 }
 
 .my-empty-lead {
@@ -1820,8 +1821,8 @@ footer.site a:hover {
 .my-jump {
   margin: -0.5rem 0 1.15rem;
   padding: 0.65rem 0.85rem;
-  background: rgba(249, 115, 22, 0.06);
-  border: 1px solid rgba(249, 115, 22, 0.28);
+  background: rgba(45, 212, 191, 0.06);
+  border: 1px solid rgba(45, 212, 191, 0.28);
   border-radius: var(--radius);
 }
 

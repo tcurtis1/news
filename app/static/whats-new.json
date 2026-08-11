@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "news-shared-teal-theme",
+      "seq": 8,
+      "date": "2026-08-10",
+      "title": "News now matches the Yoyosup look",
+      "detail": "News now uses the same calm teal accents, compass mark, navigation styling, and coordinated light and dark themes as the rest of Yoyosup.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "news-read-story-markers",
       "seq": 7,
       "date": "2026-08-10",
