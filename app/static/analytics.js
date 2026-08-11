@@ -4,8 +4,10 @@
   var SEEN_KEY = "yoyonews_seen_v1";
   var SESSION_KEY = "yoyonews_session_v1";
   var READ_KEY = "yoyonews_read_stories_v1";
+  var VISITED_TOPICS_KEY = "yoyonews_visited_topics_v1";
   var SESSION_MS = 30 * 60 * 1000;
   var READ_LIMIT = 500;
+  var VISITED_TOPICS_LIMIT = 500;
 
   function storyKey(href) {
     try {
@@ -48,6 +50,63 @@
     links.forEach(function (link) {
       if (stories[storyKey(link.href)]) showRead(link);
     });
+  }
+
+  // Topic pages (/topic/{slug}) are internal navigations, not "story" links,
+  // so they're tracked separately: recorded on the topic page's own load,
+  // then any link to that slug anywhere else (Consensus Top 10, Top 10 by
+  // platform, rank map, MyNews) is marked visited on the same visual scale.
+  function topicSlugFromHref(href) {
+    var m = /^\/topic\/([^/?#]+)/.exec(href || "");
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+
+  function visitedTopics() {
+    try {
+      var value = JSON.parse(localStorage.getItem(VISITED_TOPICS_KEY) || "{}");
+      return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function showVisitedTopic(link) {
+    link.classList.add("is-topic-visited");
+    link.setAttribute("data-read-label", "Seen");
+  }
+
+  function applyTopicVisitedState(root) {
+    var visited = visitedTopics();
+    var links = [];
+    if (root && root.matches && root.matches('a[href^="/topic/"]')) links.push(root);
+    if (root && root.querySelectorAll) {
+      links = links.concat(Array.from(root.querySelectorAll('a[href^="/topic/"]')));
+    }
+    links.forEach(function (link) {
+      var slug = topicSlugFromHref(link.getAttribute("href"));
+      if (slug && visited[slug]) showVisitedTopic(link);
+    });
+  }
+
+  function rememberTopicVisit(slug) {
+    if (!slug) return;
+    try {
+      var visited = visitedTopics();
+      visited[slug] = Date.now();
+      var keys = Object.keys(visited);
+      if (keys.length > VISITED_TOPICS_LIMIT) {
+        keys.sort(function (a, b) { return visited[b] - visited[a]; });
+        keys.slice(VISITED_TOPICS_LIMIT).forEach(function (oldKey) { delete visited[oldKey]; });
+      }
+      localStorage.setItem(VISITED_TOPICS_KEY, JSON.stringify(visited));
+    } catch (error) {
+      // Private browsing or disabled storage: current page still works.
+    }
+  }
+
+  function applyAllReadStates(root) {
+    applyReadState(root);
+    applyTopicVisitedState(root);
   }
 
   function rememberRead(link) {
@@ -102,6 +161,7 @@
   }
 
   sendPageView();
+  rememberTopicVisit(topicSlugFromHref(window.location.pathname));
 
   try {
     var now = Date.now();
@@ -135,12 +195,12 @@
     if (event.target && event.target.id === "search-form") send("search_submit");
   });
 
-  applyReadState(document);
+  applyAllReadStates(document);
   if (typeof MutationObserver !== "undefined") {
     new MutationObserver(function (mutations) {
       mutations.forEach(function (mutation) {
         Array.from(mutation.addedNodes || []).forEach(function (node) {
-          if (node.nodeType === 1) applyReadState(node);
+          if (node.nodeType === 1) applyAllReadStates(node);
         });
       });
     }).observe(document.documentElement, { childList: true, subtree: true });

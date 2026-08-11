@@ -143,7 +143,7 @@
             </p>
             <div class="links">
               {% if c.url %}
-              <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank">Source</a>
+              <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank" data-story-link>Source</a>
               {% endif %}
               <a href="/topic/{{ slugify(c.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comments">Discuss here</a>
             </div>
@@ -201,7 +201,7 @@
             <span class="t-rank">{{ item.rank }}</span>
             <div>
               <div class="t-title-row">
-                <a href="{{ item.url }}" rel="noopener noreferrer" target="_blank">{{ item.title }}</a>
+                <a href="{{ item.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ item.title }}</a>
                 {% if item.delta_label and item.delta != 'baseline' %}
                 <span class="delta-pill {{ item.delta }}" title="{% if item.prev_rank %}Was #{{ item.prev_rank }} yesterday{% else %}Not on yesterday’s list{% endif %}">{{ item.delta_label }}</span>
                 {% endif %}

@@ -401,11 +401,13 @@ h1 {
   text-align: center;
 }
 
-a[data-story-link].is-read {
+a[data-story-link].is-read,
+a.is-topic-visited {
   color: var(--muted, #64748b);
   opacity: 0.72;
 }
-a[data-story-link].is-read::after {
+a[data-story-link].is-read::after,
+a.is-topic-visited::after {
   content: " \2713  " attr(data-read-label);
   color: var(--accent, #0f766e);
   font-size: 0.72em;
