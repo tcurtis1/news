@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "news-scamcheck-callouts",
+      "seq": 11,
+      "date": "2026-08-12",
+      "title": "Contextual ScamCheck safety callouts",
+      "detail": "Embedded plain-English ScamCheck warnings on news search and category pages.",
+      "href": "/search",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "news-navigation-simplification",
       "seq": 10,
       "date": "2026-08-12",

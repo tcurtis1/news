@@ -135,6 +135,8 @@ class TemplateRenderTests(unittest.TestCase):
         r = self.client.get("/search", params={"q": "kitchen sink"})
         self._assert_clean_200(r, "/search?q=...")
         self.assertIn("By Jane Doe", r.text)
+        self.assertIn("ScamCheck", r.text)
+        self.assertIn("Received a suspicious message about this topic?", r.text)
 
     def test_daily_intersection_renders(self):
         r = self.client.get("/search")
@@ -143,6 +145,7 @@ class TemplateRenderTests(unittest.TestCase):
         self.assertIn('getElementById("pref-headlines-more")', r.text)
         self.assertIn("Load next 20 stories", r.text)
         self.assertIn("data-story-link", r.text)
+        self.assertIn("ScamCheck", r.text)
 
     def test_journalist_page_renders(self):
         from app import journalists

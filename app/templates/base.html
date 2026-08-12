@@ -3,10 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (function(){try{var m=document.cookie.match(/(?:^|; )yoyo_theme=(light|dark)(?:;|$)/);var t=m?m[1]:localStorage.getItem('yoyo_theme_v1');if(!t)t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}}catch(e){}})();
+  </script>
   <title>{{ page_title }} · yoyosup News</title>
   <meta name="description" content="Daily Intersection (mass attention) and Curious Pulse on yoyosup.com." />
   <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.9.9') }}" />
-  <script src="/static/theme.js?v={{ app_version }}" defer></script>
+  <script src="/static/theme.js?v={{ app_version }}"></script>
   <script src="/static/analytics.js?v={{ app_version }}" defer></script>
   <script src="https://www.yoyosup.com/tools/hub/whats-new.js?v=net2" defer></script>
   <link rel="icon" href="/static/logo-compass.svg?v=2" type="image/svg+xml" />
@@ -41,6 +44,16 @@
         <a href="/safety" class="{% if request.url.path.startswith('/safety') %}active{% endif %}">🛡️ Safety</a>
       </nav>
     </header>
+
+    {% block safety_callout %}
+    <aside class="network-callout network-callout-safety" aria-label="Safety check">
+      <b>Safety Check</b>
+      <span>
+        Received a suspicious message about this topic?
+        <a href="https://www.yoyosup.com/tools/scamcheck/?ref=news" rel="noopener">Test it free on ScamCheck →</a>
+      </span>
+    </aside>
+    {% endblock %}
 
     {% block content %}{% endblock %}
 

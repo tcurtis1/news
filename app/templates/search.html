@@ -1,4 +1,14 @@
 {% extends "base.html" %}
+{% block safety_callout %}
+  <aside class="network-callout network-callout-safety" aria-label="Safety check">
+    <b>Safety Check</b>
+    <span>
+      Received a suspicious message about this topic?
+      <a href="https://www.yoyosup.com/tools/scamcheck/?ref=news-search" rel="noopener">Test it free on ScamCheck →</a>
+    </span>
+  </aside>
+{% endblock %}
+
 {% block content %}
   {% set labels = results.trends.labels if results and results.trends and results.trends.labels else {
     'google': 'Google', 'bing': 'Bing', 'youtube': 'YouTube', 'x': 'X',
