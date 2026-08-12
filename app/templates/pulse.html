@@ -47,6 +47,7 @@
           {% if item.comments_url %}
           <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
           {% endif %}
+          <a href="/topic/{{ slugify(item.title) }}" style="margin-left:0.5rem; color:var(--accent); font-weight:700;">Discuss topic →</a>
         </div>
       </div>
     </li>
