@@ -35,9 +35,10 @@
         <a href="https://image.yoyosup.com/" rel="noopener">Images</a>
       </nav>
       <nav class="site-nav site-nav-local" aria-label="News sections">
-        <a href="/search" class="{% if request.url.path.startswith('/search') %}active{% endif %}">Intersection</a>
-        <a href="/my" class="{% if request.url.path.startswith('/my') %}active{% endif %}">MyNews</a>
-        <a href="/safety" class="{% if request.url.path.startswith('/safety') %}active{% endif %}">Safety</a>
+        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">📰 Top Stories</a>
+        <a href="/search" class="{% if request.url.path.startswith('/search') %}active{% endif %}">🔀 Intersection (Trends)</a>
+        <a href="/my" class="{% if request.url.path.startswith('/my') %}active{% endif %}">👤 My Feed</a>
+        <a href="/safety" class="{% if request.url.path.startswith('/safety') %}active{% endif %}">🛡️ Safety</a>
       </nav>
     </header>
 
