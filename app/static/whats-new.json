@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "news-month-of-updates",
+      "seq": 12,
+      "date": "2026-08-12",
+      "title": "A full month of network updates",
+      "detail": "The shared Updates panel now keeps 31 days of releases from News, Finance, Tools, and Images.",
+      "href": "/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "news-scamcheck-callouts",
       "seq": 11,
       "date": "2026-08-12",
