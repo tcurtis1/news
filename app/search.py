@@ -590,7 +590,7 @@ async def _fetch_one_rss(
         # other, still-waiting callers. Own timeout/client keeps the shared
         # fetch's lifetime independent of any single caller's.
         try:
-            timeout = httpx.Timeout(6.0, connect=2.5)
+            timeout = httpx.Timeout(2.5, connect=1.2)
             async with httpx.AsyncClient(timeout=timeout) as own_client:
                 r = await own_client.get(
                     feed_url,
