@@ -141,85 +141,165 @@ def _extract_rss_image(entry: ET.Element) -> str | None:
     return None
 
 
-async def resolve_article_thumbnail(url: str, client: httpx.AsyncClient | None = None) -> str | None:
-    """Resolve featured article thumbnail via OpenGraph or Twitter Card with caching."""
-    if not url or not url.startswith("http"):
+async def resolve_article_thumbnail(
+    url: str, title: str = "", client: httpx.AsyncClient | None = None
+) -> str | None:
+    """Resolve featured article thumbnail via OpenGraph, RSS media, or title news image lookup with caching."""
+    cache_key = url or title
+    if not cache_key:
         return None
-    if url in _IMAGE_CACHE:
-        return _IMAGE_CACHE[url]
+    if cache_key in _IMAGE_CACHE:
+        return _IMAGE_CACHE[cache_key]
 
-    yt_m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url)
-    if yt_m:
-        img = f"https://img.youtube.com/vi/{yt_m.group(1)}/hqdefault.jpg"
-        _IMAGE_CACHE[url] = img
-        return img
+    # YouTube fast path
+    if url:
+        yt_m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url)
+        if yt_m:
+            img = f"https://img.youtube.com/vi/{yt_m.group(1)}/hqdefault.jpg"
+            _IMAGE_CACHE[cache_key] = img
+            return img
 
-    try:
-        if client is not None:
-            r = await client.get(
-                url,
-                follow_redirects=True,
-                timeout=2.0,
-                headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
-            )
-        else:
-            async with httpx.AsyncClient(
-                timeout=2.0,
-                headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
-                follow_redirects=True,
-            ) as c:
-                r = await c.get(url)
+    STOP = {"the", "a", "an", "is", "in", "to", "for", "of", "and", "or", "by", "on", "at", "with", "from", "as", "this", "how"}
 
-        if r.status_code == 200 and "text/html" in (r.headers.get("content-type") or ""):
-            html = r.text[:60000]
-            m = re.search(
-                r'<meta[^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\'][^>]+content=["\']([^"\']+)["\']',
-                html,
-                re.IGNORECASE,
-            )
-            if not m:
+    # Fast path for Google News links / missing direct URLs: query Bing News RSS by title keywords immediately
+    if title and ("news.google.com" in (url or "") or not url.startswith("http")):
+        clean_words = [w for w in re.sub(r"[^\w\s]", " ", title).split() if w.lower() not in STOP]
+        candidates = [" ".join(clean_words[:6]), " ".join(clean_words[:3]), clean_words[0] if clean_words else ""]
+        headers = {"User-Agent": "YoyoNews/1.0 (RSS Reader)"}
+        for q in candidates:
+            if not q or len(q) < 3:
+                continue
+            try:
+                bing_url = f"https://www.bing.com/news/search?q={quote_plus(q)}&format=RSS"
+                if client is not None:
+                    r = await client.get(bing_url, headers=headers, timeout=2.0)
+                else:
+                    async with httpx.AsyncClient(timeout=2.0, headers=headers) as c:
+                        r = await c.get(bing_url)
+                if r.status_code == 200 and b"<item>" in r.content:
+                    text = r.content
+                    idx = text.find(b"<rss")
+                    if idx >= 0:
+                        text = text[idx:]
+                    end_idx = text.find(b"</rss>")
+                    if end_idx >= 0:
+                        text = text[: end_idx + 6]
+                    root = ET.fromstring(text)
+                    item = root.find(".//item")
+                    if item is not None:
+                        for child in item.iter():
+                            if child.tag.lower().endswith("image") and child.text:
+                                img = child.text.strip()
+                                if img.startswith("http") and "rsslogo" not in img:
+                                    _IMAGE_CACHE[cache_key] = img
+                                    return img
+            except Exception:
+                pass
+
+    # OpenGraph lookup for direct web URLs
+    if url and url.startswith("http") and "news.google.com" not in url:
+        try:
+            if client is not None:
+                r = await client.get(
+                    url,
+                    follow_redirects=True,
+                    timeout=2.0,
+                    headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+                )
+            else:
+                async with httpx.AsyncClient(
+                    timeout=2.0,
+                    headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+                    follow_redirects=True,
+                ) as c:
+                    r = await c.get(url)
+
+            if r.status_code == 200 and "text/html" in (r.headers.get("content-type") or ""):
+                html = r.text[:60000]
                 m = re.search(
-                    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\']',
+                    r'<meta[^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\'][^>]+content=["\']([^"\']+)["\']',
                     html,
                     re.IGNORECASE,
                 )
-            if m:
-                img_url = m.group(1).strip()
-                if img_url.startswith("//"):
-                    img_url = "https:" + img_url
-                elif img_url.startswith("/"):
-                    from urllib.parse import urljoin
-                    img_url = urljoin(url, img_url)
-                if img_url.startswith("http") and not img_url.endswith(".gif"):
-                    _IMAGE_CACHE[url] = img_url
-                    return img_url
-    except Exception:
-        pass
+                if not m:
+                    m = re.search(
+                        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\']',
+                        html,
+                        re.IGNORECASE,
+                    )
+                if m:
+                    img_url = m.group(1).strip()
+                    if img_url.startswith("//"):
+                        img_url = "https:" + img_url
+                    elif img_url.startswith("/"):
+                        from urllib.parse import urljoin
+                        img_url = urljoin(url, img_url)
+                    if img_url.startswith("http") and not img_url.endswith(".gif"):
+                        _IMAGE_CACHE[cache_key] = img_url
+                        return img_url
+        except Exception:
+            pass
+
+    # Fallback to title keyword lookup if OpenGraph yielded nothing
+    if title:
+        clean_words = [w for w in re.sub(r"[^\w\s]", " ", title).split() if w.lower() not in STOP]
+        candidates = [" ".join(clean_words[:6]), " ".join(clean_words[:3]), clean_words[0] if clean_words else ""]
+        headers = {"User-Agent": "YoyoNews/1.0 (RSS Reader)"}
+        for q in candidates:
+            if not q or len(q) < 3:
+                continue
+            try:
+                bing_url = f"https://www.bing.com/news/search?q={quote_plus(q)}&format=RSS"
+                if client is not None:
+                    r = await client.get(bing_url, headers=headers, timeout=2.0)
+                else:
+                    async with httpx.AsyncClient(timeout=2.0, headers=headers) as c:
+                        r = await c.get(bing_url)
+                if r.status_code == 200 and b"<item>" in r.content:
+                    text = r.content
+                    idx = text.find(b"<rss")
+                    if idx >= 0:
+                        text = text[idx:]
+                    end_idx = text.find(b"</rss>")
+                    if end_idx >= 0:
+                        text = text[: end_idx + 6]
+                    root = ET.fromstring(text)
+                    item = root.find(".//item")
+                    if item is not None:
+                        for child in item.iter():
+                            if child.tag.lower().endswith("image") and child.text:
+                                img = child.text.strip()
+                                if img.startswith("http") and "rsslogo" not in img:
+                                    _IMAGE_CACHE[cache_key] = img
+                                    return img
+            except Exception:
+                pass
+
     return None
 
 
 async def enhance_hits_with_thumbnails(
-    hits: list[dict[str, Any]], client: httpx.AsyncClient | None = None, max_fetch: int = 15
+    hits: list[dict[str, Any]], client: httpx.AsyncClient | None = None, max_fetch: int = 25
 ) -> list[dict[str, Any]]:
-    """Populate image_url for news hits using RSS images & OpenGraph fallback."""
+    """Populate image_url for news hits using RSS images, OpenGraph, & news image fallback."""
     if not hits:
         return hits
     pending = []
     for h in hits[:max_fetch]:
         if not h.get("image_url"):
             url = h.get("url") or ""
-            if url.startswith("http"):
-                pending.append((h, url))
+            title = h.get("title") or ""
+            pending.append((h, url, title))
 
     if not pending:
         return hits
 
-    async def _fetch_one(item: dict[str, Any], url_str: str):
-        img = await resolve_article_thumbnail(url_str, client=client)
+    async def _fetch_one(item: dict[str, Any], url_str: str, title_str: str):
+        img = await resolve_article_thumbnail(url_str, title=title_str, client=client)
         if img:
             item["image_url"] = img
 
-    await asyncio.gather(*[_fetch_one(h, u) for h, u in pending], return_exceptions=True)
+    await asyncio.gather(*[_fetch_one(h, u, t) for h, u, t in pending], return_exceptions=True)
     return hits
 
 

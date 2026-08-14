@@ -129,6 +129,8 @@ async def _fetch_google_news_top(
             if not title:
                 continue
             src = (entry.findtext("source") or "Google News").strip()
+            from app.search import _extract_rss_image
+            image_url = _extract_rss_image(entry)
             out.append(
                 {
                     "title": title,
@@ -137,6 +139,7 @@ async def _fetch_google_news_top(
                     "score": GOOGLE_NEWS_BASE - i * 12,
                     "comments_url": None,
                     "lane": "mainstream",
+                    "image_url": image_url,
                 }
             )
         return out
@@ -169,6 +172,8 @@ def _parse_reddit_atom(xml_text: str, sub: str, limit: int) -> list[dict]:
             url = m.group(1)
         # Prefer world/news over pure tech when ranking
         sub_boost = {"news": 28, "worldnews": 30, "technology": 14}.get(sub, 18)
+        from app.search import _extract_rss_image
+        image_url = _extract_rss_image(entry)
         out.append(
             {
                 "title": title,
@@ -177,6 +182,7 @@ def _parse_reddit_atom(xml_text: str, sub: str, limit: int) -> list[dict]:
                 "score": max(1, limit - i) * sub_boost,
                 "comments_url": comments,
                 "lane": "social" if sub != "technology" else "tech",
+                "image_url": image_url,
             }
         )
     return out
