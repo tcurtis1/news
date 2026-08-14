@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "comment-likes-and-counts",
+      "seq": 18,
+      "date": "2026-08-14",
+      "title": "Like comments, see how many there are",
+      "detail": "Discuss now shows how many comments a story has. Open it and tap Like on a comment — no signup.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "discuss-comment-form",
       "seq": 17,
       "date": "2026-08-14",

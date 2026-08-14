@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -25,6 +26,7 @@ MAX_NAME = 40
 MIN_BODY = 2
 MAX_PER_TOPIC = 500
 RATE_LIMIT_SEC = int(os.environ.get("COMMENT_RATE_LIMIT_SEC", "20"))
+MAX_LIKED_BY = 5000
 _lock = threading.Lock()
 _last_post: dict[str, float] = {}
 
@@ -36,6 +38,50 @@ def _topic_path(slug: str) -> Path:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _like_key(ip: str) -> str:
+    raw = (ip or "unknown").split(",")[0].strip() or "unknown"
+    return hashlib.sha256(f"yoyonews-like:{raw}".encode("utf-8")).hexdigest()[:16]
+
+
+def _published_count(items: list[dict[str, Any]]) -> int:
+    n = 0
+    for c in items:
+        status = c.get("status") or "published"
+        if status == "published":
+            n += 1
+    return n
+
+
+def comment_count(slug: str) -> int:
+    """How many published comments a Discuss button should show."""
+    return _published_count(_load_topic(slug).get("comments") or [])
+
+
+def comment_counts(slugs: list[str]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for raw in slugs[:100]:
+        slug = re.sub(r"[^\w\-]", "", (raw or "").lower())[:80]
+        if not slug or slug in out:
+            continue
+        out[slug] = comment_count(slug)
+    return out
+
+
+def _public_comment(c: dict[str, Any], status: str) -> dict[str, Any]:
+    liked = c.get("liked_by")
+    like_count = int(c.get("like_count") or 0)
+    if isinstance(liked, list) and liked:
+        like_count = len(liked)
+    return {
+        "id": c.get("id"),
+        "name": c.get("name"),
+        "body": c.get("body"),
+        "created_at": c.get("created_at"),
+        "status": status,
+        "like_count": like_count,
+    }
 
 
 def _load_topic(slug: str) -> dict[str, Any]:
@@ -67,17 +113,8 @@ def list_comments(slug: str, *, include_held: bool = False) -> list[dict[str, An
     for c in items:
         status = c.get("status") or "published"
         if status == "published" or (include_held and status == "held"):
-            # Never expose raw moderation scores to public
-            pub = {
-                "id": c.get("id"),
-                "name": c.get("name"),
-                "body": c.get("body"),
-                "created_at": c.get("created_at"),
-                "status": status,
-            }
-            out.append(pub)
-        elif status == "published":
-            out.append(c)
+            # Never expose raw moderation scores or like-key hashes to public
+            out.append(_public_comment(c, status))
     return out[-MAX_PER_TOPIC:]
 
 
@@ -163,6 +200,8 @@ async def add_comment(
             "created_at": _now_iso(),
             "status": status,
             "report_count": 0,
+            "like_count": 0,
+            "liked_by": [],
             "moderation": {
                 "action": action,
                 "reason": mod.get("reason"),
@@ -185,13 +224,7 @@ async def add_comment(
             return False, "Could not save comment.", None
 
         # Public-facing copy omits moderation internals
-        public = {
-            "id": comment["id"],
-            "name": comment["name"],
-            "body": comment["body"],
-            "created_at": comment["created_at"],
-            "status": status,
-        }
+        public = _public_comment(comment, status)
         if status == "held":
             return (
                 True,
@@ -254,6 +287,44 @@ def report_comment(
             log.warning("report log failed: %s", e)
 
         return True, "Report received. Thank you."
+
+
+def like_comment(
+    slug: str,
+    comment_id: str,
+    *,
+    client_ip: str = "",
+) -> tuple[bool, str, dict[str, Any] | None]:
+    """Toggle a like. One like per hashed IP; no signup. Returns public counts only."""
+    key = _like_key(client_ip)
+    with _lock:
+        data = _load_topic(slug)
+        found = None
+        for c in data.get("comments") or []:
+            if c.get("id") == comment_id:
+                found = c
+                break
+        if not found:
+            return False, "Comment not found.", None
+        if (found.get("status") or "published") == "removed":
+            return False, "Comment not found.", None
+
+        liked_by = found.get("liked_by")
+        if not isinstance(liked_by, list):
+            liked_by = []
+        liked_by = [x for x in liked_by if isinstance(x, str)][:MAX_LIKED_BY]
+        if key in liked_by:
+            liked_by = [x for x in liked_by if x != key]
+            liked = False
+            msg = "Like removed."
+        else:
+            liked_by.append(key)
+            liked = True
+            msg = "Liked."
+        found["liked_by"] = liked_by
+        found["like_count"] = len(liked_by)
+        _save_topic(slug, data)
+        return True, msg, {"id": found.get("id"), "like_count": found["like_count"], "liked": liked}
 
 
 def set_comment_status(

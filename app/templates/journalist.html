@@ -44,6 +44,7 @@
         <div class="comment-meta">
           <strong>{{ c.name }}</strong>
           {% if c.created_at %}<time datetime="{{ c.created_at }}">{{ c.created_at[:16].replace('T', ' ') }}Z</time>{% endif %}
+          <button type="button" class="like-btn" data-like data-slug="jrn-{{ journalist.slug }}" data-id="{{ c.id }}">Like <span data-like-count>{{ c.like_count or 0 }}</span></button>
           <form class="report-form" method="post" action="/journalist/{{ journalist.slug }}/comments/{{ c.id }}/report">
             <input type="hidden" name="reason" value="user_report" />
             <button type="submit" class="report-btn">Report</button>

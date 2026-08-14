@@ -142,7 +142,8 @@ class TemplateRenderTests(unittest.TestCase):
     def test_pulse_discuss_expands_inline(self):
         src = Path(__file__).resolve().parents[1] / "app" / "templates" / "pulse.html"
         text = src.read_text(encoding="utf-8")
-        self.assertIn("data-discuss", text)
+        self.assertIn("_discuss_btn.html", text)
+        self.assertIn("data-discuss", Path(__file__).resolve().parents[1].joinpath("app/templates/_discuss_btn.html").read_text(encoding="utf-8"))
         self.assertIn("inline-discuss.js", Path(__file__).resolve().parents[1].joinpath("app/templates/base.html").read_text(encoding="utf-8"))
 
     def test_intersection_discuss_expands_inline(self):
@@ -163,6 +164,32 @@ class TemplateRenderTests(unittest.TestCase):
         )
         self.assertEqual(bad.status_code, 400)
         self.assertFalse(bad.json().get("ok"))
+
+    def test_comment_like_toggle_and_counts(self):
+        posted = self.client.post(
+            "/api/topic/kitchen-sink-topic/comments",
+            json={"name": "Pat", "body": "A civil thought."},
+        )
+        self.assertEqual(posted.status_code, 200, posted.text)
+        payload = posted.json()
+        self.assertTrue(payload.get("ok"))
+        cid = (payload.get("comment") or {}).get("id")
+        self.assertTrue(cid)
+        liked = self.client.post(f"/api/topic/kitchen-sink-topic/comments/{cid}/like")
+        self.assertEqual(liked.status_code, 200, liked.text)
+        self.assertTrue(liked.json().get("ok"))
+        self.assertEqual(liked.json().get("like_count"), 1)
+        self.assertTrue(liked.json().get("liked"))
+        unliked = self.client.post(f"/api/topic/kitchen-sink-topic/comments/{cid}/like")
+        self.assertEqual(unliked.json().get("like_count"), 0)
+        self.assertFalse(unliked.json().get("liked"))
+        counts = self.client.get(
+            "/api/comments/counts",
+            params={"slugs": "kitchen-sink-topic,missing-topic"},
+        )
+        self.assertEqual(counts.status_code, 200)
+        self.assertEqual(counts.json()["counts"]["kitchen-sink-topic"], 1)
+        self.assertEqual(counts.json()["counts"]["missing-topic"], 0)
 
     def test_search_page_renders_with_authored_hit(self):
         r = self.client.get("/search", params={"q": "kitchen sink"})

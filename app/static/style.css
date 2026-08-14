@@ -1347,6 +1347,38 @@ footer.site a:hover {
   text-decoration: underline;
 }
 
+.discuss-count {
+  display: inline-block;
+  min-width: 1.15rem;
+  padding: 0 0.35rem;
+  margin-left: 0.15rem;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 0.78em;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.like-btn {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0 0 0 0.65rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+.like-btn:hover,
+.like-btn:focus-visible,
+.like-btn.is-liked {
+  color: var(--accent);
+}
+
 .inline-discuss {
   grid-column: 1 / -1;
   width: 100%;

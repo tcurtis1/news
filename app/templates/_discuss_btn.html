@@ -1,0 +1,6 @@
+{# Requires `discuss_slug`. Optional `discuss_label` (default Discuss). #}
+{% set _dslug = discuss_slug or '' %}
+{% set _n = comment_count(_dslug) if _dslug else 0 %}
+<button type="button" class="discuss-btn" data-discuss data-slug="{{ _dslug }}" aria-expanded="false">
+  {{ discuss_label or 'Discuss' }}{% if _n %} <span class="discuss-count">{{ _n }}</span>{% endif %}
+</button>

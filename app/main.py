@@ -23,6 +23,9 @@ from app.analytics import (
 )
 from app.comments import (
     add_comment,
+    comment_count,
+    comment_counts,
+    like_comment,
     list_all_for_admin,
     list_comments,
     report_comment,
@@ -54,7 +57,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.11.6"
+APP_VERSION = "0.11.7"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -74,6 +77,7 @@ async def cors_whats_new(request: Request, call_next):
     return response
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["slugify"] = slugify
+templates.env.globals["comment_count"] = comment_count
 templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["country_label"] = country_label
 
@@ -680,6 +684,24 @@ async def api_topic_comment_create(request: Request, slug: str):
             "comment": comment,
             "comments": list_comments(canon),
         },
+        status_code=200 if ok else 400,
+    )
+
+
+@app.get("/api/comments/counts")
+async def api_comment_counts(slugs: str = ""):
+    parts = [s.strip() for s in (slugs or "").split(",") if s.strip()]
+    return JSONResponse({"counts": comment_counts(parts)})
+
+
+@app.post("/api/topic/{slug}/comments/{comment_id}/like")
+async def api_topic_comment_like(request: Request, slug: str, comment_id: str):
+    canon = slugify(unslug(slug) or slug)
+    ok, msg, payload = like_comment(
+        canon, comment_id, client_ip=_client_ip(request)
+    )
+    return JSONResponse(
+        {"ok": ok, "message": msg, "slug": canon, **(payload or {})},
         status_code=200 if ok else 400,
     )
 

@@ -275,9 +275,17 @@ fi
 check_discuss_comment_flow() {
   echo ""
   echo "=== Discuss expands under the story ==="
-  local home search js comments_json post_json slug
-  home="$(http_body "${BASE}/")"
-  search="$(http_body "${BASE}/search")"
+  local home search js comments_json post_json counts_json like_json slug
+  home=""
+  local i
+  for i in 1 2 3 4 5; do
+    home="$(http_body "${BASE}/" 30)"
+    if echo "$home" | grep -q 'data-discuss'; then
+      break
+    fi
+    sleep 1
+  done
+  search="$(http_body "${BASE}/search" 30)"
   js="$(http_body "${BASE}/static/inline-discuss.js")"
 
   if echo "$home" | grep -q 'data-discuss'; then
@@ -318,6 +326,19 @@ print(m.group(1) if m else "news")
     pass "POST empty comment is rejected without leaving the feed"
   else
     fail "POST /api/topic/${slug}/comments did not reject an empty body"
+  fi
+  counts_json="$(http_body "${BASE}/api/comments/counts?slugs=${slug}" 15)"
+  if printf '%s' "$counts_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert isinstance(d.get("counts"), dict)'; then
+    pass "GET /api/comments/counts returns a counts map"
+  else
+    fail "GET /api/comments/counts is not a counts map"
+  fi
+  like_json="$(curl -sS --connect-timeout 5 --max-time 15 -X POST \
+    "${BASE}/api/topic/${slug}/comments/not-a-real-id/like" 2>/dev/null || true)"
+  if printf '%s' "$like_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("ok") is False'; then
+    pass "POST like on a missing comment is rejected"
+  else
+    fail "POST like missing comment did not return ok=false"
   fi
 }
 

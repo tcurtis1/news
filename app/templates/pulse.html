@@ -51,7 +51,7 @@
         <p class="summary">{{ item.summary }}</p>
         <div class="links">
           <span>{{ item.source }}</span>
-          <button type="button" class="discuss-btn" data-discuss data-slug="{{ slugify(item.title) }}" aria-expanded="false">Discuss</button>
+          {% set discuss_slug = slugify(item.title) %}{% include "_discuss_btn.html" %}
           {% if item.comments_url %}
           <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Original thread</a>
           {% endif %}

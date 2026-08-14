@@ -156,7 +156,7 @@
               {% if c.url %}
               <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank" data-story-link>Source</a>
               {% endif %}
-              <button type="button" class="discuss-btn" data-discuss data-slug="{{ slugify(c.title) }}" aria-expanded="false">Discuss</button>
+              {% set discuss_slug = slugify(c.title) %}{% include "_discuss_btn.html" %}
             </div>
             <div class="rank-pills">
               {% for p in c.platforms %}
@@ -221,7 +221,7 @@
               <p class="t-snip">{{ item.snippet }}</p>
               {% endif %}
               <div class="links">
-                <button type="button" class="discuss-btn" data-discuss data-slug="{{ slugify(item.title) }}" aria-expanded="false">Discuss</button>
+                {% set discuss_slug = slugify(item.title) %}{% include "_discuss_btn.html" %}
               </div>
             </div>
           </li>
@@ -267,7 +267,7 @@
         <span>{{ rl.summary }}</span>
         {% if topic_slug %}
         <a class="badge" href="/topic/{{ topic_slug }}?geo={{ geo_code }}">Topic page</a>
-        <button type="button" class="discuss-btn" data-discuss data-slug="{{ topic_slug }}" aria-expanded="false">Discuss</button>
+        {% set discuss_slug = topic_slug %}{% include "_discuss_btn.html" %}
         {% endif %}
       </div>
       {% if rl.hit_summary %}
@@ -388,7 +388,7 @@
             {% if item.lean_label %}
             <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
             {% endif %}
-            <button type="button" class="discuss-btn" data-discuss data-slug="{{ slugify(item.title) }}" aria-expanded="false">Discuss</button>
+            {% set discuss_slug = slugify(item.title) %}{% include "_discuss_btn.html" %}
             {% if item.comments_url %}
             <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Original thread</a>
             {% endif %}
@@ -423,7 +423,7 @@
             {% if item.lean_label %}
             <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
             {% endif %}
-            <button type="button" class="discuss-btn" data-discuss data-slug="{{ slugify(item.title) }}" aria-expanded="false">Discuss</button>
+            {% set discuss_slug = slugify(item.title) %}{% include "_discuss_btn.html" %}
             {% if item.comments_url %}
             <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Original thread</a>
             {% endif %}
@@ -600,6 +600,9 @@
           })
           .join("");
         listEl.insertAdjacentHTML("beforeend", html);
+        if (window.YoyoDiscuss && typeof YoyoDiscuss.refreshCounts === "function") {
+          YoyoDiscuss.refreshCounts();
+        }
       }
 
       function loadPage(offset, isFirst) {

@@ -458,6 +458,9 @@
     wrap.innerHTML = html;
     var next = wrap.firstElementChild;
     if (next) node.replaceWith(next);
+    if (window.YoyoDiscuss && typeof YoyoDiscuss.refreshCounts === "function") {
+      YoyoDiscuss.refreshCounts();
+    }
   }
 
   async function renderFeed(topics) {
