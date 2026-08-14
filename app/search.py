@@ -503,14 +503,22 @@ async def _fetch_one_rss(
         return list(cached[1])
 
     async def _fetch() -> list["SearchHit"]:
+        # Deliberately does NOT reuse the caller's `client` -- that client is
+        # scoped to one caller's `async with httpx.AsyncClient() as client:`
+        # block and can close (e.g. a different caller's asyncio.wait_for
+        # budget expiring) while this coalesced fetch is still shared with
+        # other, still-waiting callers. Own timeout/client keeps the shared
+        # fetch's lifetime independent of any single caller's.
         try:
-            r = await client.get(
-                feed_url,
-                headers={
-                    "User-Agent": USER_AGENT,
-                    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
-                },
-            )
+            timeout = httpx.Timeout(6.0, connect=2.5)
+            async with httpx.AsyncClient(timeout=timeout) as own_client:
+                r = await own_client.get(
+                    feed_url,
+                    headers={
+                        "User-Agent": USER_AGENT,
+                        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+                    },
+                )
             if r.status_code != 200:
                 log.debug("RSS %s status %s", name, r.status_code)
                 return []
@@ -869,7 +877,9 @@ async def _pull_preferred_pool(
             )
 
     try:
-        raw = await asyncio.wait_for(_pull(), timeout=budget_sec)
+        raw = await asyncio.wait_for(
+            coalesced(cache_key, _pull), timeout=budget_sec
+        )
     except asyncio.TimeoutError:
         log.warning(
             "Preferred pool budget %.1fs exceeded lean=%s",
