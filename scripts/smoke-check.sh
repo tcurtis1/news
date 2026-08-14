@@ -243,20 +243,20 @@ check_clean_200 "/static/whats-new.json"
 
 style_body="$(http_body "${BASE}/static/style.css")"
 logo_body="$(http_body "${BASE}/static/logo-compass.svg")"
-if echo "$style_body" | grep -q -- "--accent: #0f766e" && \
-   echo "$style_body" | grep -q -- "--accent: #5eead4" && \
-   echo "$style_body" | grep -q -- "--accent-fill: #2dd4bf"; then
+if echo "$style_body" | grep -E -- "--accent: #0f766e" >/dev/null && \
+   echo "$style_body" | grep -E -- "--accent: #5eead4" >/dev/null && \
+   echo "$style_body" | grep -E -- "--accent-fill: #2dd4bf" >/dev/null; then
   pass "shared Yoyosup teal theme tokens"
 else
   fail "News CSS is missing shared Yoyosup teal theme tokens"
 fi
-if echo "$style_body" | grep -qE '#c2410c|#f97316|#fb923c|rgba\(249, 115, 22' || \
-   echo "$logo_body" | grep -q '#f97316'; then
+if echo "$style_body" | grep -E '#c2410c|#f97316|#fb923c|rgba\(249, 115, 22' >/dev/null || \
+   echo "$logo_body" | grep -E '#f97316' >/dev/null; then
   fail "old orange brand chrome remains in News CSS/logo"
 else
   pass "old orange brand chrome removed"
 fi
-if echo "$logo_body" | grep -q '#2dd4bf'; then
+if echo "$logo_body" | grep -E '#2dd4bf' >/dev/null; then
   pass "compass mark uses shared teal north tip"
 else
   fail "compass mark is missing shared teal north tip"
