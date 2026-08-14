@@ -17,6 +17,8 @@ from urllib.parse import quote_plus
 
 import httpx
 
+from app.coalesce import coalesced
+
 log = logging.getLogger("pulse")
 
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/data"))
@@ -43,6 +45,7 @@ class PulseItem:
     score: int = 0
     comments_url: str | None = None
     summary: str = ""
+    image_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -259,11 +262,14 @@ def _merge_consensus(raw_lists: list[list[dict]]) -> list[PulseItem]:
                     "sources": {it["source"]},
                     "score": int(it.get("score") or 0),
                     "comments_url": it.get("comments_url"),
+                    "image_url": it.get("image_url"),
                 }
             else:
                 b = buckets[key]
                 b["sources"].add(it["source"])
                 b["score"] += int(it.get("score") or 0)
+                if not b.get("image_url") and it.get("image_url"):
+                    b["image_url"] = it["image_url"]
                 # Prefer article URL over seed / HN item pages when we get a better one
                 if b["url"].startswith("https://news.google.com") and it["url"]:
                     b["url"] = it["url"]
@@ -302,6 +308,7 @@ def _merge_consensus(raw_lists: list[list[dict]]) -> list[PulseItem]:
                 score=b["score"],
                 comments_url=b.get("comments_url"),
                 summary=summary,
+                image_url=b.get("image_url"),
             )
         )
     return items
@@ -369,6 +376,11 @@ async def _pull_pulse_live() -> dict:
 
     items = _merge_consensus(lists)
     stories = [it.to_dict() for it in items]
+    try:
+        from app.search import enhance_hits_with_thumbnails
+        stories = await enhance_hits_with_thumbnails(stories, max_fetch=30)
+    except Exception as e:
+        log.warning("Pulse thumbnail enhancement failed: %s", e)
     payload = {
         "fetched_at": _now_iso(),
         "fetched_at_unix": time.time(),
@@ -451,7 +463,9 @@ async def build_pulse(force: bool = False) -> dict:
             return cached
 
     try:
-        payload = await asyncio.wait_for(_pull_pulse_live(), timeout=6.0)
+        payload = await asyncio.wait_for(
+            coalesced("pulse", _pull_pulse_live), timeout=6.0
+        )
     except asyncio.TimeoutError:
         log.warning("pulse pull timed out — stale/fallback")
         stale = _read_cache(allow_stale=True)

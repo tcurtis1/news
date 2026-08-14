@@ -21,6 +21,7 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
+from app.coalesce import coalesced
 from app.places import Place, cache_key, default_place, resolve_place
 
 log = logging.getLogger("trends")
@@ -1546,7 +1547,10 @@ async def build_trends(force: bool = False, geo: str | None = None) -> dict[str,
 
     # Live pull with hard budget — never hang the HTTP request
     try:
-        payload = await asyncio.wait_for(_pull_trends_live(place), timeout=7.0)
+        payload = await asyncio.wait_for(
+            coalesced(f"trends:{mem_key}", lambda: _pull_trends_live(place)),
+            timeout=7.0,
+        )
     except asyncio.TimeoutError:
         log.warning("trends pull timed out geo=%s — serving stale/empty", place.code)
         stale = _read_cache(place, allow_stale=True)

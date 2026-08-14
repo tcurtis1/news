@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "top-stories-featured-thumbnails",
+      "seq": 15,
+      "date": "2026-08-14",
+      "title": "Top Stories Image Card Default & View Switcher",
+      "detail": "Top Stories homepage now defaults to featuring rich article photography with a 1-tap List vs Cards layout switcher.",
+      "href": "/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "news-article-featured-thumbnails",
       "seq": 14,
       "date": "2026-08-14",

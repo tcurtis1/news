@@ -16,6 +16,7 @@ from xml.etree import ElementTree as ET
 import httpx
 
 from app.bias import aggregate_lean, enrich_hits
+from app.coalesce import coalesced
 from app import journalists
 from app.places import Place, resolve_place
 from app.source_prefs import (
@@ -500,31 +501,36 @@ async def _fetch_one_rss(
     cached = _RSS_CACHE.get(feed_url)
     if cached and (now - cached[0]) < _RSS_CACHE_TTL:
         return list(cached[1])
-    try:
-        r = await client.get(
-            feed_url,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
-            },
-        )
-        if r.status_code != 200:
-            log.debug("RSS %s status %s", name, r.status_code)
+
+    async def _fetch() -> list["SearchHit"]:
+        try:
+            r = await client.get(
+                feed_url,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+                },
+            )
+            if r.status_code != 200:
+                log.debug("RSS %s status %s", name, r.status_code)
+                return []
+            hits = _parse_rss_items(r.content, source_name=name, limit=_RSS_PER_FEED)
+            # Tag domain for filter matching if URL host is opaque
+            for h in hits:
+                if not h.url:
+                    continue
+                host = (urlparse(h.url).hostname or "").lower().removeprefix("www.")
+                if not host and domain:
+                    # keep as-is
+                    pass
+            _RSS_CACHE[feed_url] = (time.time(), hits)
+            return hits
+        except Exception as e:
+            log.debug("RSS fetch failed %s: %s", name, e)
             return []
-        hits = _parse_rss_items(r.content, source_name=name, limit=_RSS_PER_FEED)
-        # Tag domain for filter matching if URL host is opaque
-        for h in hits:
-            if not h.url:
-                continue
-            host = (urlparse(h.url).hostname or "").lower().removeprefix("www.")
-            if not host and domain:
-                # keep as-is
-                pass
-        _RSS_CACHE[feed_url] = (now, hits)
-        return list(hits)
-    except Exception as e:
-        log.debug("RSS fetch failed %s: %s", name, e)
-        return []
+
+    hits = await coalesced(f"rss:{feed_url}", _fetch)
+    return list(hits)
 
 
 async def _fetch_outlet_rss_for_pref(

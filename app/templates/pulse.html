@@ -34,10 +34,17 @@
     {% endif %}
   </div>
 
+  {% include "_view_bar.html" %}
+
   {% if pulse.stories %}
-  <ol class="list" id="pulse-stories-list">
+  <ol class="list feed-container view-mode-cards" id="pulse-stories-list">
     {% for item in pulse.stories %}
     <li class="card pulse-story{% if loop.index > 20 %} is-extra{% endif %}"{% if loop.index > 20 %} hidden{% endif %}>
+      {% if item.image_url %}
+      <div class="story-thumb">
+        <img class="story-thumb-img" src="{{ item.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />
+      </div>
+      {% endif %}
       <div class="rank">{{ item.rank }}</div>
       <div>
         <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ item.title }}</a></h2>
