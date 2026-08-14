@@ -116,32 +116,21 @@ _IMAGE_CACHE: dict[str, str] = {}
 
 def _extract_rss_image(entry: ET.Element) -> str | None:
     """Extract media thumbnail or enclosure image URL from RSS/Atom entry."""
-    for tag in (
-        "{http://search.yahoo.com/mrss/}content",
-        "{http://search.yahoo.com/mrss/}thumbnail",
-        "media:content",
-        "media:thumbnail",
-        "enclosure",
-    ):
-        el = entry.find(tag)
-        if el is not None and el.attrib.get("url"):
-            url = el.attrib["url"].strip()
-            if url.startswith("//"):
-                url = "https:" + url
-            if url.startswith("http") and not url.endswith(".gif") and "1x1" not in url:
-                return url
-        for sub in entry.findall(f".//{tag}"):
-            if sub.attrib.get("url"):
-                url = sub.attrib["url"].strip()
+    for child in entry.iter():
+        tag = child.tag if isinstance(child.tag, str) else ""
+        if tag.endswith("content") or tag.endswith("thumbnail") or tag.endswith("enclosure"):
+            url = child.attrib.get("url") or child.attrib.get("href") or ""
+            if url:
+                url = url.strip()
                 if url.startswith("//"):
                     url = "https:" + url
                 if url.startswith("http") and not url.endswith(".gif") and "1x1" not in url:
                     return url
 
-    for text_tag in ("description", "content", "{http://www.w3.org/2005/Atom}content", "{http://www.w3.org/2005/Atom}summary"):
-        raw_text = entry.findtext(text_tag) or ""
-        if raw_text:
-            m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', raw_text, re.IGNORECASE)
+    for child in entry.iter():
+        text = child.text or ""
+        if text and ("<img" in text or "<IMG" in text):
+            m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', text, re.IGNORECASE)
             if m:
                 url = m.group(1).strip()
                 if url.startswith("//"):
@@ -1167,7 +1156,7 @@ async def _run_search_one(
         hits = topical
     hits = diversify_hits(hits, limit=MAX_RESULTS, max_per_source=3)
     tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
-    hits = await enhance_hits_with_thumbnails(hits, client=client)
+    hits = await enhance_hits_with_thumbnails(hits)
     mode = "live" if (hits or tech_hit_dicts) else ("portals_only" if portals else "empty")
     ranks = rank_lookup(query, trends)
     coverage = aggregate_lean(hits)
