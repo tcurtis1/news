@@ -5,8 +5,12 @@
   var COOKIE = "yoyo_theme";
 
   function cookieValue() {
-    var match = document.cookie.match(/(?:^|; )yoyo_theme=(light|dark)(?:;|$)/);
-    return match ? match[1] : "";
+    try {
+      var match = document.cookie.match(/(?:^|; )yoyo_theme=(light|dark)(?:;|$)/);
+      return match ? match[1] : "";
+    } catch (e) {
+      return "";
+    }
   }
 
   function savedValue() {
@@ -37,11 +41,13 @@
     try {
       localStorage.setItem(KEY, value);
     } catch (err) {}
-    var secure = location.protocol === "https:" ? "; Secure" : "";
-    document.cookie =
-      COOKIE + "=" + value +
-      "; Max-Age=31536000; Path=/; Domain=.yoyosup.com; SameSite=Lax" +
-      secure;
+    try {
+      var secure = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie =
+        COOKIE + "=" + value +
+        "; Max-Age=31536000; Path=/; Domain=.yoyosup.com; SameSite=Lax" +
+        secure;
+    } catch (e) {}
   }
 
   function updateButton(value) {
