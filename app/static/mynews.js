@@ -336,9 +336,9 @@
       escapeHtml(summary) +
       " · " +
       escapeHtml(leanLabel) +
-      " sources · <a href=\"" +
-      topicHref +
-      '#comment-form">discuss</a></p>' +
+      ' sources · <button type="button" class="discuss-btn" data-discuss data-slug="' +
+      escapeHtml(topic.slug) +
+      '" aria-expanded="false">Discuss</button></p>' +
       (pills ? '<div class="rank-pills">' + pills + "</div>" : "") +
       (hitHtml
         ? '<ul class="my-hit-list">' + hitHtml + "</ul>" + moreBtn

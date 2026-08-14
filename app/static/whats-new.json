@@ -6,8 +6,8 @@
       "id": "discuss-comment-form",
       "seq": 17,
       "date": "2026-08-14",
-      "title": "Discuss now opens the comment box",
-      "detail": "Tapping Discuss on a story jumps to a comment form at the top of the topic page — no signup, Anonymous is fine.",
+      "title": "Discuss opens under the story",
+      "detail": "Tapping Discuss expands a comment box right under that article — you stay on the feed. No signup, Anonymous is fine.",
       "href": "https://news.yoyosup.com/",
       "tags": [
         "news"

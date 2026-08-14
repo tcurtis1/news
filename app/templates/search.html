@@ -156,7 +156,7 @@
               {% if c.url %}
               <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank" data-story-link>Source</a>
               {% endif %}
-              <a href="/topic/{{ slugify(c.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comment-form">Discuss here</a>
+              <button type="button" class="discuss-btn" data-discuss data-slug="{{ slugify(c.title) }}" aria-expanded="false">Discuss</button>
             </div>
             <div class="rank-pills">
               {% for p in c.platforms %}
@@ -221,7 +221,7 @@
               <p class="t-snip">{{ item.snippet }}</p>
               {% endif %}
               <div class="links">
-                <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comment-form">Discuss here</a>
+                <button type="button" class="discuss-btn" data-discuss data-slug="{{ slugify(item.title) }}" aria-expanded="false">Discuss</button>
               </div>
             </div>
           </li>
@@ -267,7 +267,7 @@
         <span>{{ rl.summary }}</span>
         {% if topic_slug %}
         <a class="badge" href="/topic/{{ topic_slug }}?geo={{ geo_code }}">Topic page</a>
-        <a href="/topic/{{ topic_slug }}?geo={{ geo_code }}#comment-form">Discuss</a>
+        <button type="button" class="discuss-btn" data-discuss data-slug="{{ topic_slug }}" aria-expanded="false">Discuss</button>
         {% endif %}
       </div>
       {% if rl.hit_summary %}
@@ -388,7 +388,7 @@
             {% if item.lean_label %}
             <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
             {% endif %}
-            <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comment-form">Discuss here</a>
+            <button type="button" class="discuss-btn" data-discuss data-slug="{{ slugify(item.title) }}" aria-expanded="false">Discuss</button>
             {% if item.comments_url %}
             <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Original thread</a>
             {% endif %}
@@ -423,7 +423,7 @@
             {% if item.lean_label %}
             <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
             {% endif %}
-            <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comment-form">Discuss here</a>
+            <button type="button" class="discuss-btn" data-discuss data-slug="{{ slugify(item.title) }}" aria-expanded="false">Discuss</button>
             {% if item.comments_url %}
             <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Original thread</a>
             {% endif %}
@@ -511,14 +511,7 @@
         var lean = esc(item.lean || "");
         var leanLabel = esc(item.lean_label || "");
         var leanTip = esc(item.lean_tip || "");
-        var discuss =
-          "/topic/" +
-          encodeURIComponent(slugify(item.title)) +
-          "?geo=" +
-          encodeURIComponent(geoCode) +
-          "&lean=" +
-          encodeURIComponent(leanQ) +
-          "#comment-form";
+        var slug = slugify(item.title);
         return (
           '<li class="card">' +
           '<div class="rank">' +
@@ -544,9 +537,9 @@
               leanLabel +
               "</span>"
             : "") +
-          '<a href="' +
-          discuss +
-          '">Discuss here</a></div></div></li>'
+          '<button type="button" class="discuss-btn" data-discuss data-slug="' +
+          esc(slug) +
+          '" aria-expanded="false">Discuss</button></div></div></li>'
         );
       }
 

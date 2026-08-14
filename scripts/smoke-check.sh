@@ -271,82 +271,53 @@ else
   pass "/internal/backfill-bylines not open to GET (HTTP $internal_code)"
 fi
 
-# Discuss → comment form: a visitor who taps Discuss must land on a page
-# with a visible Post comment box, not a buried rank map or an empty 200.
+# Discuss expands under the story. Do not accept a jump-only /topic/#comments path.
 check_discuss_comment_flow() {
   echo ""
-  echo "=== Discuss → comment form ==="
-  local home search first_path topic_body
+  echo "=== Discuss expands under the story ==="
+  local home search js comments_json post_json slug
   home="$(http_body "${BASE}/")"
   search="$(http_body "${BASE}/search")"
+  js="$(http_body "${BASE}/static/inline-discuss.js")"
 
-  if echo "$home" | grep -qE '/topic/[^"[:space:]]+#comment-form'; then
-    pass "Pulse Discuss links point at #comment-form"
+  if echo "$home" | grep -q 'data-discuss'; then
+    pass "Pulse stories have inline Discuss buttons"
   else
-    fail "Pulse missing /topic/...#comment-form Discuss links"
+    fail "Pulse missing data-discuss buttons"
   fi
-  if echo "$home" | grep -q 'Discuss here'; then
-    pass "Pulse shows Discuss here"
+  if echo "$search" | grep -q 'data-discuss'; then
+    pass "Intersection/search has inline Discuss buttons"
   else
-    fail "Pulse missing Discuss here label"
+    fail "Intersection/search missing data-discuss buttons"
   fi
-  if echo "$search" | grep -qE '#comment-form'; then
-    pass "Intersection/search Discuss links include #comment-form"
+  if echo "$js" | grep -q 'inline-discuss' && echo "$js" | grep -q '/api/topic/'; then
+    pass "inline-discuss.js loads comments under the card"
   else
-    fail "Intersection/search missing #comment-form Discuss links"
+    fail "inline-discuss.js missing or does not call /api/topic/"
   fi
 
-  first_path="$(
+  slug="$(
     printf '%s' "$home" | python3 -c '
 import re, sys
 html = sys.stdin.read()
-m = re.search(r"href=\"(/topic/[^\"#?]+(?:\?[^\"#]*)?#comment-form)\"", html)
-print(m.group(1) if m else "")
+m = re.search(r"data-slug=\"([^\"]+)\"", html)
+print(m.group(1) if m else "news")
 '
   )"
-  if [[ -z "$first_path" ]]; then
-    fail "could not extract a Pulse Discuss href"
-    return
-  fi
-  # Fetch the topic page without the hash (servers ignore fragments).
-  first_path="${first_path%%#*}"
-  topic_body="$(http_body "${BASE}${first_path}" 40)"
-  local code
-  code="$(http_code "${BASE}${first_path}")"
-  if [[ "$code" != "200" ]]; then
-    fail "Discuss target HTTP $code ${first_path}"
-    return
-  fi
-  if echo "$topic_body" | grep -qE "Internal Server Error|Traceback \(most recent call last\)|jinja2\.exceptions"; then
-    fail "Discuss target crashed: ${first_path}"
-    return
-  fi
-  if echo "$topic_body" | grep -q 'id="comment-form"' \
-    && echo "$topic_body" | grep -q 'Post comment' \
-    && echo "$topic_body" | grep -q 'name="body"'; then
-    pass "Discuss target ${first_path} has a comment form"
+  comments_json="$(http_body "${BASE}/api/topic/${slug}/comments" 20)"
+  if printf '%s' "$comments_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert isinstance(d.get("comments"), list)'; then
+    pass "GET /api/topic/${slug}/comments returns comments[]"
   else
-    fail "Discuss target ${first_path} has no Post comment form"
-    return
+    fail "GET /api/topic/${slug}/comments is not a comments list"
   fi
-  # Form must appear before the long news list so it is on-screen after jump.
-  printf '%s' "$topic_body" | python3 -c '
-import sys
-html = sys.stdin.read()
-form = html.find("id=\"comment-form\"")
-hits = html.find("News hits")
-if form < 0:
-    raise SystemExit(1)
-if hits >= 0 and form > hits:
-    raise SystemExit(2)
-'
-  local rc=$?
-  if [[ "$rc" -eq 0 ]]; then
-    pass "comment form is above the news-hit list"
-  elif [[ "$rc" -eq 2 ]]; then
-    fail "comment form is buried below News hits"
+  post_json="$(curl -sS --connect-timeout 5 --max-time 20 -X POST \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"Smoke","body":""}' \
+    "${BASE}/api/topic/${slug}/comments" 2>/dev/null || true)"
+  if printf '%s' "$post_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("ok") is False'; then
+    pass "POST empty comment is rejected without leaving the feed"
   else
-    fail "could not locate comment form vs News hits"
+    fail "POST /api/topic/${slug}/comments did not reject an empty body"
   fi
 }
 

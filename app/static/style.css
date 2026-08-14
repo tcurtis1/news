@@ -1327,6 +1327,40 @@ footer.site a:hover {
   scroll-margin-top: 1.25rem;
 }
 
+.discuss-btn {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0 0 0 0.5rem;
+  font: inherit;
+  font-weight: 700;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+.discuss-btn:hover,
+.discuss-btn:focus-visible {
+  text-decoration: underline;
+}
+.discuss-btn[aria-expanded="true"] {
+  text-decoration: underline;
+}
+
+.inline-discuss {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.inline-discuss-status {
+  margin: 0 0 0.5rem;
+}
+.inline-discuss-msg {
+  margin: 0.5rem 0;
+}
+
 .guidelines-list {
   color: var(--muted);
   line-height: 1.55;

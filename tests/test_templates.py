@@ -139,18 +139,30 @@ class TemplateRenderTests(unittest.TestCase):
         if hits_at >= 0:
             self.assertLess(form_at, hits_at, "comment form must sit above News hits")
 
-    def test_pulse_discuss_links_go_to_comment_form(self):
+    def test_pulse_discuss_expands_inline(self):
         src = Path(__file__).resolve().parents[1] / "app" / "templates" / "pulse.html"
         text = src.read_text(encoding="utf-8")
-        self.assertIn("Discuss here", text)
-        self.assertIn("#comment-form", text)
-        self.assertNotIn("Discuss topic", text)
+        self.assertIn("data-discuss", text)
+        self.assertIn("inline-discuss.js", Path(__file__).resolve().parents[1].joinpath("app/templates/base.html").read_text(encoding="utf-8"))
 
-    def test_intersection_discuss_links_go_to_comment_form(self):
+    def test_intersection_discuss_expands_inline(self):
         r = self.client.get("/search", params={"q": "kitchen sink"})
         self._assert_clean_200(r, "/search?q=kitchen sink")
-        self.assertIn("Discuss here", r.text)
-        self.assertIn("#comment-form", r.text)
+        self.assertIn("data-discuss", r.text)
+        self.assertIn("Discuss", r.text)
+
+    def test_comment_api_lists_and_rejects_empty(self):
+        listed = self.client.get("/api/topic/kitchen-sink-topic/comments")
+        self.assertEqual(listed.status_code, 200)
+        payload = listed.json()
+        self.assertEqual(payload.get("slug"), "kitchen-sink-topic")
+        self.assertIsInstance(payload.get("comments"), list)
+        bad = self.client.post(
+            "/api/topic/kitchen-sink-topic/comments",
+            json={"name": "Pat", "body": ""},
+        )
+        self.assertEqual(bad.status_code, 400)
+        self.assertFalse(bad.json().get("ok"))
 
     def test_search_page_renders_with_authored_hit(self):
         r = self.client.get("/search", params={"q": "kitchen sink"})

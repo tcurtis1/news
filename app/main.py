@@ -54,7 +54,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.11.5"
+APP_VERSION = "0.11.6"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -643,6 +643,45 @@ async def api_topic(slug: str, force: bool = False, geo: str = ""):
 async def api_topic_comments(slug: str):
     canon = slugify(unslug(slug) or slug)
     return JSONResponse({"slug": canon, "comments": list_comments(canon)})
+
+
+@app.post("/api/topic/{slug}/comments")
+async def api_topic_comment_create(request: Request, slug: str):
+    """JSON (or form) post so the feed can expand comments without leaving the page."""
+    name = ""
+    body = ""
+    website = ""
+    ctype = (request.headers.get("content-type") or "").lower()
+    if "application/json" in ctype:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+        name = str(payload.get("name") or "")
+        body = str(payload.get("body") or "")
+        website = str(payload.get("website") or "")
+    else:
+        form = await request.form()
+        name = str(form.get("name") or "")
+        body = str(form.get("body") or "")
+        website = str(form.get("website") or "")
+    canon = slugify(unslug(slug) or slug)
+    ok, msg, comment = await add_comment(
+        canon,
+        name=name,
+        body=body,
+        client_ip=_client_ip(request),
+        honeypot=website,
+    )
+    return JSONResponse(
+        {
+            "ok": ok,
+            "message": msg,
+            "slug": canon,
+            "comment": comment,
+            "comments": list_comments(canon),
+        },
+        status_code=200 if ok else 400,
+    )
 
 
 @app.get("/journalist/{slug}", response_class=HTMLResponse)
