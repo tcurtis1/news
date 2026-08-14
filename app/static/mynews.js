@@ -227,8 +227,15 @@
   var hitsBySlug = {};
 
   function hitLi(h) {
+    var imgHtml = h.image_url
+      ? '<div class="story-thumb"><img class="story-thumb-img" src="' +
+        escapeHtml(h.image_url) +
+        '" alt="" loading="lazy" onError="this.style.display=\'none\';" /></div>'
+      : '';
     return (
-      '<li><a href="' +
+      '<li>' +
+      imgHtml +
+      '<a href="' +
       escapeHtml(h.url) +
       '" rel="noopener noreferrer" target="_blank" data-story-link>' +
       escapeHtml(h.title) +

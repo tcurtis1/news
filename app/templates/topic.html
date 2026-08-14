@@ -157,14 +157,11 @@
   <ol class="list feed-container view-mode-cards" id="topic-hits-list">
     {% for item in topic.hits %}
     <li class="card topic-hit{% if loop.index > 20 %} is-extra{% endif %}"{% if loop.index > 20 %} hidden{% endif %}>
+      {% if item.image_url %}
       <div class="story-thumb">
-        {% if item.image_url %}
-        <img class="story-thumb-img" src="{{ item.image_url }}" alt="" loading="lazy" onError="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-        <span class="story-thumb-badge" style="display:none;">{{ item.source[:10] if item.source else 'NEWS' }}</span>
-        {% else %}
-        <span class="story-thumb-badge">{{ item.source[:10] if item.source else 'NEWS' }}</span>
-        {% endif %}
+        <img class="story-thumb-img" src="{{ item.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />
       </div>
+      {% endif %}
       <div class="rank">{{ loop.index }}</div>
       <div>
         <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ item.title }}</a></h2>

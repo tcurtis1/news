@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "news-article-featured-thumbnails",
+      "seq": 14,
+      "date": "2026-08-14",
+      "title": "Real Article Featured Thumbnails",
+      "detail": "News cards now display real featured article images extracted from RSS media enclosures, YouTube videos, and OpenGraph metadata.",
+      "href": "/search",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "news-list-thumbnail-view-toggle",
       "seq": 13,
       "date": "2026-08-14",

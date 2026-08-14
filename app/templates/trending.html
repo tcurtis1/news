@@ -24,9 +24,11 @@
     {% set title = c.title or '' %}
     {% set slug = slugify(title) %}
     <li class="card" style="margin-bottom:0.75rem; padding:1rem;">
+      {% if c.image_url %}
       <div class="story-thumb">
-        <span class="story-thumb-badge">{{ title[:12] }}</span>
+        <img class="story-thumb-img" src="{{ c.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />
       </div>
+      {% endif %}
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <h3 style="margin:0;"><a href="/topic/{{ slug }}">{{ title }}</a></h3>
         <span class="badge live">Velocity #{{ loop.index }}</span>

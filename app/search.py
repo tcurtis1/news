@@ -68,6 +68,7 @@ class SearchHit:
     comments_url: str | None = None
     published: str | None = None  # ISO 8601 UTC, when the source provided one
     author: str | None = None  # cleaned byline, when a native RSS feed provides one
+    image_url: str | None = None  # featured article image URL
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -108,6 +109,119 @@ def _parse_feed_date(text: str | None) -> str | None:
 
 def _clean_query(q: str) -> str:
     return re.sub(r"\s+", " ", (q or "").strip())[:200]
+
+
+_IMAGE_CACHE: dict[str, str] = {}
+
+
+def _extract_rss_image(entry: ET.Element) -> str | None:
+    """Extract media thumbnail or enclosure image URL from RSS/Atom entry."""
+    for tag in (
+        "{http://search.yahoo.com/mrss/}content",
+        "{http://search.yahoo.com/mrss/}thumbnail",
+        "media:content",
+        "media:thumbnail",
+        "enclosure",
+    ):
+        el = entry.find(tag)
+        if el is not None and el.attrib.get("url"):
+            url = el.attrib["url"].strip()
+            if url.startswith("//"):
+                url = "https:" + url
+            if url.startswith("http") and not url.endswith(".gif") and "1x1" not in url:
+                return url
+        for sub in entry.findall(f".//{tag}"):
+            if sub.attrib.get("url"):
+                url = sub.attrib["url"].strip()
+                if url.startswith("//"):
+                    url = "https:" + url
+                if url.startswith("http") and not url.endswith(".gif") and "1x1" not in url:
+                    return url
+
+    for text_tag in ("description", "content", "{http://www.w3.org/2005/Atom}content", "{http://www.w3.org/2005/Atom}summary"):
+        raw_text = entry.findtext(text_tag) or ""
+        if raw_text:
+            m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', raw_text, re.IGNORECASE)
+            if m:
+                url = m.group(1).strip()
+                if url.startswith("//"):
+                    url = "https:" + url
+                if url.startswith("http") and not url.endswith(".gif") and "1x1" not in url and "tracking" not in url:
+                    return url
+    return None
+
+
+async def resolve_article_thumbnail(client: httpx.AsyncClient, url: str) -> str | None:
+    """Resolve featured article thumbnail via OpenGraph or Twitter Card with caching."""
+    if not url or not url.startswith("http"):
+        return None
+    if url in _IMAGE_CACHE:
+        return _IMAGE_CACHE[url]
+
+    yt_m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url)
+    if yt_m:
+        img = f"https://img.youtube.com/vi/{yt_m.group(1)}/hqdefault.jpg"
+        _IMAGE_CACHE[url] = img
+        return img
+
+    try:
+        r = await client.get(
+            url,
+            follow_redirects=True,
+            timeout=2.5,
+            headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+        )
+        if r.status_code == 200 and "text/html" in (r.headers.get("content-type") or ""):
+            html = r.text[:60000]
+            m = re.search(
+                r'<meta[^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\'][^>]+content=["\']([^"\']+)["\']',
+                html,
+                re.IGNORECASE,
+            )
+            if not m:
+                m = re.search(
+                    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\']',
+                    html,
+                    re.IGNORECASE,
+                )
+            if m:
+                img_url = m.group(1).strip()
+                if img_url.startswith("//"):
+                    img_url = "https:" + img_url
+                elif img_url.startswith("/"):
+                    from urllib.parse import urljoin
+                    img_url = urljoin(url, img_url)
+                if img_url.startswith("http") and not img_url.endswith(".gif"):
+                    _IMAGE_CACHE[url] = img_url
+                    return img_url
+    except Exception:
+        pass
+    return None
+
+
+async def enhance_hits_with_thumbnails(
+    client: httpx.AsyncClient, hits: list[dict[str, Any]], max_fetch: int = 15
+) -> list[dict[str, Any]]:
+    """Populate image_url for news hits using RSS images & OpenGraph fallback."""
+    if not hits:
+        return hits
+    pending = []
+    for h in hits[:max_fetch]:
+        if not h.get("image_url"):
+            url = h.get("url") or ""
+            if url.startswith("http"):
+                pending.append((h, url))
+
+    if not pending:
+        return hits
+
+    async def _fetch_one(item: dict[str, Any], url_str: str):
+        img = await resolve_article_thumbnail(client, url_str)
+        if img:
+            item["image_url"] = img
+
+    await asyncio.gather(*[_fetch_one(h, u) for h, u in pending], return_exceptions=True)
+    return hits
 
 
 def portal_links(q: str) -> list[PortalLink]:
@@ -229,6 +343,7 @@ async def _fetch_google_news(
                 continue
             source = (entry.findtext("source") or "Google News").strip()
             published = _parse_feed_date(entry.findtext("pubDate"))
+            image_url = _extract_rss_image(entry)
             out.append(
                 SearchHit(
                     title=title,
@@ -237,6 +352,7 @@ async def _fetch_google_news(
                     snippet="Google News",
                     score=score_base - i,
                     published=published,
+                    image_url=image_url,
                 )
             )
         return out
@@ -360,6 +476,7 @@ def _parse_rss_items(
             or entry.findtext("{http://www.w3.org/2005/Atom}author/{http://www.w3.org/2005/Atom}name")
             or entry.findtext("{http://www.w3.org/2005/Atom}author")
         )
+        image_url = _extract_rss_image(entry)
         out.append(
             SearchHit(
                 title=title,
@@ -369,6 +486,7 @@ def _parse_rss_items(
                 score=1100 - i,
                 published=published,
                 author=journalists.normalize_author(raw_author),
+                image_url=image_url,
             )
         )
     return out
@@ -576,6 +694,7 @@ async def _fetch_bing_news(
                 continue
             desc = re.sub(r"<[^>]+>", "", entry.findtext("description") or "").strip()
             published = _parse_feed_date(entry.findtext("pubDate"))
+            image_url = _extract_rss_image(entry)
             out.append(
                 SearchHit(
                     title=title,
@@ -584,6 +703,7 @@ async def _fetch_bing_news(
                     snippet=(desc[:160] + "…") if len(desc) > 160 else desc,
                     score=900 - i,
                     published=published,
+                    image_url=image_url,
                 )
             )
         return out
@@ -615,6 +735,12 @@ def _parse_reddit_search_atom(xml_text: str, limit: int) -> list[SearchHit]:
             url = m.group(1)
         snippet = f"r/{sub}" if sub else "Reddit search"
         published = _parse_feed_date(entry.findtext("a:updated", default="", namespaces=ns))
+        image_url = None
+        img_m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content, re.IGNORECASE)
+        if img_m:
+            img_src = img_m.group(1).strip()
+            if img_src.startswith("http") and not img_src.endswith("icon.png"):
+                image_url = img_src
         out.append(
             SearchHit(
                 title=title,
@@ -624,6 +750,7 @@ def _parse_reddit_search_atom(xml_text: str, limit: int) -> list[SearchHit]:
                 score=max(1, limit - i) * 10,
                 comments_url=comments,
                 published=published,
+                image_url=image_url,
             )
         )
     return out
@@ -1031,6 +1158,7 @@ async def _run_search_one(
         hits = topical
     hits = diversify_hits(hits, limit=MAX_RESULTS, max_per_source=3)
     tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
+    hits = await enhance_hits_with_thumbnails(client, hits)
     mode = "live" if (hits or tech_hit_dicts) else ("portals_only" if portals else "empty")
     ranks = rank_lookup(query, trends)
     coverage = aggregate_lean(hits)
@@ -1120,6 +1248,7 @@ async def _run_search_or(
     hits = prefer_topical(hits, display)[:MAX_RESULTS]
     hits = sorted(hits, key=lambda h: int(h.get("score") or 0), reverse=True)
     tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
+    hits = await enhance_hits_with_thumbnails(client, hits)
 
     sources_ok: list[str] = []
     for part in parts_list:

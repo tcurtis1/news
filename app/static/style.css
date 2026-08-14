@@ -2080,16 +2080,20 @@ footer.site a:hover {
 
 .story-thumb {
   width: 100%;
-  height: 130px;
+  height: 140px;
   border-radius: 8px;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--panel-2) 0%, var(--bg) 100%);
+  background: var(--panel-2);
   margin-bottom: 0.65rem;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
+}
+
+.story-thumb:empty {
+  display: none !important;
 }
 
 .story-thumb-img {
