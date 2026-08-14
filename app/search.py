@@ -151,7 +151,7 @@ def _extract_rss_image(entry: ET.Element) -> str | None:
     return None
 
 
-async def resolve_article_thumbnail(client: httpx.AsyncClient, url: str) -> str | None:
+async def resolve_article_thumbnail(url: str, client: httpx.AsyncClient | None = None) -> str | None:
     """Resolve featured article thumbnail via OpenGraph or Twitter Card with caching."""
     if not url or not url.startswith("http"):
         return None
@@ -165,12 +165,21 @@ async def resolve_article_thumbnail(client: httpx.AsyncClient, url: str) -> str 
         return img
 
     try:
-        r = await client.get(
-            url,
-            follow_redirects=True,
-            timeout=2.5,
-            headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
-        )
+        if client is not None:
+            r = await client.get(
+                url,
+                follow_redirects=True,
+                timeout=2.0,
+                headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+            )
+        else:
+            async with httpx.AsyncClient(
+                timeout=2.0,
+                headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+                follow_redirects=True,
+            ) as c:
+                r = await c.get(url)
+
         if r.status_code == 200 and "text/html" in (r.headers.get("content-type") or ""):
             html = r.text[:60000]
             m = re.search(
@@ -200,7 +209,7 @@ async def resolve_article_thumbnail(client: httpx.AsyncClient, url: str) -> str 
 
 
 async def enhance_hits_with_thumbnails(
-    client: httpx.AsyncClient, hits: list[dict[str, Any]], max_fetch: int = 15
+    hits: list[dict[str, Any]], client: httpx.AsyncClient | None = None, max_fetch: int = 15
 ) -> list[dict[str, Any]]:
     """Populate image_url for news hits using RSS images & OpenGraph fallback."""
     if not hits:
@@ -216,7 +225,7 @@ async def enhance_hits_with_thumbnails(
         return hits
 
     async def _fetch_one(item: dict[str, Any], url_str: str):
-        img = await resolve_article_thumbnail(client, url_str)
+        img = await resolve_article_thumbnail(url_str, client=client)
         if img:
             item["image_url"] = img
 
@@ -1158,7 +1167,7 @@ async def _run_search_one(
         hits = topical
     hits = diversify_hits(hits, limit=MAX_RESULTS, max_per_source=3)
     tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
-    hits = await enhance_hits_with_thumbnails(client, hits)
+    hits = await enhance_hits_with_thumbnails(hits, client=client)
     mode = "live" if (hits or tech_hit_dicts) else ("portals_only" if portals else "empty")
     ranks = rank_lookup(query, trends)
     coverage = aggregate_lean(hits)
@@ -1248,7 +1257,7 @@ async def _run_search_or(
     hits = prefer_topical(hits, display)[:MAX_RESULTS]
     hits = sorted(hits, key=lambda h: int(h.get("score") or 0), reverse=True)
     tech_hit_dicts = enrich_hits([h.to_dict() for h in tech_hits])
-    hits = await enhance_hits_with_thumbnails(client, hits)
+    hits = await enhance_hits_with_thumbnails(hits)
 
     sources_ok: list[str] = []
     for part in parts_list:
