@@ -51,10 +51,10 @@
         <p class="summary">{{ item.summary }}</p>
         <div class="links">
           <span>{{ item.source }}</span>
+          <a href="/topic/{{ slugify(item.title) }}#comment-form" style="margin-left:0.5rem; color:var(--accent); font-weight:700;">Discuss here</a>
           {% if item.comments_url %}
-          <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
+          <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Original thread</a>
           {% endif %}
-          <a href="/topic/{{ slugify(item.title) }}" style="margin-left:0.5rem; color:var(--accent); font-weight:700;">Discuss topic →</a>
         </div>
       </div>
     </li>

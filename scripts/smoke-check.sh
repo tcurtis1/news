@@ -271,12 +271,93 @@ else
   pass "/internal/backfill-bylines not open to GET (HTTP $internal_code)"
 fi
 
+# Discuss → comment form: a visitor who taps Discuss must land on a page
+# with a visible Post comment box, not a buried rank map or an empty 200.
+check_discuss_comment_flow() {
+  echo ""
+  echo "=== Discuss → comment form ==="
+  local home search first_path topic_body
+  home="$(http_body "${BASE}/")"
+  search="$(http_body "${BASE}/search")"
+
+  if echo "$home" | grep -qE '/topic/[^"[:space:]]+#comment-form'; then
+    pass "Pulse Discuss links point at #comment-form"
+  else
+    fail "Pulse missing /topic/...#comment-form Discuss links"
+  fi
+  if echo "$home" | grep -q 'Discuss here'; then
+    pass "Pulse shows Discuss here"
+  else
+    fail "Pulse missing Discuss here label"
+  fi
+  if echo "$search" | grep -qE '#comment-form'; then
+    pass "Intersection/search Discuss links include #comment-form"
+  else
+    fail "Intersection/search missing #comment-form Discuss links"
+  fi
+
+  first_path="$(
+    printf '%s' "$home" | python3 -c '
+import re, sys
+html = sys.stdin.read()
+m = re.search(r"href=\"(/topic/[^\"#?]+(?:\?[^\"#]*)?#comment-form)\"", html)
+print(m.group(1) if m else "")
+'
+  )"
+  if [[ -z "$first_path" ]]; then
+    fail "could not extract a Pulse Discuss href"
+    return
+  fi
+  # Fetch the topic page without the hash (servers ignore fragments).
+  first_path="${first_path%%#*}"
+  topic_body="$(http_body "${BASE}${first_path}" 40)"
+  local code
+  code="$(http_code "${BASE}${first_path}")"
+  if [[ "$code" != "200" ]]; then
+    fail "Discuss target HTTP $code ${first_path}"
+    return
+  fi
+  if echo "$topic_body" | grep -qE "Internal Server Error|Traceback \(most recent call last\)|jinja2\.exceptions"; then
+    fail "Discuss target crashed: ${first_path}"
+    return
+  fi
+  if echo "$topic_body" | grep -q 'id="comment-form"' \
+    && echo "$topic_body" | grep -q 'Post comment' \
+    && echo "$topic_body" | grep -q 'name="body"'; then
+    pass "Discuss target ${first_path} has a comment form"
+  else
+    fail "Discuss target ${first_path} has no Post comment form"
+    return
+  fi
+  # Form must appear before the long news list so it is on-screen after jump.
+  printf '%s' "$topic_body" | python3 -c '
+import sys
+html = sys.stdin.read()
+form = html.find("id=\"comment-form\"")
+hits = html.find("News hits")
+if form < 0:
+    raise SystemExit(1)
+if hits >= 0 and form > hits:
+    raise SystemExit(2)
+'
+  local rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    pass "comment form is above the news-hit list"
+  elif [[ "$rc" -eq 2 ]]; then
+    fail "comment form is buried below News hits"
+  else
+    fail "could not locate comment form vs News hits"
+  fi
+}
+
 if [[ "$SMOKE_SKIP_TOPICS" == "1" ]]; then
   warn "SMOKE_SKIP_TOPICS=1 — skipped topic×lean matrix"
 else
   warm_preferred_pools
   check_topic_filter_matrix
 fi
+
+check_discuss_comment_flow
 
 echo ""
 echo "=== Summary: ${PASS} pass · ${WARN} warn · ${FAIL} fail ==="

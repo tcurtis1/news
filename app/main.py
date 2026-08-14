@@ -603,7 +603,7 @@ async def topic_comment_post(
     )
     if ok:
         return RedirectResponse(
-            f"/topic/{canon}?ok={quote(msg)}#comments",
+            f"/topic/{canon}?ok={quote(msg)}#comment-form",
             status_code=303,
         )
     return RedirectResponse(
@@ -683,7 +683,7 @@ async def journalist_comment_post(
     )
     if ok:
         return RedirectResponse(
-            f"/journalist/{canon}?ok={quote(msg)}#comments",
+            f"/journalist/{canon}?ok={quote(msg)}#comment-form",
             status_code=303,
         )
     return RedirectResponse(

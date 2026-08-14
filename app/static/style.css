@@ -1322,6 +1322,11 @@ footer.site a:hover {
   margin-top: 1.5rem;
 }
 
+#comments,
+#comment-form {
+  scroll-margin-top: 1.25rem;
+}
+
 .guidelines-list {
   color: var(--muted);
   line-height: 1.55;

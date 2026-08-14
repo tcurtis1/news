@@ -58,6 +58,55 @@
   <p class="lean-note">{{ topic.coverage_lean.lean_tip }}</p>
   {% endif %}
 
+  {# Comments sit under the intro so Discuss / #comment-form is visible, not under 20 headlines. #}
+  <section class="comments" id="comments" aria-label="Comments">
+    <h2 class="section-title section-title-lg">
+      Discussion
+      <span class="muted-hint">{{ topic.comment_count }} · optional name or Anonymous</span>
+    </h2>
+
+    {% if flash_error %}
+    <div class="flash error">{{ flash_error }}</div>
+    {% endif %}
+    {% if flash_ok %}
+    <div class="flash ok">{{ flash_ok }}</div>
+    {% endif %}
+
+    <form class="comment-form" method="post" action="/topic/{{ topic.slug }}/comments" id="comment-form">
+      <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+      <div class="comment-fields">
+        <input type="text" name="name" id="comment-name" maxlength="40" placeholder="Name (optional)" autocomplete="nickname" value="{{ form_name or '' }}" />
+        <textarea name="body" rows="3" maxlength="2000" required placeholder="Add a thought — keep it civil.">{{ form_body or '' }}</textarea>
+        <button type="submit">Post comment</button>
+      </div>
+      <p class="t-snip">
+        Be kind. No spam. Comments are filtered for safety
+        (<a href="/safety">guidelines</a>).
+        Held comments are not public until reviewed.
+      </p>
+    </form>
+
+    {% if topic.comments %}
+    <ol class="comment-list">
+      {% for c in topic.comments %}
+      <li class="comment" id="c-{{ c.id }}">
+        <div class="comment-meta">
+          <strong>{{ c.name }}</strong>
+          {% if c.created_at %}<time datetime="{{ c.created_at }}">{{ c.created_at[:16].replace('T', ' ') }}Z</time>{% endif %}
+          <form class="report-form" method="post" action="/topic/{{ topic.slug }}/comments/{{ c.id }}/report">
+            <input type="hidden" name="reason" value="user_report" />
+            <button type="submit" class="report-btn">Report</button>
+          </form>
+        </div>
+        <p class="comment-body">{{ c.body }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="empty small">No comments yet — start the thread.</div>
+    {% endif %}
+  </section>
+
   {% if topic.consensus %}
   {% set c = topic.consensus %}
   <section class="consensus-card card" style="display:block; margin-bottom:1rem;">
@@ -215,55 +264,6 @@
   </script>
   {% endif %}
   {% endif %}
-
-  {# ── Comments ── #}
-  <section class="comments" id="comments" aria-label="Comments">
-    <h2 class="section-title section-title-lg">
-      Discussion
-      <span class="muted-hint">{{ topic.comment_count }} · optional name or Anonymous</span>
-    </h2>
-
-    {% if flash_error %}
-    <div class="flash error">{{ flash_error }}</div>
-    {% endif %}
-    {% if flash_ok %}
-    <div class="flash ok">{{ flash_ok }}</div>
-    {% endif %}
-
-    <form class="comment-form" method="post" action="/topic/{{ topic.slug }}/comments" id="comment-form">
-      <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
-      <div class="comment-fields">
-        <input type="text" name="name" id="comment-name" maxlength="40" placeholder="Name (optional)" autocomplete="nickname" value="{{ form_name or '' }}" />
-        <textarea name="body" rows="3" maxlength="2000" required placeholder="Add a thought — keep it civil.">{{ form_body or '' }}</textarea>
-        <button type="submit">Post comment</button>
-      </div>
-      <p class="t-snip">
-        Be kind. No spam. Comments are filtered for safety
-        (<a href="/safety">guidelines</a>).
-        Held comments are not public until reviewed.
-      </p>
-    </form>
-
-    {% if topic.comments %}
-    <ol class="comment-list">
-      {% for c in topic.comments %}
-      <li class="comment" id="c-{{ c.id }}">
-        <div class="comment-meta">
-          <strong>{{ c.name }}</strong>
-          {% if c.created_at %}<time datetime="{{ c.created_at }}">{{ c.created_at[:16].replace('T', ' ') }}Z</time>{% endif %}
-          <form class="report-form" method="post" action="/topic/{{ topic.slug }}/comments/{{ c.id }}/report">
-            <input type="hidden" name="reason" value="user_report" />
-            <button type="submit" class="report-btn">Report</button>
-          </form>
-        </div>
-        <p class="comment-body">{{ c.body }}</p>
-      </li>
-      {% endfor %}
-    </ol>
-    {% else %}
-    <div class="empty small">No comments yet — start the thread.</div>
-    {% endif %}
-  </section>
 
   <div class="disclaimer">{{ topic.disclaimer }}</div>
 {% endblock %}

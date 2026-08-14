@@ -156,7 +156,7 @@
               {% if c.url %}
               <a href="{{ c.url }}" rel="noopener noreferrer" target="_blank" data-story-link>Source</a>
               {% endif %}
-              <a href="/topic/{{ slugify(c.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comments">Discuss here</a>
+              <a href="/topic/{{ slugify(c.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comment-form">Discuss here</a>
             </div>
             <div class="rank-pills">
               {% for p in c.platforms %}
@@ -220,6 +220,9 @@
               {% if item.snippet %}
               <p class="t-snip">{{ item.snippet }}</p>
               {% endif %}
+              <div class="links">
+                <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comment-form">Discuss here</a>
+              </div>
             </div>
           </li>
           {% endfor %}
@@ -264,7 +267,7 @@
         <span>{{ rl.summary }}</span>
         {% if topic_slug %}
         <a class="badge" href="/topic/{{ topic_slug }}?geo={{ geo_code }}">Topic page</a>
-        <a href="/topic/{{ topic_slug }}?geo={{ geo_code }}#comments">Discuss</a>
+        <a href="/topic/{{ topic_slug }}?geo={{ geo_code }}#comment-form">Discuss</a>
         {% endif %}
       </div>
       {% if rl.hit_summary %}
@@ -385,10 +388,10 @@
             {% if item.lean_label %}
             <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
             {% endif %}
+            <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comment-form">Discuss here</a>
             {% if item.comments_url %}
-            <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
+            <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Original thread</a>
             {% endif %}
-            <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comments">Discuss here</a>
           </div>
         </div>
       </li>
@@ -420,8 +423,9 @@
             {% if item.lean_label %}
             <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
             {% endif %}
+            <a href="/topic/{{ slugify(item.title) }}?geo={{ geo_code }}&lean={{ lean_pref or 'balanced' }}#comment-form">Discuss here</a>
             {% if item.comments_url %}
-            <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Discussion</a>
+            <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Original thread</a>
             {% endif %}
           </div>
         </div>
@@ -514,7 +518,7 @@
           encodeURIComponent(geoCode) +
           "&lean=" +
           encodeURIComponent(leanQ) +
-          "#comments";
+          "#comment-form";
         return (
           '<li class="card">' +
           '<div class="rank">' +

@@ -16,6 +16,48 @@
   </div>
   <p class="lean-note">{{ journalist.disclaimer }}</p>
 
+  {# ── Comments ── #}
+  <section class="comments" id="comments" aria-label="Comments">
+    <h2 class="section-title section-title-lg">
+      Discussion
+      <span class="muted-hint">{{ journalist.comments | length }} · optional name or Anonymous</span>
+    </h2>
+
+    <form class="comment-form" method="post" action="/journalist/{{ journalist.slug }}/comments" id="comment-form">
+      <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+      <div class="comment-fields">
+        <input type="text" name="name" id="comment-name" maxlength="40" placeholder="Name (optional)" autocomplete="nickname" value="{{ form_name or '' }}" />
+        <textarea name="body" rows="3" maxlength="2000" required placeholder="Add a thought — keep it civil."></textarea>
+        <button type="submit">Post comment</button>
+      </div>
+      <p class="t-snip">
+        Be kind. No spam. Comments are filtered for safety
+        (<a href="/safety">guidelines</a>).
+        Held comments are not public until reviewed.
+      </p>
+    </form>
+
+    {% if journalist.comments %}
+    <ol class="comment-list">
+      {% for c in journalist.comments %}
+      <li class="comment" id="c-{{ c.id }}">
+        <div class="comment-meta">
+          <strong>{{ c.name }}</strong>
+          {% if c.created_at %}<time datetime="{{ c.created_at }}">{{ c.created_at[:16].replace('T', ' ') }}Z</time>{% endif %}
+          <form class="report-form" method="post" action="/journalist/{{ journalist.slug }}/comments/{{ c.id }}/report">
+            <input type="hidden" name="reason" value="user_report" />
+            <button type="submit" class="report-btn">Report</button>
+          </form>
+        </div>
+        <p class="comment-body">{{ c.body }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="empty small">No comments yet — start the thread.</div>
+    {% endif %}
+  </section>
+
   {% if journalist.sightings %}
   <h2 class="section-title section-title-lg">Articles on this site</h2>
   <ol class="list">
@@ -73,48 +115,6 @@
       </li>
       {% endfor %}
     </ul>
-    {% endif %}
-  </section>
-
-  {# ── Comments ── #}
-  <section class="comments" id="comments" aria-label="Comments">
-    <h2 class="section-title section-title-lg">
-      Discussion
-      <span class="muted-hint">{{ journalist.comments | length }} · optional name or Anonymous</span>
-    </h2>
-
-    <form class="comment-form" method="post" action="/journalist/{{ journalist.slug }}/comments" id="comment-form">
-      <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
-      <div class="comment-fields">
-        <input type="text" name="name" id="comment-name" maxlength="40" placeholder="Name (optional)" autocomplete="nickname" value="{{ form_name or '' }}" />
-        <textarea name="body" rows="3" maxlength="2000" required placeholder="Add a thought — keep it civil."></textarea>
-        <button type="submit">Post comment</button>
-      </div>
-      <p class="t-snip">
-        Be kind. No spam. Comments are filtered for safety
-        (<a href="/safety">guidelines</a>).
-        Held comments are not public until reviewed.
-      </p>
-    </form>
-
-    {% if journalist.comments %}
-    <ol class="comment-list">
-      {% for c in journalist.comments %}
-      <li class="comment" id="c-{{ c.id }}">
-        <div class="comment-meta">
-          <strong>{{ c.name }}</strong>
-          {% if c.created_at %}<time datetime="{{ c.created_at }}">{{ c.created_at[:16].replace('T', ' ') }}Z</time>{% endif %}
-          <form class="report-form" method="post" action="/journalist/{{ journalist.slug }}/comments/{{ c.id }}/report">
-            <input type="hidden" name="reason" value="user_report" />
-            <button type="submit" class="report-btn">Report</button>
-          </form>
-        </div>
-        <p class="comment-body">{{ c.body }}</p>
-      </li>
-      {% endfor %}
-    </ol>
-    {% else %}
-    <div class="empty small">No comments yet — start the thread.</div>
     {% endif %}
   </section>
 {% endblock %}

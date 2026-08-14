@@ -338,7 +338,7 @@
       escapeHtml(leanLabel) +
       " sources · <a href=\"" +
       topicHref +
-      '#comments">discuss</a></p>' +
+      '#comment-form">discuss</a></p>' +
       (pills ? '<div class="rank-pills">' + pills + "</div>" : "") +
       (hitHtml
         ? '<ul class="my-hit-list">' + hitHtml + "</ul>" + moreBtn

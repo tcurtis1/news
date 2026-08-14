@@ -130,6 +130,27 @@ class TemplateRenderTests(unittest.TestCase):
         from app.topics import slugify
 
         self.assertIn(f"/journalist/{slugify('Jane Doe')}", r.text)
+        self.assertIn('id="comment-form"', r.text)
+        self.assertIn("Post comment", r.text)
+        self.assertIn('name="body"', r.text)
+        form_at = r.text.find('id="comment-form"')
+        hits_at = r.text.find("News hits")
+        self.assertGreater(form_at, 0)
+        if hits_at >= 0:
+            self.assertLess(form_at, hits_at, "comment form must sit above News hits")
+
+    def test_pulse_discuss_links_go_to_comment_form(self):
+        src = Path(__file__).resolve().parents[1] / "app" / "templates" / "pulse.html"
+        text = src.read_text(encoding="utf-8")
+        self.assertIn("Discuss here", text)
+        self.assertIn("#comment-form", text)
+        self.assertNotIn("Discuss topic", text)
+
+    def test_intersection_discuss_links_go_to_comment_form(self):
+        r = self.client.get("/search", params={"q": "kitchen sink"})
+        self._assert_clean_200(r, "/search?q=kitchen sink")
+        self.assertIn("Discuss here", r.text)
+        self.assertIn("#comment-form", r.text)
 
     def test_search_page_renders_with_authored_hit(self):
         r = self.client.get("/search", params={"q": "kitchen sink"})

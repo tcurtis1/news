@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "discuss-comment-form",
+      "seq": 17,
+      "date": "2026-08-14",
+      "title": "Discuss now opens the comment box",
+      "detail": "Tapping Discuss on a story jumps to a comment form at the top of the topic page — no signup, Anonymous is fine.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "news-incognito-hardening",
       "seq": 16,
       "date": "2026-08-14",
