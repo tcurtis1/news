@@ -12,9 +12,20 @@ See **[NETWORK.md](NETWORK.md)**.
 ## Cold start
 
 1. **[NETWORK.md](NETWORK.md)** — deploy lock, What’s New, multi-repo habits.  
-2. **[README.md](README.md)** — what’s live.  
-3. **[ROADMAP.md](ROADMAP.md)** — backlog.  
-4. `git pull` before editing.
+2. **[money `docs/MID-AND-LONG-TERM-VISION.md`](../money/docs/MID-AND-LONG-TERM-VISION.md)** — network-wide strategic vision + Anti-Dev-Circle audit (applies to all four sites; see below).  
+3. **[README.md](README.md)** — what’s live.  
+4. **[ROADMAP.md](ROADMAP.md)** — backlog.  
+5. `git pull` before editing.
+
+## Anti-Dev-Circle audit (network-wide, added 2026-08-13)
+
+Before proposing, designing, or coding any new feature here, complete the
+3-step audit from money `AGENTS.md` rule 11 / `docs/MID-AND-LONG-TERM-VISION.md`
+(that doc explicitly applies to money, news, finance, and convert):
+
+1. Does an equivalent tool/pattern already exist (in news or a sibling site)? Extend, don't re-create.
+2. Is the change backed by empirical evidence (GSC data, analytics, user feedback) rather than a guess?
+3. Does it preserve core invariants (free, no signup, plain English, shared teal chrome, no ad-loaded article archive) and fit the mid/long-term roadmap?
 
 ## Deploy
 
