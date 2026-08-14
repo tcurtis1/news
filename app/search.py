@@ -639,19 +639,9 @@ async def _fetch_outlet_rss_for_pref(
     # Conservative pulls the full native RSS set (incl. folder outlets) so
     # "load more" can keep browsing without re-hitting only Fox/NYPost.
     if lite:
-        if p == "conservative":
-            limit = None  # all OUTLET_RSS conservative feeds
-        elif p == "liberal":
-            limit = 18
-        else:
-            limit = 12
+        limit = 16 if p == "conservative" else (18 if p == "liberal" else 12)
     else:
-        if p == "conservative":
-            limit = None
-        elif p == "liberal":
-            limit = 22
-        else:
-            limit = 14
+        limit = 20 if p == "conservative" else (22 if p == "liberal" else 14)
     feeds = rss_feeds_for(lean, limit=limit)
     if not feeds:
         return []
