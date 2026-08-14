@@ -1,0 +1,14 @@
+# yoyosup News — Multi-Platform Attention Map & Daily Intersection
+> Real-time consensus and news rank tracking across Google, Bing, YouTube, X, Polymarket, TikTok, Facebook, and Instagram. Free, no account, privacy-first.
+
+## Primary News Resources & Tools
+
+- [Top Stories (Daily Intersection)](https://news.yoyosup.com/): Real-time surging news topics ranked across 8 major search, video, social, and prediction market platforms.
+- [Intersection Search](https://news.yoyosup.com/search): Rank map search comparing how any topic ranks on Google, Bing, YouTube, X, Polymarket, and TikTok.
+- [My Feed (MyNews)](https://news.yoyosup.com/my): Custom local topic board saved entirely on-device without an account or login.
+- [Safety & Verification](https://news.yoyosup.com/safety): Cross-referenced fake news, phishing, and scam text warning checks backed by YoyoTools ScamCheck.
+
+## Network Siblings
+
+- [YoyoTools](https://www.yoyosup.com/tools/): Free on-device scam checkers, link safety tests, and utilities.
+- [YoyoFinance](https://finance.yoyosup.com/): Real-time Treasury rates, mortgage averages, forex, crypto context, and stock quotes.

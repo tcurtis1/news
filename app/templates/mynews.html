@@ -42,13 +42,15 @@
     </p>
   </section>
 
+  {% include "_view_bar.html" %}
+
   <div id="my-empty" class="my-empty" hidden>
     <p class="my-empty-lead">No topics yet. Add a few to build your board.</p>
     <p class="muted-hint">Ideas from today’s consensus for {{ place_label }}:</p>
     <div class="my-suggestions" id="my-suggestions"></div>
   </div>
 
-  <div id="my-feed" class="my-feed" aria-live="polite"></div>
+  <div id="my-feed" class="my-feed feed-container view-mode-cards" aria-live="polite"></div>
 
   <p class="disclaimer">
     MyNews runs in your browser. Topics never leave this device unless you open a topic page

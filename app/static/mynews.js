@@ -316,6 +316,9 @@
       '<article class="my-topic-card card" data-slug="' +
       escapeHtml(topic.slug) +
       '">' +
+      '<div class="story-thumb">' +
+      '<span class="story-thumb-badge">' + escapeHtml(topic.label.slice(0, 14)) + '</span>' +
+      '</div>' +
       "<div>" +
       '<h2 class="my-topic-title"><a href="' +
       topicHref +

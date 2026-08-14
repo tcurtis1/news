@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "news-list-thumbnail-view-toggle",
+      "seq": 13,
+      "date": "2026-08-14",
+      "title": "List & Thumbnail Card Layout View Toggle",
+      "detail": "Added a 1-tap view switcher (Compact List vs Thumbnail Cards) across Top Stories, Intersection, MyFeed, and Topic pages.",
+      "href": "/search",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "news-month-of-updates",
       "seq": 12,
       "date": "2026-08-12",

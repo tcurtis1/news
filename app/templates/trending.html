@@ -14,14 +14,19 @@
 <h1>Surging & Trending Topics</h1>
 <p class="lede">Highest velocity headlines cross-referenced across 8 major news, media, and social platforms.</p>
 
+{% include "_view_bar.html" %}
+
 <section class="card">
   <h2>Today's High-Velocity Stories</h2>
   {% if pulse and pulse.consensus %}
-  <ol class="list">
+  <ol class="list feed-container view-mode-cards">
     {% for c in pulse.consensus[:15] %}
     {% set title = c.title or '' %}
     {% set slug = slugify(title) %}
     <li class="card" style="margin-bottom:0.75rem; padding:1rem;">
+      <div class="story-thumb">
+        <span class="story-thumb-badge">{{ title[:12] }}</span>
+      </div>
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <h3 style="margin:0;"><a href="/topic/{{ slug }}">{{ title }}</a></h3>
         <span class="badge live">Velocity #{{ loop.index }}</span>

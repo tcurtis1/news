@@ -215,6 +215,14 @@ async def robots_txt():
     return render_robots_txt()
 
 
+@app.get("/llms.txt", response_class=PlainTextResponse)
+async def llms_txt():
+    llms_path = BASE / "static" / "llms.txt"
+    if llms_path.exists():
+        return PlainTextResponse(llms_path.read_text(encoding="utf-8"))
+    return PlainTextResponse("# yoyosup News\nhttps://news.yoyosup.com/")
+
+
 @app.get("/sitemap.xml")
 async def sitemap_xml():
     urls = await collect_sitemap_urls()
