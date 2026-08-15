@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "full-photo-thumbnails",
+      "seq": 19,
+      "date": "2026-08-14",
+      "title": "Article photos now show the whole picture",
+      "detail": "News cards now shrink article photos to fit without cutting off the sides or top and bottom.",
+      "href": "/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "comment-likes-and-counts",
       "seq": 18,
       "date": "2026-08-14",
