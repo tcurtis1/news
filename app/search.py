@@ -115,6 +115,21 @@ def _clean_query(q: str) -> str:
 _IMAGE_CACHE: dict[str, str] = {}
 
 
+def _upgrade_image_url(url: str | None) -> str | None:
+    """Ensure image URLs are HTTPS and upgrade Bing News thumbnails to high-res 800x450."""
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()
+    if url.startswith("//"):
+        url = "https:" + url
+    elif url.startswith("http://"):
+        url = "https://" + url[7:]
+    if "bing.com/th" in url:
+        if "&w=" not in url:
+            url = url + "&w=800&h=450&c=14&rs=2"
+    return url
+
+
 def _extract_rss_image(entry: ET.Element) -> str | None:
     """Extract media thumbnail or enclosure image URL from RSS/Atom entry."""
     for child in entry.iter():
@@ -126,7 +141,7 @@ def _extract_rss_image(entry: ET.Element) -> str | None:
                 if url.startswith("//"):
                     url = "https:" + url
                 if url.startswith("http") and not url.endswith(".gif") and "1x1" not in url:
-                    return url
+                    return _upgrade_image_url(url)
 
     for child in entry.iter():
         text = child.text or ""
@@ -137,7 +152,7 @@ def _extract_rss_image(entry: ET.Element) -> str | None:
                 if url.startswith("//"):
                     url = "https:" + url
                 if url.startswith("http") and not url.endswith(".gif") and "1x1" not in url and "tracking" not in url:
-                    return url
+                    return _upgrade_image_url(url)
     return None
 
 
@@ -189,8 +204,8 @@ async def resolve_article_thumbnail(
                     if item is not None:
                         for child in item.iter():
                             if child.tag.lower().endswith("image") and child.text:
-                                img = child.text.strip()
-                                if img.startswith("http") and "rsslogo" not in img:
+                                img = _upgrade_image_url(child.text.strip())
+                                if img and "rsslogo" not in img:
                                     _IMAGE_CACHE[cache_key] = img
                                     return img
             except Exception:
@@ -235,8 +250,10 @@ async def resolve_article_thumbnail(
                         from urllib.parse import urljoin
                         img_url = urljoin(url, img_url)
                     if img_url.startswith("http") and not img_url.endswith(".gif"):
-                        _IMAGE_CACHE[cache_key] = img_url
-                        return img_url
+                        upgraded = _upgrade_image_url(img_url)
+                        if upgraded:
+                            _IMAGE_CACHE[cache_key] = upgraded
+                            return upgraded
         except Exception:
             pass
 
@@ -268,8 +285,8 @@ async def resolve_article_thumbnail(
                     if item is not None:
                         for child in item.iter():
                             if child.tag.lower().endswith("image") and child.text:
-                                img = child.text.strip()
-                                if img.startswith("http") and "rsslogo" not in img:
+                                img = _upgrade_image_url(child.text.strip())
+                                if img and "rsslogo" not in img:
                                     _IMAGE_CACHE[cache_key] = img
                                     return img
             except Exception:

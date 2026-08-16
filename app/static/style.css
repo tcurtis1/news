@@ -2153,9 +2153,12 @@ li.card.story-card:hover {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
+  max-height: 210px;
   overflow: hidden;
-  background: var(--panel-2);
-  display: block;
+  background: #090d16;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -2167,7 +2170,7 @@ li.card.story-card:hover {
 .story-thumb-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   display: block;
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
