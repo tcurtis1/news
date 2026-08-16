@@ -28,3 +28,30 @@ def test_prefer_topical_never_empty_when_pool_exists():
     ]
     out = prefer_topical(hits, "QuantumPhysicsXYZ", min_keep=4, pad_with_general=True)
     assert len(out) == 2
+
+
+def test_prefer_topical_strict_mode_excludes_unrelated_stories():
+    """Regression: MyNews chips (AI, Economy, ...) must not backfill with
+    unrelated headlines from the shared pool — previously the same
+    off-topic story could appear under multiple unrelated chips."""
+    hits = [
+        {"title": "Sofie Cunningham traded in offseason shakeup", "source": "ESPN", "score": 10, "url": "https://espn.com/a"},
+        {"title": "New AI chip unveiled by Nvidia at conference", "source": "Reuters", "score": 5, "url": "https://reuters.com/a"},
+    ]
+    economy = prefer_topical(hits, "Economy", pad_with_general=False)
+    ai = prefer_topical(hits, "AI", pad_with_general=False)
+    assert economy == []  # no genuinely economy-related story in the pool
+    assert len(ai) == 1 and "AI chip" in ai[0]["title"]
+
+
+def test_topical_score_rejects_partial_word_substring():
+    """Regression: the economy term "trade" must not match "traded" (a
+    sports-trade headline), nor should "tax" match "taxi"."""
+    assert topical_score("Sofie Cunningham traded in offseason shakeup", "Economy") == 0
+    assert topical_score("Taxi drivers protest new city rules", "Economy") == 0
+
+
+def test_topical_score_still_allows_simple_plurals():
+    """Plural tolerance ("job" <-> "jobs") should still work after removing
+    the unrestricted substring fallback."""
+    assert topical_score("Jobs report beats expectations, markets rally", "Economy") > 0

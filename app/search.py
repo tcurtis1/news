@@ -1015,7 +1015,11 @@ async def fetch_preferred_headlines(
         topic_for_google=g_topic,
     )
     if topic:
-        hits = prefer_topical(hits, topic, min_keep=12, pad_with_general=True)
+        # Strict: only genuinely on-topic hits. Padding with unrelated
+        # "preferred source" filler mislabeled thin topics as covering
+        # whatever story happened to be trending elsewhere — the UI already
+        # has a graceful "no headlines right now" empty state for this case.
+        hits = prefer_topical(hits, topic, pad_with_general=False)
     return list(hits)
 
 
@@ -1089,7 +1093,7 @@ async def _run_search_lite(
                 lean_pref, "", budget_sec=6.0, use_google=False
             )
             if query:
-                hits = prefer_topical(hits, query, min_keep=12, pad_with_general=True)
+                hits = prefer_topical(hits, query, pad_with_general=False)
         except Exception:
             hits = []
         trends = await build_trends(force=False, geo=place.code)

@@ -1058,7 +1058,13 @@ def topical_score(title: str, query: str) -> int:
                 or re.search(r"\b(interest rates?|rate cut|rate hike)\b", title_l)
             ):
                 hits += 1
-        elif t in words_l or t in title_l:
+        elif t in words_l:
+            hits += 1
+        # Simple singular/plural tolerance ("job" <-> "jobs") without opening
+        # up unrestricted substring matching — that previously let a term
+        # like "trade" (economy) match "traded" in an unrelated sports
+        # headline (a player trade), or "tax" match "taxi".
+        elif t + "s" in words_l or (t.endswith("s") and t[:-1] in words_l):
             hits += 1
     return hits
 
@@ -1073,8 +1079,14 @@ def prefer_topical(
     """
     Prefer hits whose titles mention the query (or related category terms).
 
-    For broad chips like "Politics", pad with other preferred-source headlines
-    so MyNews never shows an empty card when the lean pool is healthy.
+    When pad_with_general is True, thin topics are padded with other
+    preferred-source headlines so a card is rarely empty — but those padded
+    items are NOT about the topic, so callers that label results by topic
+    (MyNews chips) should pass pad_with_general=False and let the UI show
+    its existing "no headlines right now" empty state instead of silently
+    mislabeling unrelated stories. This previously caused the same
+    off-topic story to appear under multiple unrelated MyNews chips
+    (e.g. "AI" and "Economy") whenever their real topical pool was thin.
     """
     if not hits:
         return []
@@ -1095,9 +1107,11 @@ def prefer_topical(
         scored.append((s, out))
     scored.sort(key=lambda pair: (pair[0], int(pair[1].get("score") or 0)), reverse=True)
     matched = [h for s, h in scored if s > 0]
+    if not pad_with_general:
+        return matched
     rest = [h for s, h in scored if s == 0]
     if matched:
-        if pad_with_general and len(matched) < min_keep and rest:
+        if len(matched) < min_keep and rest:
             need = min_keep - len(matched)
             return matched + rest[:need]
         return matched

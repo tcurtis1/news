@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "mynews-topic-accuracy-fix",
+      "seq": 22,
+      "date": "2026-08-16",
+      "title": "MyNews topic cards no longer show unrelated stories",
+      "detail": "Fixed AI, Economy, and other topic cards sometimes showing the same off-topic story — cards now only show genuinely on-topic headlines.",
+      "href": "/mynews",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "youtube-trending-music-filter",
       "seq": 21,
       "date": "2026-08-15",
