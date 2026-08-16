@@ -1,6 +1,8 @@
 {# Source lean preference: Conservative / Balanced / Liberal. Expects lean_pref, optional lean_meta. #}
 {% set lean_pref = lean_pref or (lean_meta.lean_pref if lean_meta else 'balanced') %}
 {% set lean_tip = (lean_meta.lean_pref_tip if lean_meta else '') %}
+{% set flip_target = 'conservative' if lean_pref == 'liberal' else ('liberal' if lean_pref == 'conservative' else 'conservative') %}
+{% set flip_label = 'Flip to Conservative' if lean_pref == 'liberal' else ('Flip to Liberal' if lean_pref == 'conservative' else 'Flip Perspective') %}
 
 <div class="lean-bar" id="lean-bar" data-lean="{{ lean_pref }}">
   <div class="lean-bar-inner">
@@ -28,6 +30,17 @@
         aria-checked="{{ 'true' if lean_pref == 'liberal' else 'false' }}"
       >Liberal</button>
     </div>
+    <button
+      type="button"
+      class="bubble-popper-btn bubble-popper-toggle"
+      id="bubble-popper-btn"
+      data-flip-target="{{ flip_target }}"
+      title="Pop your filter bubble — flip between Liberal and Conservative perspectives with 1 click"
+      aria-label="Bubble Popper: {{ flip_label }}"
+    >
+      <span class="bubble-icon" aria-hidden="true">🫧</span>
+      <span class="bubble-popper-label">{{ flip_label }}</span>
+    </button>
   </div>
   <p class="lean-bar-hint muted-hint" id="lean-bar-hint">
     {% if lean_tip %}
@@ -37,3 +50,4 @@
     {% endif %}
   </p>
 </div>
+

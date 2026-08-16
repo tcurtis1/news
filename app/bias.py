@@ -226,6 +226,141 @@ def enrich_hits(hits: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     return [enrich_hit(h) for h in (hits or [])]
 
 
+# Blindspot categories
+BLINDSPOT_LEFT = "left_blindspot"
+BLINDSPOT_RIGHT = "right_blindspot"
+BLINDSPOT_BALANCED = "balanced"
+BLINDSPOT_NONE = "none"
+
+
+def calculate_blindspot(
+    conservative_count: int, liberal_count: int, balanced_count: int = 0
+) -> dict[str, Any]:
+    """
+    Calculate blindspot detection comparing coverage distribution across
+    conservative, liberal, and balanced sources.
+
+    Returns:
+        {
+            "category": "left_blindspot" | "right_blindspot" | "balanced" | "none",
+            "skew_pct": float (0.0 to 100.0),
+            "description": str,
+            "has_blindspot": bool,
+            "dominant_side": "conservative" | "liberal" | "balanced" | "none",
+            "flip_to": "conservative" | "liberal" | None,
+            "conservative_count": int,
+            "liberal_count": int,
+            "balanced_count": int,
+            "total": int,
+        }
+    """
+    try:
+        conservative = max(0, int(conservative_count or 0))
+    except (TypeError, ValueError):
+        conservative = 0
+    try:
+        liberal = max(0, int(liberal_count or 0))
+    except (TypeError, ValueError):
+        liberal = 0
+    try:
+        balanced = max(0, int(balanced_count or 0))
+    except (TypeError, ValueError):
+        balanced = 0
+
+    total = conservative + liberal + balanced
+    partisan_total = conservative + liberal
+
+    if total == 0:
+        return {
+            "category": BLINDSPOT_NONE,
+            "skew_pct": 0.0,
+            "description": "Not enough labeled sources to detect coverage blindspots.",
+            "has_blindspot": False,
+            "dominant_side": "none",
+            "flip_to": None,
+            "conservative_count": 0,
+            "liberal_count": 0,
+            "balanced_count": 0,
+            "total": 0,
+        }
+
+    # Only center/balanced sources
+    if partisan_total == 0 and balanced > 0:
+        return {
+            "category": BLINDSPOT_BALANCED,
+            "skew_pct": 0.0,
+            "description": f"Coverage is from {balanced} center/balanced source(s) with no partisan skew.",
+            "has_blindspot": False,
+            "dominant_side": "balanced",
+            "flip_to": None,
+            "conservative_count": 0,
+            "liberal_count": 0,
+            "balanced_count": balanced,
+            "total": total,
+        }
+
+    con_pct = (conservative / total) * 100.0
+    lib_pct = (liberal / total) * 100.0
+    con_partisan_pct = (conservative / partisan_total) * 100.0 if partisan_total > 0 else 0.0
+    lib_partisan_pct = (liberal / partisan_total) * 100.0 if partisan_total > 0 else 0.0
+
+    # Blindspot condition: >= 70% one-sided coverage
+    if (con_pct >= 70.0 or (con_partisan_pct >= 70.0 and conservative >= 2 and con_pct >= 50.0)) and conservative > liberal:
+        skew_pct = round(con_pct if con_pct >= 70.0 else con_partisan_pct, 1)
+        desc = (
+            f"Left Blindspot: {skew_pct:.0f}% of coverage is from right-leaning / conservative sources. "
+            "Liberal readers may not see this story in their regular news diet."
+        )
+        return {
+            "category": BLINDSPOT_LEFT,
+            "skew_pct": skew_pct,
+            "description": desc,
+            "has_blindspot": True,
+            "dominant_side": "conservative",
+            "flip_to": "liberal",
+            "conservative_count": conservative,
+            "liberal_count": liberal,
+            "balanced_count": balanced,
+            "total": total,
+        }
+    elif (lib_pct >= 70.0 or (lib_partisan_pct >= 70.0 and liberal >= 2 and lib_pct >= 50.0)) and liberal > conservative:
+        skew_pct = round(lib_pct if lib_pct >= 70.0 else lib_partisan_pct, 1)
+        desc = (
+            f"Right Blindspot: {skew_pct:.0f}% of coverage is from left-leaning / liberal sources. "
+            "Conservative readers may not see this story in their regular news diet."
+        )
+        return {
+            "category": BLINDSPOT_RIGHT,
+            "skew_pct": skew_pct,
+            "description": desc,
+            "has_blindspot": True,
+            "dominant_side": "liberal",
+            "flip_to": "conservative",
+            "conservative_count": conservative,
+            "liberal_count": liberal,
+            "balanced_count": balanced,
+            "total": total,
+        }
+    else:
+        max_pct = round(max(con_pct, lib_pct, (balanced / total) * 100.0), 1)
+        desc = (
+            f"Balanced coverage: Story is covered across viewpoints "
+            f"({conservative} conservative, {liberal} liberal, {balanced} center)."
+        )
+        return {
+            "category": BLINDSPOT_BALANCED,
+            "skew_pct": max_pct,
+            "description": desc,
+            "has_blindspot": False,
+            "dominant_side": "balanced",
+            "flip_to": None,
+            "conservative_count": conservative,
+            "liberal_count": liberal,
+            "balanced_count": balanced,
+            "total": total,
+        }
+
+
 def aggregate_lean(hits: list[dict[str, Any]] | None) -> dict[str, Any]:
     """
     Topic / query-level badge from known outlet labels among hits.
@@ -239,6 +374,11 @@ def aggregate_lean(hits: list[dict[str, Any]] | None) -> dict[str, Any]:
         if lean in counts:
             counts[lean] += 1
     total_known = sum(counts.values())
+    blindspot = calculate_blindspot(
+        conservative_count=counts[LEAN_RIGHT],
+        liberal_count=counts[LEAN_LEFT],
+        balanced_count=counts[LEAN_CENTER],
+    )
     if total_known == 0:
         return {
             "lean": LEAN_UNCLEAR,
@@ -248,6 +388,7 @@ def aggregate_lean(hits: list[dict[str, Any]] | None) -> dict[str, Any]:
             ),
             "lean_counts": counts,
             "lean_sample": 0,
+            "blindspot": blindspot,
         }
 
     # If both sides strong → mixed
@@ -262,6 +403,7 @@ def aggregate_lean(hits: list[dict[str, Any]] | None) -> dict[str, Any]:
             ),
             "lean_counts": counts,
             "lean_sample": total_known,
+            "blindspot": blindspot,
         }
 
     winner = max(counts, key=lambda k: counts[k])
@@ -283,6 +425,7 @@ def aggregate_lean(hits: list[dict[str, Any]] | None) -> dict[str, Any]:
             ),
             "lean_counts": counts,
             "lean_sample": total_known,
+            "blindspot": blindspot,
         }
 
     tip = TIPS.get(winner, TIPS[LEAN_UNCLEAR])
@@ -296,4 +439,5 @@ def aggregate_lean(hits: list[dict[str, Any]] | None) -> dict[str, Any]:
         "lean_tip": tip,
         "lean_counts": counts,
         "lean_sample": total_known,
+        "blindspot": blindspot,
     }

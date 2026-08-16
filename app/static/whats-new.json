@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "blindspot-radar-bubble-popper",
+      "seq": 23,
+      "date": "2026-08-16",
+      "title": "Blindspot Radar & Bubble Popper",
+      "detail": "Detect coverage blindspots across conservative, liberal, and center outlets with instant 1-click bubble popping to explore opposite viewpoints.",
+      "href": "https://news.yoyosup.com/search",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "mynews-topic-accuracy-fix",
       "seq": 22,
       "date": "2026-08-16",

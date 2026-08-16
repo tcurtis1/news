@@ -109,6 +109,23 @@
       btn.classList.toggle("active", on);
       btn.setAttribute("aria-checked", on ? "true" : "false");
     });
+
+    // Update Bubble Popper button inside or outside lean-bar
+    var flipTarget = lean === "liberal" ? "conservative" : (lean === "conservative" ? "liberal" : "conservative");
+    var flipLabel = lean === "liberal" ? "Flip to Conservative" : (lean === "conservative" ? "Flip to Liberal" : "Flip Perspective");
+    document.querySelectorAll(".bubble-popper-toggle, #bubble-popper-btn").forEach(function (popper) {
+      popper.setAttribute("data-flip-target", flipTarget);
+      var labelEl = popper.querySelector(".bubble-popper-label");
+      if (labelEl) {
+        labelEl.textContent = flipLabel;
+      }
+    });
+  }
+
+  function popBubble(targetLean) {
+    var cur = load();
+    var target = normalize(targetLean || (cur === "liberal" ? "conservative" : "liberal"));
+    navigateWithLean(target);
   }
 
   function init(opts) {
@@ -130,6 +147,18 @@
       });
     }
 
+    // Attach click handlers to all bubble popper buttons on the page
+    document.querySelectorAll(".bubble-popper-btn").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        btn.classList.add("popping");
+        var target = btn.getAttribute("data-flip-target");
+        setTimeout(function () {
+          popBubble(target);
+        }, 120);
+      });
+    });
+
     // Expose for MyNews / other scripts
     window.YoyoLeanPref = {
       load: load,
@@ -138,20 +167,35 @@
       current: function () {
         return lean;
       },
+      popBubble: popBubble,
       KEY: KEY,
     };
     return lean;
   }
 
-  // Auto-init when bar present
+  // Global delegation for dynamically added or hydrated bubble poppers
+  document.addEventListener("click", function (e) {
+    var popper = e.target && e.target.closest ? e.target.closest(".bubble-popper-btn") : null;
+    if (popper && !popper.hasAttribute("data-bound")) {
+      popper.setAttribute("data-bound", "1");
+      e.preventDefault();
+      popper.classList.add("popping");
+      var target = popper.getAttribute("data-flip-target");
+      setTimeout(function () {
+        popBubble(target);
+      }, 120);
+    }
+  });
+
+  // Auto-init when bar present or on DOMContentLoaded
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       var bar = document.getElementById("lean-bar");
-      if (bar) init({ lean: bar.getAttribute("data-lean") });
+      init({ lean: bar ? bar.getAttribute("data-lean") : null });
     });
   } else {
     var bar = document.getElementById("lean-bar");
-    if (bar) init({ lean: bar.getAttribute("data-lean") });
+    init({ lean: bar ? bar.getAttribute("data-lean") : null });
   }
 
   window.YoyoLeanPrefInit = init;

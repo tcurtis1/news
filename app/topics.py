@@ -60,6 +60,7 @@ async def build_topic(
     hits = enrich_hits(search.get("hits") or [])
     tech_hits = enrich_hits(search.get("tech_hits") or [])
     coverage = search.get("coverage_lean") or aggregate_lean(hits)
+    blindspot = search.get("blindspot") or coverage.get("blindspot")
 
     # Prefer display title from consensus or best rank hit
     display = query
@@ -86,6 +87,7 @@ async def build_topic(
         "portals": search.get("portals") or [],
         "sources_ok": search.get("sources_ok") or [],
         "coverage_lean": coverage,
+        "blindspot": blindspot,
         "lean_pref": search.get("lean_pref"),
         "lean_pref_label": search.get("lean_pref_label"),
         "lean_pref_tip": search.get("lean_pref_tip"),

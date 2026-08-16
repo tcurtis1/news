@@ -57,7 +57,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.11.11"
+APP_VERSION = "0.11.12"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -378,6 +378,7 @@ async def search_page(
     )
     title = f"Rank map: {q.strip()}" if q.strip() else "Daily Intersection"
     places_ui = list_places_for_ui()
+    blindspot = results.get("blindspot") or (results.get("coverage_lean", {}).get("blindspot") if results.get("coverage_lean") else None)
     resp = templates.TemplateResponse(
         request,
         "search.html",
@@ -388,6 +389,7 @@ async def search_page(
             "place": place.to_dict(),
             "places_ui": places_ui,
             "results": results,
+            "blindspot": blindspot,
             "lean_pref": lean_pref,
             "lean_meta": pref_meta(lean_pref),
             "page_title": title,
@@ -568,12 +570,14 @@ async def topic_page(
             status_code=302,
         )
 
+    blindspot = topic.get("blindspot") or (topic.get("coverage_lean", {}).get("blindspot") if topic.get("coverage_lean") else None)
     resp = templates.TemplateResponse(
         request,
         "topic.html",
         {
             "public_base": PUBLIC_BASE,
             "topic": topic,
+            "blindspot": blindspot,
             "geo": place.code,
             "place": place.to_dict(),
             "lean_pref": lean_pref,

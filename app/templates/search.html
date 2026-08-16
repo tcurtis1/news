@@ -333,6 +333,7 @@
     </section>
     {% endif %}
 
+    {% set bs = blindspot or (results.blindspot if results else none) or (results.coverage_lean.blindspot if results and results.coverage_lean else none) %}
     <div class="meta-row">
       {% if results.mode == 'live' %}
         <span class="badge live">Live news hits</span>
@@ -344,11 +345,48 @@
       {% if results.coverage_lean %}
         <span class="lean-badge lean-{{ results.coverage_lean.lean }}" title="{{ results.coverage_lean.lean_tip }}">{{ results.coverage_lean.lean_label }}</span>
       {% endif %}
+      {% if bs and bs.has_blindspot %}
+        <span class="blindspot-chip blindspot-chip-{{ bs.category }}" title="{{ bs.description }}">
+          📡 {{ 'Left Blindspot' if bs.category == 'left_blindspot' else 'Right Blindspot' }} ({{ bs.skew_pct|round|int }}%)
+        </span>
+      {% endif %}
       <span>{{ results.count }} results</span>
       {% if results.sources_ok %}
         <span>{{ results.sources_ok | join(' · ') }}</span>
       {% endif %}
     </div>
+
+    {% if bs and bs.has_blindspot %}
+    <div class="blindspot-radar blindspot-radar-{{ bs.category }}" role="region" aria-label="Blindspot Radar Alert">
+      <div class="blindspot-radar-header">
+        <div class="blindspot-radar-title">
+          <span class="blindspot-radar-icon" aria-hidden="true">📡</span>
+          <span class="blindspot-radar-heading">Blindspot Radar</span>
+          <span class="blindspot-badge blindspot-badge-{{ bs.category }}">
+            {{ 'Left Blindspot' if bs.category == 'left_blindspot' else 'Right Blindspot' }}
+          </span>
+          <span class="blindspot-skew-tag">{{ bs.skew_pct|round|int }}% {{ bs.dominant_side|capitalize }} Skew</span>
+        </div>
+        {% set pop_target = bs.flip_to or ('conservative' if bs.dominant_side == 'conservative' else 'liberal') %}
+        <button
+          type="button"
+          class="bubble-popper-btn bubble-popper-radar"
+          data-flip-target="{{ pop_target }}"
+          title="Pop your bubble and switch to {{ pop_target|capitalize }} sources"
+        >
+          <span class="bubble-icon" aria-hidden="true">🫧</span>
+          <span class="bubble-popper-label">Pop Bubble → Switch to {{ pop_target|capitalize }}</span>
+        </button>
+      </div>
+      <p class="blindspot-radar-desc">{{ bs.description }}</p>
+      <div class="blindspot-distribution">
+        <span class="dist-pill dist-con">Conservative: <strong>{{ bs.conservative_count }}</strong></span>
+        <span class="dist-pill dist-lib">Liberal: <strong>{{ bs.liberal_count }}</strong></span>
+        <span class="dist-pill dist-bal">Mixed / Center: <strong>{{ bs.balanced_count }}</strong></span>
+      </div>
+    </div>
+    {% endif %}
+
     {% if results.coverage_lean and results.coverage_lean.lean_sample %}
     <p class="lean-note">{{ results.coverage_lean.lean_tip }}</p>
     {% endif %}
