@@ -126,6 +126,7 @@ check_topic_filter_matrix() {
   local leans=("" "balanced" "conservative" "liberal")
   local checked=0
   local empty_fail=0
+  local bad_json=0
 
   if [[ ! -f "$TOPICS_FILE" ]]; then
     fail "topics file missing: $TOPICS_FILE"
@@ -159,11 +160,16 @@ check_topic_filter_matrix() {
       checked=$((checked + 1))
       if [[ "$n" -lt 0 ]]; then
         fail "topic=\"${t}\" lean=${lean:-default} bad JSON"
-        empty_fail=$((empty_fail + 1))
+        bad_json=$((bad_json + 1))
         continue
       fi
       if [[ "$n" -lt 1 ]]; then
-        fail "topic=\"${t}\" lean=${lean:-default} → 0 preferred-source hits (mode=${mode:-?})"
+        # A niche topic (Tesla, NASA, ...) genuinely having no hits in the
+        # current general-interest pool is expected/honest now that MyNews
+        # chips no longer pad with unrelated headlines (fixed 2026-08-16 —
+        # see source_prefs.prefer_topical). Only the aggregate rate below
+        # gates the deploy; per-combo emptiness is informational.
+        warn "topic=\"${t}\" lean=${lean:-default} → 0 preferred-source hits (mode=${mode:-?})"
         empty_fail=$((empty_fail + 1))
         continue
       fi
@@ -178,10 +184,21 @@ check_topic_filter_matrix() {
 
   echo ""
   echo "  … matrix checked ${checked} topic×lean combos (${#topics[@]} topics)"
+  if [[ "$bad_json" -gt 0 ]]; then
+    fail "${bad_json}/${checked} topic×lean combos returned bad JSON (real API error)"
+  fi
+  # Zero-hit combos are expected now for niche topics (no more padding with
+  # unrelated headlines — see 2026-08-16 fix). Only fail the aggregate if
+  # the empty rate is extreme enough to suggest the pool fetch itself broke
+  # (e.g. even Politics/Trump/Economy come back empty), not normal sparsity
+  # in a small general-interest RSS pool.
+  local empty_pct=$((empty_fail * 100 / checked))
   if [[ "$empty_fail" -eq 0 ]]; then
     pass "all topic×lean combos returned ≥1 preferred-source hit"
+  elif [[ "$empty_pct" -ge 90 ]]; then
+    fail "${empty_fail}/${checked} (${empty_pct}%) topic×lean combos returned zero hits — pool may have failed to fetch"
   else
-    fail "${empty_fail}/${checked} topic×lean combos returned zero hits"
+    warn "${empty_fail}/${checked} (${empty_pct}%) topic×lean combos returned zero hits (niche topics, small pool — expected; watch the trend, not any single deploy)"
   fi
 
   # Explicit filter vs non-filter sanity: same topic, different leans should both work

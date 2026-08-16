@@ -55,3 +55,27 @@ def test_topical_score_still_allows_simple_plurals():
     """Plural tolerance ("job" <-> "jobs") should still work after removing
     the unrestricted substring fallback."""
     assert topical_score("Jobs report beats expectations, markets rally", "Economy") > 0
+
+
+def test_topical_score_proper_noun_recall_not_lost():
+    """Regression: the fix for the "trade"/"traded" false positive must not
+    also make specific proper-noun/phrase topics (the literal query, not a
+    generic category-expansion word) unmatchable. Removing the substring
+    fallback entirely once caused ~68% of MyNews topic x lean combinations
+    to return zero hits in the deploy smoke matrix, including for common,
+    well-covered topics like these."""
+    cases = [
+        ("Tesla stock surges after earnings beat", "Tesla"),
+        ("SpaceX launches new satellite batch", "SpaceX"),
+        ("NASA announces new mission to Europa", "NASA"),
+        ("Fed holds interest rates steady amid inflation worries", "Fed"),
+        ("Healthcare costs rising for families nationwide", "healthcare"),
+        ("Local crime rates drop in major cities", "crime"),
+    ]
+    for title, query in cases:
+        assert topical_score(title, query) > 0, f"{query!r} should match {title!r}"
+
+
+def test_topical_score_proper_noun_still_rejects_unrelated():
+    assert topical_score("Random unrelated story about gardening tips", "AI") == 0
+    assert topical_score("Random unrelated story about gardening tips", "Tesla") == 0

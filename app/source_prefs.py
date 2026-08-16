@@ -1018,6 +1018,23 @@ def _query_match_terms(query: str) -> list[str]:
     return out
 
 
+def _category_expansion_terms(query: str) -> set[str]:
+    """The generic auxiliary vocabulary added for a broad category query
+    (e.g. "trade", "tax", "job" for Economy) — these need strict whole-word
+    matching only. Common English word-roots like these are prone to
+    accidental substring collisions in their inflected forms ("trade" in
+    "traded", a sports transaction, not international trade), unlike the
+    literal query term itself, which is usually a specific proper noun or
+    phrase (Tesla, NASA, healthcare) with low collision risk."""
+    raw = re.sub(r"\s+", " ", (query or "").strip())
+    q = raw.lower()
+    out: set[str] = set()
+    for cat, extra in _CATEGORY_EXPANSIONS.items():
+        if q == cat or q.rstrip("s") == cat.rstrip("s") or cat in q:
+            out.update(extra)
+    return out
+
+
 def topical_score(title: str, query: str) -> int:
     """Rough relevance: query tokens (and category expansions) in the title."""
     raw = re.sub(r"\s+", " ", (query or "").strip())
@@ -1042,15 +1059,18 @@ def topical_score(title: str, query: str) -> int:
     terms = _query_match_terms(raw)
     if not terms:
         return 1
+    expansion_terms = _category_expansion_terms(raw)
     hits = 0
     for t in terms:
         if " " in t:
             if t in title_l:
                 hits += 2
             continue
-        # Short capitalized tokens (Fed): case-sensitive whole-word only
+        # Short capitalized tokens (Fed): case-sensitive whole-word only.
+        # Check both true-acronym casing (AI, DOJ -> all caps) and title-case
+        # abbreviations (Fed -> capital-F only, rarely written "FED").
         if len(t) <= 3 and any(c.isupper() for c in raw if c.isalpha()):
-            if t in words_cs or t.upper() in words_cs:
+            if t in words_cs or t.upper() in words_cs or raw in words_cs:
                 hits += 1
             elif t == "fed" and (
                 "fomc" in words_l
@@ -1060,11 +1080,17 @@ def topical_score(title: str, query: str) -> int:
                 hits += 1
         elif t in words_l:
             hits += 1
-        # Simple singular/plural tolerance ("job" <-> "jobs") without opening
-        # up unrestricted substring matching — that previously let a term
-        # like "trade" (economy) match "traded" in an unrelated sports
-        # headline (a player trade), or "tax" match "taxi".
+        # Simple singular/plural tolerance ("job" <-> "jobs").
         elif t + "s" in words_l or (t.endswith("s") and t[:-1] in words_l):
+            hits += 1
+        # Substring fallback (e.g. "Tesla" in "Tesla's") is safe for the
+        # literal query term/its tokens — usually a specific proper noun or
+        # phrase with low collision risk — but NOT for the generic
+        # category-expansion vocabulary (trade, tax, job, price, ...),
+        # where it previously caused false positives like "trade" (economy)
+        # matching "traded" (an unrelated sports headline about a player
+        # trade), or "tax" matching "taxi".
+        elif t not in expansion_terms and len(t) >= 4 and t in title_l:
             hits += 1
     return hits
 
