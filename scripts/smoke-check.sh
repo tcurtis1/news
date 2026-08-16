@@ -50,7 +50,7 @@ check_clean_200() {
     fail "HTTP $code $path"
     return
   fi
-  if echo "$body" | grep -qE "Internal Server Error|Traceback \(most recent call last\)|jinja2\.exceptions"; then
+  if grep -qE "Internal Server Error|Traceback \(most recent call last\)|jinja2\.exceptions" <<< "$body"; then
     fail "HTTP $code $path but body looks like a crash page"
     return
   fi
@@ -225,7 +225,7 @@ pass "health reachable ($probe)"
 check_clean_200 "/"
 check_clean_200 "/search"
 check_clean_200 "/search?q=news"
-if [[ -n "${REPLY_BODY:-}" ]] && echo "$REPLY_BODY" | grep -q "byline-link"; then
+if [[ -n "${REPLY_BODY:-}" ]] && grep -q "byline-link" <<< "$REPLY_BODY"; then
   pass "search?q=news rendered at least one byline link"
 fi
 check_clean_200 "/my"
@@ -234,7 +234,7 @@ check_clean_200 "/robots.txt"
 check_clean_200 "/sitemap.xml"
 check_clean_200 "/topic/news"
 check_clean_200 "/journalist/smoke-test-nobody-yet"
-if [[ -n "${REPLY_BODY:-}" ]] && ! echo "$REPLY_BODY" | grep -q "Not enough data"; then
+if [[ -n "${REPLY_BODY:-}" ]] && ! grep -q "Not enough data" <<< "$REPLY_BODY"; then
   fail "journalist page for an unseen byline should say 'Not enough data'"
 fi
 check_clean_200 "/api/trends?geo=US"
@@ -243,20 +243,20 @@ check_clean_200 "/static/whats-new.json"
 
 style_body="$(http_body "${BASE}/static/style.css")"
 logo_body="$(http_body "${BASE}/static/logo-compass.svg")"
-if echo "$style_body" | grep -E -- "--accent: #0f766e" >/dev/null && \
-   echo "$style_body" | grep -E -- "--accent: #5eead4" >/dev/null && \
-   echo "$style_body" | grep -E -- "--accent-fill: #2dd4bf" >/dev/null; then
+if grep -E -- "--accent: #0f766e" <<< "$style_body" >/dev/null && \
+   grep -E -- "--accent: #5eead4" <<< "$style_body" >/dev/null && \
+   grep -E -- "--accent-fill: #2dd4bf" <<< "$style_body" >/dev/null; then
   pass "shared Yoyosup teal theme tokens"
 else
   fail "News CSS is missing shared Yoyosup teal theme tokens"
 fi
-if echo "$style_body" | grep -E '#c2410c|#f97316|#fb923c|rgba\(249, 115, 22' >/dev/null || \
-   echo "$logo_body" | grep -E '#f97316' >/dev/null; then
+if grep -E '#c2410c|#f97316|#fb923c|rgba\(249, 115, 22' <<< "$style_body" >/dev/null || \
+   grep -E '#f97316' <<< "$logo_body" >/dev/null; then
   fail "old orange brand chrome remains in News CSS/logo"
 else
   pass "old orange brand chrome removed"
 fi
-if echo "$logo_body" | grep -E '#2dd4bf' >/dev/null; then
+if grep -E '#2dd4bf' <<< "$logo_body" >/dev/null; then
   pass "compass mark uses shared teal north tip"
 else
   fail "compass mark is missing shared teal north tip"
@@ -280,7 +280,7 @@ check_discuss_comment_flow() {
   local i
   for i in 1 2 3 4 5; do
     home="$(http_body "${BASE}/" 30)"
-    if echo "$home" | grep -q 'data-discuss'; then
+    if grep -q 'data-discuss' <<< "$home"; then
       break
     fi
     sleep 1
@@ -288,17 +288,17 @@ check_discuss_comment_flow() {
   search="$(http_body "${BASE}/search" 30)"
   js="$(http_body "${BASE}/static/inline-discuss.js")"
 
-  if echo "$home" | grep -q 'data-discuss'; then
+  if grep -q 'data-discuss' <<< "$home"; then
     pass "Pulse stories have inline Discuss buttons"
   else
     fail "Pulse missing data-discuss buttons"
   fi
-  if echo "$search" | grep -q 'data-discuss'; then
+  if grep -q 'data-discuss' <<< "$search"; then
     pass "Intersection/search has inline Discuss buttons"
   else
     fail "Intersection/search missing data-discuss buttons"
   fi
-  if echo "$js" | grep -q 'inline-discuss' && echo "$js" | grep -q '/api/topic/'; then
+  if grep -q 'inline-discuss' <<< "$js" && grep -q '/api/topic/' <<< "$js"; then
     pass "inline-discuss.js loads comments under the card"
   else
     fail "inline-discuss.js missing or does not call /api/topic/"
