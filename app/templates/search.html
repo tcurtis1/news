@@ -371,22 +371,30 @@
       News hits
       <span class="muted-hint">{{ results.lean_pref_label or lean_meta.lean_pref_label or 'Balanced' }} sources</span>
     </h2>
-    <ol class="list">
+    <ol class="list feed-container view-mode-cards">
       {% for item in results.hits %}
-      <li class="card">
-        <div class="rank">{{ loop.index }}</div>
-        <div>
+      <li class="card story-card search-hit">
+        {% if item.image_url %}
+        <div class="story-thumb">
+          <img class="story-thumb-img" src="{{ item.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />
+          <span class="story-rank-chip">#{{ loop.index }}</span>
+        </div>
+        {% endif %}
+        <div class="story-content">
+          <div class="story-header-row">
+            <span class="rank-inline">#{{ loop.index }}</span>
+            <span class="story-source">{{ item.source }}</span>
+            {% if item.lean_label %}
+            <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
+            {% endif %}
+          </div>
           <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ item.title }}</a></h2>
           {% if item.snippet %}
           <p class="summary">{{ item.snippet }}</p>
           {% endif %}
           <div class="links">
-            <span>{{ item.source }}</span>
             {% if item.author %}
             <a class="byline-link" href="/journalist/{{ slugify(item.author) }}">By {{ item.author }}</a>
-            {% endif %}
-            {% if item.lean_label %}
-            <span class="lean-badge lean-{{ item.lean }}" title="{{ item.lean_tip }}">{{ item.lean_label }}</span>
             {% endif %}
             {% set discuss_slug = slugify(item.title) %}{% include "_discuss_btn.html" %}
             {% if item.comments_url %}

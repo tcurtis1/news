@@ -16,18 +16,27 @@
 
 <section class="card">
   {% if pulse and pulse.consensus %}
-  <ol class="list">
+  <ol class="list feed-container view-mode-cards">
     {% for c in pulse.consensus[:15] %}
     {% set title = c.title or '' %}
     {% set slug = slugify(title) %}
-    <li class="card" style="margin-bottom:0.75rem; padding:1rem;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="margin:0;"><a href="/topic/{{ slug }}">{{ title }}</a></h3>
-        <span class="badge live">#{{ loop.index }}</span>
+    <li class="card story-card category-story">
+      {% if c.image_url %}
+      <div class="story-thumb">
+        <img class="story-thumb-img" src="{{ c.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />
+        <span class="story-rank-chip">#{{ loop.index }}</span>
       </div>
-      <p class="summary" style="margin:0.35rem 0 0.5rem; color:var(--muted); font-size:0.88rem;">
-        Tracked across {{ c.platform_count }} platforms · average rank #{{ c.avg_rank }}
-      </p>
+      {% endif %}
+      <div class="story-content">
+        <div class="story-header-row">
+          <span class="rank-inline">#{{ loop.index }}</span>
+          <span class="badge live">#{{ loop.index }}</span>
+        </div>
+        <h3><a href="/topic/{{ slug }}">{{ title }}</a></h3>
+        <p class="summary">
+          Tracked across {{ c.platform_count }} platforms · average rank #{{ c.avg_rank }}
+        </p>
+      </div>
     </li>
     {% endfor %}
   </ol>

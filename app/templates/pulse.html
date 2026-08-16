@@ -39,18 +39,21 @@
   {% if pulse.stories %}
   <ol class="list feed-container view-mode-cards" id="pulse-stories-list">
     {% for item in pulse.stories %}
-    <li class="card pulse-story{% if loop.index > 20 %} is-extra{% endif %}"{% if loop.index > 20 %} hidden{% endif %}>
+    <li class="card story-card pulse-story{% if loop.index > 20 %} is-extra{% endif %}"{% if loop.index > 20 %} hidden{% endif %}>
       {% if item.image_url %}
       <div class="story-thumb">
         <img class="story-thumb-img" src="{{ item.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />
+        <span class="story-rank-chip">#{{ item.rank }}</span>
       </div>
       {% endif %}
-      <div class="rank">{{ item.rank }}</div>
-      <div>
+      <div class="story-content">
+        <div class="story-header-row">
+          <span class="rank-inline">#{{ item.rank }}</span>
+          <span class="story-source">{{ item.source }}</span>
+        </div>
         <h2><a href="{{ item.url }}" rel="noopener noreferrer" target="_blank" data-story-link>{{ item.title }}</a></h2>
         <p class="summary">{{ item.summary }}</p>
         <div class="links">
-          <span>{{ item.source }}</span>
           {% set discuss_slug = slugify(item.title) %}{% include "_discuss_btn.html" %}
           {% if item.comments_url %}
           <a href="{{ item.comments_url }}" rel="noopener noreferrer" target="_blank">Original thread</a>

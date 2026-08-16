@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "news-photo-framing-and-list-thumbnails",
+      "seq": 20,
+      "date": "2026-08-15",
+      "title": "Responsive 16:9 news photos & smart list thumbnails",
+      "detail": "News story photos now frame naturally in 16:9 aspect ratio without distortion or letterboxing, plus compact right-aligned thumbnails in list mode.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "full-photo-thumbnails",
       "seq": 19,
       "date": "2026-08-14",

@@ -2125,42 +2125,39 @@ footer.site a:hover {
 }
 
 /* Feed Cards vs List View Modes */
-.view-mode-cards {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
-  gap: 1.15rem !important;
-  list-style: none !important;
+/* ==========================================================================
+   STORY CARDS & THUMBNAIL LAYOUT ENGINE (Modern Magazine Grid & Dense List)
+   ========================================================================== */
+
+.card.story-card,
+li.card.story-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  overflow: hidden;
+  display: flex !important;
+  flex-direction: column !important;
   padding: 0 !important;
+  gap: 0 !important;
 }
 
-.view-mode-cards > li,
-.view-mode-cards > .card,
-.view-mode-cards .my-topic-card {
-  margin-bottom: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
-  height: 100% !important;
-}
-
-.view-mode-list {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 0.75rem !important;
+.card.story-card:hover,
+li.card.story-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
 }
 
 .story-thumb {
+  position: relative;
   width: 100%;
-  height: 140px;
-  border-radius: 8px;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--panel-2);
-  margin-bottom: 0.65rem;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
+  display: block;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .story-thumb:empty {
@@ -2170,19 +2167,223 @@ footer.site a:hover {
 .story-thumb-img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
   display: block;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.story-thumb-badge {
-  font-size: 1.5rem;
+.story-card:hover .story-thumb-img {
+  transform: scale(1.03);
+}
+
+.story-rank-chip {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  background: rgba(15, 23, 42, 0.84);
+  color: #ffffff;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 0.18rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 2;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.story-content {
+  padding: 0.9rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  justify-content: space-between;
+}
+
+.story-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.rank-inline {
   font-weight: 800;
   color: var(--accent);
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  background: var(--accent-dim);
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  display: inline-block;
+  letter-spacing: 0.01em;
+}
+
+.story-source {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.story-content h2,
+.story-content h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.35;
   letter-spacing: -0.01em;
-  opacity: 0.85;
+}
+
+.story-content h2 a,
+.story-content h3 a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.story-content h2 a:hover,
+.story-content h3 a:hover {
+  color: var(--accent);
+}
+
+.story-content .summary {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.story-content .links {
+  margin-top: auto;
+  padding-top: 0.45rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   VIEW MODES: CARDS (Grid) VS LIST (Dense Horizontal Row)
+   ========================================================================== */
+
+/* 1. CARDS MODE (Magazine Tile Grid) */
+.view-mode-cards {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)) !important;
+  gap: 1.25rem !important;
+  list-style: none !important;
+  padding: 0 !important;
+}
+
+.view-mode-cards > li.story-card,
+.view-mode-cards > .card.story-card,
+.view-mode-cards .my-topic-card {
+  margin-bottom: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  height: 100% !important;
+  padding: 0 !important;
+}
+
+/* 2. LIST MODE (Dense Compact Horizontal Row with Thumbnail on Right) */
+.view-mode-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  list-style: none !important;
+  padding: 0 !important;
+}
+
+.view-mode-list > li.story-card,
+.view-mode-list > .card.story-card {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  padding: 0.85rem 1rem !important;
+  gap: 1.15rem !important;
+  border-radius: var(--radius) !important;
 }
 
 .view-mode-list .story-thumb {
-  display: none !important;
+  width: 130px !important;
+  min-width: 130px !important;
+  max-width: 130px !important;
+  aspect-ratio: 16 / 10 !important;
+  height: auto !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--border) !important;
+  order: 2 !important; /* Right-align thumbnail */
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  align-self: flex-start !important;
+}
+
+.view-mode-list .story-thumb .story-rank-chip {
+  display: none !important; /* Hide floating badge in compact list mode */
+}
+
+.view-mode-list .story-content {
+  order: 1 !important;
+  padding: 0 !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important; /* Prevent text overflow */
+}
+
+.view-mode-list .story-content .summary {
+  -webkit-line-clamp: 2; /* 2 lines in dense list */
+  margin-bottom: 0.35rem;
+}
+
+/* MyNews in-feed items */
+.story-hit-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.story-hit-item .story-thumb {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+  aspect-ratio: 16 / 10;
+  border-radius: 6px;
+  margin: 0;
+  border: 1px solid var(--border);
+}
+
+.story-hit-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 600px) {
+  .view-mode-list > li.story-card,
+  .view-mode-list > .card.story-card {
+    gap: 0.75rem !important;
+    padding: 0.75rem 0.85rem !important;
+  }
+  .view-mode-list .story-thumb {
+    width: 90px !important;
+    min-width: 90px !important;
+    max-width: 90px !important;
+    aspect-ratio: 16 / 10 !important;
+  }
+  .view-mode-cards {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
 }

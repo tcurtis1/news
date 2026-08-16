@@ -230,11 +230,12 @@
     var imgHtml = h.image_url
       ? '<div class="story-thumb"><img class="story-thumb-img" src="' +
         escapeHtml(h.image_url) +
-        '" alt="" loading="lazy" onError="this.style.display=\'none\';" /></div>'
+        '" alt="" loading="lazy" onError="var p=this.closest(\'.story-thumb\'); if(p) p.style.display=\'none\';" /></div>'
       : '';
     return (
-      '<li>' +
+      '<li class="story-hit-item">' +
       imgHtml +
+      '<div class="story-hit-body">' +
       '<a href="' +
       escapeHtml(h.url) +
       '" rel="noopener noreferrer" target="_blank" data-story-link>' +
@@ -250,6 +251,7 @@
           escapeHtml(h.author) +
           "</a>"
         : "") +
+      "</div>" +
       "</li>"
     );
   }
