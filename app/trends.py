@@ -544,8 +544,81 @@ async def _fetch_bing(client: httpx.AsyncClient, place: Place) -> list[TrendItem
     return items[:MAX_PER_PLATFORM]
 
 
+def is_music_video(title: str, channel: str = "", artists: list | None = None) -> bool:
+    """Filter out music videos, singles, lyric videos, and music artist tracks."""
+    if artists and len(artists) > 0:
+        return True
+    t = (title or "").lower()
+    c = (channel or "").lower()
+
+    music_phrases = (
+        "official music video", "official video", "music video", "official audio",
+        "official lyric video", "lyric video", "lyrics video", "visualizer",
+        "official visualizer", "audio visualizer", "full album", "remix",
+        "acoustic version", "live performance", "official track", "official mv",
+        "- topic", "vevo", "recordings", "(audio)", "[audio]"
+    )
+    for kw in music_phrases:
+        if kw in t or kw in c:
+            return True
+
+    if re.search(r"\b(feat|ft|prod)\b|\b(feat|ft|prod)\.|\b(mv|soundtrack)\b", t):
+        return True
+
+    if re.search(r"\b(vevo|records)\b", c):
+        return True
+
+    return False
+
+
 async def _fetch_youtube(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:
-    gl = place.youtube_gl
+    gl = (place.youtube_gl or "US").upper()
+    items: list[TrendItem] = []
+    seen: set[str] = set()
+
+    # 1. Primary source: Trending YouTube news, sports, gaming, and viral stories via RSS
+    try:
+        url = f"https://news.google.com/rss/search?q=site:youtube.com+when:2d&hl=en-{gl}&gl={gl}&ceid={gl}:en"
+        r = await client.get(
+            url,
+            headers={**_browser_headers(), "User-Agent": USER_AGENT},
+            timeout=4.0,
+        )
+        if r.status_code == 200 and b"<item>" in r.content:
+            root = ET.fromstring(r.content)
+            for entry in root.findall(".//item"):
+                raw_title = (entry.findtext("title") or "").strip()
+                # Clean ' - YouTube' suffix from title
+                clean_title = re.sub(r"\s+-\s+YouTube$", "", raw_title, flags=re.IGNORECASE).strip()
+                clean_title = re.sub(r"\s+-\s+[^-]+$", "", clean_title).strip() or clean_title
+                link = (entry.findtext("link") or "").strip()
+                source = (entry.findtext("source") or "YouTube").strip()
+
+                if not clean_title or clean_title in seen:
+                    continue
+                if is_music_video(clean_title, source):
+                    continue
+
+                seen.add(clean_title)
+                items.append(
+                    TrendItem(
+                        rank=len(items) + 1,
+                        title=clean_title,
+                        url=link or f"https://www.youtube.com/results?search_query={quote_plus(clean_title)}",
+                        platform="youtube",
+                        snippet=f"Trending Video · {source}",
+                        traffic="",
+                    )
+                )
+                if len(items) >= MAX_PER_PLATFORM:
+                    break
+    except Exception as e:
+        log.warning("YouTube news RSS trending failed: %s", e)
+
+    if len(items) >= 10:
+        return items
+
+    # 2. Fallback to charts API (with strict non-music filter)
     try:
         body = {
             "context": {
@@ -592,31 +665,28 @@ async def _fetch_youtube(client: httpx.AsyncClient, place: Place) -> list[TrendI
                     walk(v)
 
         walk(data)
-        seen: set[str] = set()
-        items: list[TrendItem] = []
         for o in raw:
             vid = str(o.get("id") or "")
             title = str(o.get("title") or "").strip()
-            if not vid or not title or vid in seen:
+            artists = o.get("artists") or []
+            if not vid or not title or vid in seen or title in seen:
+                continue
+            if is_music_video(title, artists=artists):
                 continue
             seen.add(vid)
-            artists = o.get("artists") or []
-            names = [
-                str(a["name"]) for a in artists if isinstance(a, dict) and a.get("name")
-            ]
+            seen.add(title)
             views = str(o.get("viewCount") or "")
             try:
                 views_fmt = f"{int(views):,} views today"
             except ValueError:
                 views_fmt = f"{views} views" if views else ""
-            snippet = " · ".join(x for x in [", ".join(names), views_fmt] if x)
             items.append(
                 TrendItem(
                     rank=len(items) + 1,
                     title=title,
                     url=f"https://www.youtube.com/watch?v={vid}",
                     platform="youtube",
-                    snippet=snippet,
+                    snippet=views_fmt,
                     traffic=views,
                 )
             )
@@ -624,8 +694,8 @@ async def _fetch_youtube(client: httpx.AsyncClient, place: Place) -> list[TrendI
                 break
         return items
     except Exception as e:
-        log.warning("YouTube charts failed: %s", e)
-        return []
+        log.warning("YouTube charts fallback failed: %s", e)
+        return items
 
 
 async def _fetch_x(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:

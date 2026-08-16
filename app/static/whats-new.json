@@ -3,6 +3,19 @@
   "site": "news",
   "entries": [
     {
+      "id": "youtube-trending-music-filter",
+      "seq": 21,
+      "date": "2026-08-15",
+      "title": "YouTube trending now focuses on news & viral stories",
+      "detail": "Filtered out repetitive music videos and lyric tracks from YouTube trending boards so you see real viral news, sports highlights, tech, and cultural events.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news",
+        "youtube"
+      ],
+      "site": "news"
+    },
+    {
       "id": "news-photo-framing-and-list-thumbnails",
       "seq": 20,
       "date": "2026-08-15",
