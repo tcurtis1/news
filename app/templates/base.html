@@ -14,7 +14,9 @@
   <script src="/static/analytics.js?v={{ app_version }}" defer></script>
   <script src="/static/inline-discuss.js?v={{ app_version }}" defer></script>
   <script src="https://www.yoyosup.com/tools/hub/whats-new.js?v=net3" defer></script>
-  <link rel="icon" href="/static/logo-compass.svg?v=2" type="image/svg+xml" />
+  <link rel="icon" href="/static/logo-compass.svg?v=compass2" type="image/svg+xml" />
+  <link rel="icon" href="/static/favicon.ico?v=compass2" sizes="any" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=compass2" />
   <link rel="canonical" href="{{ public_base }}{{ request.url.path }}" />
   {% if request.url.path in ['/', '/search', '/my', '/safety'] or request.url.path.startswith('/topic/') or request.url.path.startswith('/journalist/') %}
   <meta name="robots" content="index,follow" />
