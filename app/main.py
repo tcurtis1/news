@@ -57,7 +57,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.11.12"
+APP_VERSION = "0.11.13"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -820,6 +820,53 @@ async def api_analytics(key: str = "", day: str = ""):
     if not ANALYTICS_ADMIN_KEY or key != ANALYTICS_ADMIN_KEY:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
     return JSONResponse(get_stats(day=day or None))
+
+
+@app.post("/api/thumbnails")
+async def api_thumbnails(request: Request):
+    """Batch resolve thumbnails for stories dynamically (used by client-side scroll/preload)."""
+    try:
+        import asyncio
+        from app.search import resolve_article_thumbnail
+
+        data = await request.json()
+        items = data.get("items", [])
+        if not isinstance(items, list):
+            return JSONResponse({"thumbnails": {}})
+
+        items = items[:25]
+        sem = asyncio.Semaphore(8)
+        results = {}
+
+        async def _resolve(it: dict):
+            if not isinstance(it, dict):
+                return
+            url = (it.get("url") or "").strip()
+            title = (it.get("title") or "").strip()
+            if not url:
+                return
+            async with sem:
+                img = await resolve_article_thumbnail(url, title=title)
+                if img:
+                    results[url] = img
+
+        await asyncio.gather(*[_resolve(it) for it in items], return_exceptions=True)
+        return JSONResponse({"thumbnails": results})
+    except Exception as e:
+        log.warning("api_thumbnails error: %s", e)
+        return JSONResponse({"thumbnails": {}})
+
+
+@app.get("/api/thumbnail")
+async def api_thumbnail(url: str = "", title: str = ""):
+    """Resolve a single thumbnail URL on demand."""
+    url = (url or "").strip()
+    title = (title or "").strip()
+    if not url:
+        return JSONResponse({"image_url": None})
+    from app.search import resolve_article_thumbnail
+    img = await resolve_article_thumbnail(url, title=title)
+    return JSONResponse({"image_url": img})
 
 
 @app.get("/admin/mod", response_class=HTMLResponse)

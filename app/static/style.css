@@ -2660,3 +2660,19 @@ li.card.story-card:hover {
     gap: 1rem !important;
   }
 }
+
+/* Progressive Photo Stream Fade In */
+.story-thumb-img.photo-fade-in {
+  animation: photoFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes photoFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

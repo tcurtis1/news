@@ -3,6 +3,20 @@
   "site": "news",
   "entries": [
     {
+      "id": "progressive-photo-stream-caching",
+      "seq": 24,
+      "date": "2026-08-17",
+      "title": "Seamless Photo Streaming & Infinite Cache Below the Fold",
+      "detail": "Stories now continuously stream high-resolution photos into cache as you scroll down, eliminating missing images past article #30 with zero layout shift.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news",
+        "photos",
+        "performance"
+      ],
+      "site": "news"
+    },
+    {
       "id": "blindspot-radar-bubble-popper",
       "seq": 23,
       "date": "2026-08-16",

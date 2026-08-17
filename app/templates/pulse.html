@@ -39,7 +39,7 @@
   {% if pulse.stories %}
   <ol class="list feed-container view-mode-cards" id="pulse-stories-list">
     {% for item in pulse.stories %}
-    <li class="card story-card pulse-story{% if loop.index > 20 %} is-extra{% endif %}"{% if loop.index > 20 %} hidden{% endif %}>
+    <li class="card story-card pulse-story{% if loop.index > 20 %} is-extra{% endif %}" data-story-url="{{ item.url }}" data-story-title="{{ item.title }}" data-story-rank="{{ item.rank }}"{% if loop.index > 20 %} hidden{% endif %}>
       {% if item.image_url %}
       <div class="story-thumb">
         <img class="story-thumb-img" src="{{ item.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />

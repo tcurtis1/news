@@ -296,7 +296,7 @@ async def resolve_article_thumbnail(
 
 
 async def enhance_hits_with_thumbnails(
-    hits: list[dict[str, Any]], client: httpx.AsyncClient | None = None, max_fetch: int = 25
+    hits: list[dict[str, Any]], client: httpx.AsyncClient | None = None, max_fetch: int = 120, concurrency: int = 15
 ) -> list[dict[str, Any]]:
     """Populate image_url for news hits using RSS images, OpenGraph, & news image fallback."""
     if not hits:
@@ -311,10 +311,13 @@ async def enhance_hits_with_thumbnails(
     if not pending:
         return hits
 
+    sem = asyncio.Semaphore(max(1, concurrency))
+
     async def _fetch_one(item: dict[str, Any], url_str: str, title_str: str):
-        img = await resolve_article_thumbnail(url_str, title=title_str, client=client)
-        if img:
-            item["image_url"] = img
+        async with sem:
+            img = await resolve_article_thumbnail(url_str, title=title_str, client=client)
+            if img:
+                item["image_url"] = img
 
     await asyncio.gather(*[_fetch_one(h, u, t) for h, u, t in pending], return_exceptions=True)
     return hits

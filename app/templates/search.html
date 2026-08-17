@@ -411,7 +411,7 @@
     </h2>
     <ol class="list feed-container view-mode-cards">
       {% for item in results.hits %}
-      <li class="card story-card search-hit">
+      <li class="card story-card search-hit" data-story-url="{{ item.url }}" data-story-title="{{ item.title }}" data-story-rank="{{ loop.index }}">
         {% if item.image_url %}
         <div class="story-thumb">
           <img class="story-thumb-img" src="{{ item.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />

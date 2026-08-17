@@ -384,7 +384,8 @@ async def _pull_pulse_live() -> dict:
     stories = [it.to_dict() for it in items]
     try:
         from app.search import enhance_hits_with_thumbnails
-        stories = await enhance_hits_with_thumbnails(stories, max_fetch=30)
+        # Enhance top 25 stories immediately for fast initial response
+        stories = await enhance_hits_with_thumbnails(stories, max_fetch=25, concurrency=10)
     except Exception as e:
         log.warning("Pulse thumbnail enhancement failed: %s", e)
     payload = {
@@ -405,6 +406,23 @@ async def _pull_pulse_live() -> dict:
         ),
     }
     _write_cache(payload)
+
+    # Seamlessly warm all remaining story thumbnails in background so they are ready on scroll/load-more
+    async def _warm_remaining_pulse_thumbnails(all_stories: list[dict], cache_dict: dict):
+        try:
+            from app.search import enhance_hits_with_thumbnails
+            if len(all_stories) > 25:
+                await enhance_hits_with_thumbnails(all_stories, max_fetch=len(all_stories), concurrency=10)
+                cache_dict["stories"] = all_stories
+                _write_cache(cache_dict)
+        except Exception as e:
+            log.warning("Background pulse thumbnail warming error: %s", e)
+
+    try:
+        asyncio.create_task(_warm_remaining_pulse_thumbnails(stories, payload))
+    except Exception as e:
+        log.debug("Could not spawn background pulse thumbnail task: %s", e)
+
     return payload
 
 
