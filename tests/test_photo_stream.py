@@ -10,13 +10,13 @@ from app.search import enhance_hits_with_thumbnails
 client = TestClient(app)
 
 
-@pytest.mark.asyncio
-async def test_enhance_hits_with_thumbnails():
+def test_enhance_hits_with_thumbnails():
+    import asyncio
     hits = [
         {"title": "Test Story 1", "url": "https://example.com/story1", "image_url": "https://example.com/pic1.jpg"},
         {"title": "Test Story 2", "url": "https://example.com/story2", "image_url": None},
     ]
-    enhanced = await enhance_hits_with_thumbnails(hits, max_fetch=5)
+    enhanced = asyncio.run(enhance_hits_with_thumbnails(hits, max_fetch=5))
     assert len(enhanced) == 2
     assert enhanced[0]["image_url"] == "https://example.com/pic1.jpg"
 
