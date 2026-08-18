@@ -337,6 +337,14 @@ def _read_cache(*, allow_stale: bool = False) -> dict | None:
             data["stories"] = data.pop("items")
         if age > CACHE_TTL_SEC:
             data["cache"] = "stale"
+        # Hydrate missing image_url from persistent image cache
+        if data.get("stories"):
+            from app.search import _IMAGE_CACHE
+            for s in data["stories"]:
+                if not s.get("image_url"):
+                    k = s.get("url") or s.get("title")
+                    if k and k in _IMAGE_CACHE:
+                        s["image_url"] = _IMAGE_CACHE[k]
         return data
     except Exception:
         return None
@@ -384,8 +392,8 @@ async def _pull_pulse_live() -> dict:
     stories = [it.to_dict() for it in items]
     try:
         from app.search import enhance_hits_with_thumbnails
-        # Enhance top 25 stories immediately for fast initial response
-        stories = await enhance_hits_with_thumbnails(stories, max_fetch=25, concurrency=10)
+        # Enhance top 35 stories immediately for fast initial response
+        stories = await enhance_hits_with_thumbnails(stories, max_fetch=35, concurrency=20)
     except Exception as e:
         log.warning("Pulse thumbnail enhancement failed: %s", e)
     payload = {
@@ -411,8 +419,8 @@ async def _pull_pulse_live() -> dict:
     async def _warm_remaining_pulse_thumbnails(all_stories: list[dict], cache_dict: dict):
         try:
             from app.search import enhance_hits_with_thumbnails
-            if len(all_stories) > 25:
-                await enhance_hits_with_thumbnails(all_stories, max_fetch=len(all_stories), concurrency=10)
+            if len(all_stories) > 35:
+                await enhance_hits_with_thumbnails(all_stories, max_fetch=len(all_stories), concurrency=20)
                 cache_dict["stories"] = all_stories
                 _write_cache(cache_dict)
         except Exception as e:

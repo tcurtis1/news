@@ -247,7 +247,7 @@
     <li class="card story-card topic-hit{% if loop.index > 20 %} is-extra{% endif %}" data-story-url="{{ item.url }}" data-story-title="{{ item.title }}" data-story-rank="{{ loop.index }}"{% if loop.index > 20 %} hidden{% endif %}>
       {% if item.image_url %}
       <div class="story-thumb">
-        <img class="story-thumb-img" src="{{ item.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />
+        <img class="story-thumb-img" src="{{ item.image_url }}" alt="" {% if loop.index <= 3 %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %} onError="this.parentNode.style.display='none';" />
         <span class="story-rank-chip">#{{ loop.index }}</span>
       </div>
       {% endif %}

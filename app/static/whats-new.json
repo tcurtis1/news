@@ -3,6 +3,20 @@
   "site": "news",
   "entries": [
     {
+      "id": "instant-story-thumbnails",
+      "seq": 25,
+      "date": "2026-08-18",
+      "title": "Instant Top Stories Photos & Persistent Image Cache",
+      "detail": "Top news story photos now render instantly on initial page load with multi-stage entity resolution and persistent local storage caching.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news",
+        "photos",
+        "performance"
+      ],
+      "site": "news"
+    },
+    {
       "id": "progressive-photo-stream-caching",
       "seq": 24,
       "date": "2026-08-17",

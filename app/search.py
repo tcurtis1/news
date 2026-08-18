@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
+from pathlib import Path
 import re
 import time
 from dataclasses import asdict, dataclass
@@ -112,7 +115,38 @@ def _clean_query(q: str) -> str:
     return re.sub(r"\s+", " ", (q or "").strip())[:200]
 
 
+CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/data"))
+IMAGE_CACHE_FILE = CACHE_DIR / "image_cache.json"
+
 _IMAGE_CACHE: dict[str, str] = {}
+_LAST_CACHE_SAVE = 0.0
+
+
+def _load_image_cache() -> None:
+    try:
+        if IMAGE_CACHE_FILE.exists():
+            data = json.loads(IMAGE_CACHE_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                _IMAGE_CACHE.update(data)
+                log.info("Loaded %d images from persistent image cache", len(data))
+    except Exception as e:
+        log.debug("Could not load image cache: %s", e)
+
+
+_load_image_cache()
+
+
+def _save_image_cache_debounced() -> None:
+    global _LAST_CACHE_SAVE
+    now = time.time()
+    if now - _LAST_CACHE_SAVE < 15.0:
+        return
+    _LAST_CACHE_SAVE = now
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        IMAGE_CACHE_FILE.write_text(json.dumps(_IMAGE_CACHE), encoding="utf-8")
+    except Exception as e:
+        log.debug("Could not save image cache: %s", e)
 
 
 def _upgrade_image_url(url: str | None) -> str | None:
@@ -159,7 +193,7 @@ def _extract_rss_image(entry: ET.Element) -> str | None:
 async def resolve_article_thumbnail(
     url: str, title: str = "", client: httpx.AsyncClient | None = None
 ) -> str | None:
-    """Resolve featured article thumbnail via OpenGraph, RSS media, or title news image lookup with caching."""
+    """Resolve featured article thumbnail via OpenGraph, Bing News RSS, Wikipedia entities, or query relaxation with caching."""
     cache_key = url or title
     if not cache_key:
         return None
@@ -172,58 +206,72 @@ async def resolve_article_thumbnail(
         if yt_m:
             img = f"https://img.youtube.com/vi/{yt_m.group(1)}/hqdefault.jpg"
             _IMAGE_CACHE[cache_key] = img
+            _save_image_cache_debounced()
             return img
 
-    STOP = {"the", "a", "an", "is", "in", "to", "for", "of", "and", "or", "by", "on", "at", "with", "from", "as", "this", "how"}
+    STOP = {
+        "the", "a", "an", "is", "in", "to", "for", "of", "and", "or", "by", "on", "at", "with",
+        "from", "as", "this", "how", "why", "what", "ahead", "after", "before", "new", "over",
+        "into", "says", "said", "amid", "will", "may", "can", "could", "about", "more"
+    }
 
-    # Fast path for Google News links / missing direct URLs: query Bing News RSS by title keywords immediately
-    if title and ("news.google.com" in (url or "") or not url.startswith("http")):
-        clean_words = [w for w in re.sub(r"[^\w\s]", " ", title).split() if w.lower() not in STOP]
-        candidates = [" ".join(clean_words[:6]), " ".join(clean_words[:3]), clean_words[0] if clean_words else ""]
-        headers = {"User-Agent": "YoyoNews/1.0 (RSS Reader)"}
-        for q in candidates:
-            if not q or len(q) < 3:
-                continue
-            try:
-                bing_url = f"https://www.bing.com/news/search?q={quote_plus(q)}&format=RSS"
-                if client is not None:
-                    r = await client.get(bing_url, headers=headers, timeout=2.0)
-                else:
-                    async with httpx.AsyncClient(timeout=2.0, headers=headers) as c:
-                        r = await c.get(bing_url)
-                if r.status_code == 200 and b"<item>" in r.content:
-                    text = r.content
-                    idx = text.find(b"<rss")
-                    if idx >= 0:
-                        text = text[idx:]
-                    end_idx = text.find(b"</rss>")
-                    if end_idx >= 0:
-                        text = text[: end_idx + 6]
-                    root = ET.fromstring(text)
-                    item = root.find(".//item")
-                    if item is not None:
-                        for child in item.iter():
-                            if child.tag.lower().endswith("image") and child.text:
-                                img = _upgrade_image_url(child.text.strip())
-                                if img and "rsslogo" not in img:
-                                    _IMAGE_CACHE[cache_key] = img
-                                    return img
-            except Exception:
-                pass
+    # Generate progressive candidate queries
+    candidates: list[str] = []
+    clean_words = [w for w in re.sub(r"[^\w\s]", " ", title or "").split() if w.lower() not in STOP]
+    if len(clean_words) >= 4:
+        candidates.append(" ".join(clean_words[:4]))
+    if len(clean_words) >= 2:
+        candidates.append(" ".join(clean_words[:2]))
+    if clean_words:
+        candidates.append(clean_words[0])
 
-    # OpenGraph lookup for direct web URLs
+    headers = {"User-Agent": USER_AGENT}
+
+    # Stage 1: Bing News RSS search with progressive query relaxation
+    for q in candidates:
+        if not q or len(q) < 3:
+            continue
+        try:
+            bing_url = f"https://www.bing.com/news/search?q={quote_plus(q)}&format=RSS"
+            if client is not None:
+                r = await client.get(bing_url, headers=headers, timeout=2.5)
+            else:
+                async with httpx.AsyncClient(timeout=2.5, headers=headers) as c:
+                    r = await c.get(bing_url)
+            if r.status_code == 200 and b"<item>" in r.content:
+                text = r.content
+                idx = text.find(b"<rss")
+                if idx >= 0:
+                    text = text[idx:]
+                end_idx = text.find(b"</rss>")
+                if end_idx >= 0:
+                    text = text[: end_idx + 6]
+                root = ET.fromstring(text)
+                item = root.find(".//item")
+                if item is not None:
+                    for child in item.iter():
+                        if child.tag.lower().endswith("image") and child.text:
+                            img = _upgrade_image_url(child.text.strip())
+                            if img and "rsslogo" not in img:
+                                _IMAGE_CACHE[cache_key] = img
+                                _save_image_cache_debounced()
+                                return img
+        except Exception:
+            pass
+
+    # Stage 2: OpenGraph lookup for direct web URLs
     if url and url.startswith("http") and "news.google.com" not in url:
         try:
             if client is not None:
                 r = await client.get(
                     url,
                     follow_redirects=True,
-                    timeout=2.0,
+                    timeout=2.5,
                     headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
                 )
             else:
                 async with httpx.AsyncClient(
-                    timeout=2.0,
+                    timeout=2.5,
                     headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
                     follow_redirects=True,
                 ) as c:
@@ -253,50 +301,37 @@ async def resolve_article_thumbnail(
                         upgraded = _upgrade_image_url(img_url)
                         if upgraded:
                             _IMAGE_CACHE[cache_key] = upgraded
+                            _save_image_cache_debounced()
                             return upgraded
         except Exception:
             pass
 
-    # Fallback to title keyword lookup if OpenGraph yielded nothing
-    if title:
-        clean_words = [w for w in re.sub(r"[^\w\s]", " ", title).split() if w.lower() not in STOP]
-        candidates = [" ".join(clean_words[:6]), " ".join(clean_words[:3]), clean_words[0] if clean_words else ""]
-        headers = {"User-Agent": "YoyoNews/1.0 (RSS Reader)"}
-        for q in candidates:
-            if not q or len(q) < 3:
-                continue
-            try:
-                bing_url = f"https://www.bing.com/news/search?q={quote_plus(q)}&format=RSS"
-                if client is not None:
-                    r = await client.get(bing_url, headers=headers, timeout=2.0)
-                else:
-                    async with httpx.AsyncClient(timeout=2.0, headers=headers) as c:
-                        r = await c.get(bing_url)
-                if r.status_code == 200 and b"<item>" in r.content:
-                    text = r.content
-                    idx = text.find(b"<rss")
-                    if idx >= 0:
-                        text = text[idx:]
-                    end_idx = text.find(b"</rss>")
-                    if end_idx >= 0:
-                        text = text[: end_idx + 6]
-                    root = ET.fromstring(text)
-                    item = root.find(".//item")
-                    if item is not None:
-                        for child in item.iter():
-                            if child.tag.lower().endswith("image") and child.text:
-                                img = _upgrade_image_url(child.text.strip())
-                                if img and "rsslogo" not in img:
-                                    _IMAGE_CACHE[cache_key] = img
-                                    return img
-            except Exception:
-                pass
+    # Stage 3: Wikipedia REST API for leading entity/organization
+    for entity in candidates:
+        if not entity or len(entity) < 3:
+            continue
+        try:
+            wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote_plus(entity)}"
+            if client is not None:
+                r = await client.get(wiki_url, headers=headers, timeout=2.0)
+            else:
+                async with httpx.AsyncClient(timeout=2.0, headers=headers) as c:
+                    r = await c.get(wiki_url)
+            if r.status_code == 200:
+                data = r.json()
+                thumb = data.get("thumbnail", {}).get("source") or data.get("originalimage", {}).get("source")
+                if thumb and thumb.startswith("http") and not thumb.endswith(".svg"):
+                    _IMAGE_CACHE[cache_key] = thumb
+                    _save_image_cache_debounced()
+                    return thumb
+        except Exception:
+            pass
 
     return None
 
 
 async def enhance_hits_with_thumbnails(
-    hits: list[dict[str, Any]], client: httpx.AsyncClient | None = None, max_fetch: int = 120, concurrency: int = 15
+    hits: list[dict[str, Any]], client: httpx.AsyncClient | None = None, max_fetch: int = 120, concurrency: int = 20
 ) -> list[dict[str, Any]]:
     """Populate image_url for news hits using RSS images, OpenGraph, & news image fallback."""
     if not hits:
@@ -313,13 +348,23 @@ async def enhance_hits_with_thumbnails(
 
     sem = asyncio.Semaphore(max(1, concurrency))
 
-    async def _fetch_one(item: dict[str, Any], url_str: str, title_str: str):
-        async with sem:
-            img = await resolve_article_thumbnail(url_str, title=title_str, client=client)
-            if img:
-                item["image_url"] = img
+    own_client = False
+    if client is None:
+        client = httpx.AsyncClient(timeout=3.0, headers={"User-Agent": USER_AGENT})
+        own_client = True
 
-    await asyncio.gather(*[_fetch_one(h, u, t) for h, u, t in pending], return_exceptions=True)
+    try:
+        async def _fetch_one(item: dict[str, Any], url_str: str, title_str: str):
+            async with sem:
+                img = await resolve_article_thumbnail(url_str, title=title_str, client=client)
+                if img:
+                    item["image_url"] = img
+
+        await asyncio.gather(*[_fetch_one(h, u, t) for h, u, t in pending], return_exceptions=True)
+    finally:
+        if own_client and client is not None:
+            await client.aclose()
+
     return hits
 
 
@@ -984,6 +1029,7 @@ async def _pull_preferred_pool(
     hits = enrich_hits([h.to_dict() for h in raw])
     hits = filter_hits(hits, lean_pref, keep_unmatched=False)
     hits = diversify_hits(hits, limit=HEADLINE_POOL_LIMIT, max_per_source=3)
+    hits = await enhance_hits_with_thumbnails(hits, max_fetch=35, concurrency=20)
     if hits:
         _HEADLINE_CACHE[cache_key] = (time.time(), hits)
         try:

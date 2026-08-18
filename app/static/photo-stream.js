@@ -5,12 +5,41 @@
 (function () {
   if (typeof window === "undefined" || !("IntersectionObserver" in window)) return;
 
-  const BATCH_DEBOUNCE_MS = 120;
-  const MAX_BATCH_SIZE = 15;
+  const STORAGE_KEY = "yoyonews_thumbs_v1";
+  const BATCH_DEBOUNCE_MS = 30;
+  const MAX_BATCH_SIZE = 25;
   const pendingQueue = new Map(); // url -> { card, title, rank }
   let batchTimer = null;
   const inFlight = new Set();
   const memoryCache = new Map();
+
+  // Load persistent thumbnails from localStorage for instant 0ms paints
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === "object") {
+        for (const [k, v] of Object.entries(parsed)) {
+          if (k && v && typeof v === "string") {
+            memoryCache.set(k, v);
+          }
+        }
+      }
+    }
+  } catch (e) {}
+
+  function saveStorageDebounced() {
+    try {
+      const obj = {};
+      let count = 0;
+      for (const [k, v] of memoryCache.entries()) {
+        obj[k] = v;
+        count++;
+        if (count >= 400) break; // keep compact
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+    } catch (e) {}
+  }
 
   function flushBatch() {
     batchTimer = null;
@@ -35,6 +64,7 @@
       .then((res) => (res.ok ? res.json() : { thumbnails: {} }))
       .then((data) => {
         const thumbs = data.thumbnails || {};
+        let newlyCached = false;
         itemsToFetch.forEach((item) => {
           const url = item.url;
           const imgUrl = thumbs[url];
@@ -44,13 +74,18 @@
 
           if (imgUrl && pending && pending.card) {
             memoryCache.set(url, imgUrl);
+            newlyCached = true;
             injectThumbnail(pending.card, imgUrl, pending.rank);
           }
         });
 
-        // If more items remain in queue, schedule next batch
+        if (newlyCached) {
+          saveStorageDebounced();
+        }
+
+        // If more items remain in queue, schedule next batch immediately
         if (pendingQueue.size > 0) {
-          batchTimer = setTimeout(flushBatch, 50);
+          batchTimer = setTimeout(flushBatch, 20);
         }
       })
       .catch(() => {
@@ -135,7 +170,15 @@
   function scanCards() {
     const cards = document.querySelectorAll(".story-card, .pulse-story, .category-card, .trending-card, li.card");
     cards.forEach((card) => {
-      if (!card.querySelector(".story-thumb") && !card.dataset.thumbObserved) {
+      if (card.querySelector(".story-thumb")) return;
+      const link = card.querySelector("a[data-story-link], h2 a, h3 a") || card.querySelector("a");
+      const url = card.dataset.storyUrl || (link ? link.href : "");
+      const rank = card.dataset.storyRank || "";
+      if (url && memoryCache.has(url)) {
+        injectThumbnail(card, memoryCache.get(url), rank);
+        return;
+      }
+      if (!card.dataset.thumbObserved) {
         card.dataset.thumbObserved = "1";
         observer.observe(card);
       }

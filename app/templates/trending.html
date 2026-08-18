@@ -26,7 +26,7 @@
     <li class="card story-card trending-story" data-story-url="{{ c.url or '' }}" data-story-title="{{ title }}" data-story-rank="{{ loop.index }}">
       {% if c.image_url %}
       <div class="story-thumb">
-        <img class="story-thumb-img" src="{{ c.image_url }}" alt="" loading="lazy" onError="this.parentNode.style.display='none';" />
+        <img class="story-thumb-img" src="{{ c.image_url }}" alt="" {% if loop.index <= 3 %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %} onError="this.parentNode.style.display='none';" />
         <span class="story-rank-chip">#{{ loop.index }}</span>
       </div>
       {% endif %}
