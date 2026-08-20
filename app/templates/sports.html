@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page" data-sports-page data-refresh-url="{{ refresh_url }}">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow">Scores without the clutter</p>
+      <h1>{{ heading }}</h1>
+      <p class="muted">Live and upcoming games, schedules, and game details. Times are shown in your local timezone.</p>
+    </div>
+    <a class="sports-scores-link" href="/sports/scores">All scores</a>
+  </header>
+
+  <nav class="sports-leagues" aria-label="Sports leagues">
+    <a href="/sports"{% if not active_league %} aria-current="page"{% endif %}>Top</a>
+    {% for league in leagues %}
+      <a href="/sports/{{ league.slug }}"{% if active_league == league.slug %} aria-current="page"{% endif %}>{{ league.short_name }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if scoreboard.stale %}
+    <p class="sports-notice" role="status">Scores may be delayed. Showing the latest information we have.</p>
+  {% elif not scoreboard.available %}
+    <p class="sports-notice" role="status">Scores are temporarily unavailable. Please try again shortly.</p>
+  {% endif %}
+
+  {% if show_date_nav %}
+    <nav class="sports-date-nav" aria-label="Scoreboard date">
+      <a href="{{ date_links.previous }}" aria-label="Previous day">← Previous</a>
+      <span>{{ display_date }}</span>
+      <a href="{{ date_links.next }}" aria-label="Next day">Next →</a>
+    </nav>
+  {% endif %}
+
+  <section aria-labelledby="games-heading">
+    <div class="sports-section-heading">
+      <h2 id="games-heading">{{ games_heading }}</h2>
+      {% if scoreboard.updated_at %}<span>Updated <time datetime="{{ scoreboard.updated_at }}">{{ scoreboard.updated_at_display }}</time></span>{% endif %}
+    </div>
+
+    {% if scoreboard.events %}
+      <div class="score-grid" data-score-list aria-live="polite" aria-atomic="false">
+        {% for game in scoreboard.events %}
+          <article class="score-card{% if game.is_live %} is-live{% endif %}" data-game-id="{{ game.id }}">
+            <div class="score-card-top">
+              <span>{{ game.league_short_name }}</span>
+              <span class="game-state state-{{ game.state }}" data-game-status>{{ game.status_text }}</span>
+            </div>
+            <a class="score-matchup" href="/sports/game/{{ game.id }}" aria-label="{{ game.away_team.name }} at {{ game.home_team.name }}, {{ game.status_text }}">
+              <span class="score-team">
+                <span><b>{{ game.away_team.abbreviation }}</b><small>{{ game.away_team.name }}</small></span>
+                <strong data-game-away-score>{{ game.away_score_display }}</strong>
+              </span>
+              <span class="score-team">
+                <span><b>{{ game.home_team.abbreviation }}</b><small>{{ game.home_team.name }}</small></span>
+                <strong data-game-home-score>{{ game.home_score_display }}</strong>
+              </span>
+            </a>
+            <div class="score-card-meta">
+              <time datetime="{{ game.start_time_iso }}" data-local-time>{{ game.start_time_display }}</time>
+              {% if game.venue %}<span>{{ game.venue }}</span>{% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="sports-empty">
+        <h3>No games found</h3>
+        <p>There may be no games scheduled for this league and date.</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <footer class="sports-source">
+    {% if scoreboard.source_label %}Data: {{ scoreboard.source_label }}.{% endif %}
+    Live information can be delayed or corrected by the official scorer.
+  </footer>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/sports.js?v={{ app_version }}" defer></script>
+{% endblock %}

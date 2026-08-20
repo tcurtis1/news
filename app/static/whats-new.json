@@ -3,6 +3,19 @@
   "site": "news",
   "entries": [
     {
+      "id": "sports-scoreboard-foundation",
+      "seq": 26,
+      "date": "2026-08-19",
+      "title": "Sports scores and Game Center",
+      "detail": "News now has a mobile-friendly Sports section with schedules, scores, and game details across major leagues.",
+      "href": "https://news.yoyosup.com/sports",
+      "tags": [
+        "news",
+        "sports"
+      ],
+      "site": "news"
+    },
+    {
       "id": "instant-story-thumbnails",
       "seq": 25,
       "date": "2026-08-18",

@@ -246,6 +246,9 @@ if [[ -n "${REPLY_BODY:-}" ]] && grep -q "byline-link" <<< "$REPLY_BODY"; then
   pass "search?q=news rendered at least one byline link"
 fi
 check_clean_200 "/my"
+check_clean_200 "/sports"
+check_clean_200 "/sports/scores"
+check_clean_200 "/sports/nfl"
 check_clean_200 "/safety"
 check_clean_200 "/robots.txt"
 check_clean_200 "/sitemap.xml"
@@ -256,6 +259,7 @@ if [[ -n "${REPLY_BODY:-}" ]] && ! grep -q "Not enough data" <<< "$REPLY_BODY"; 
 fi
 check_clean_200 "/api/trends?geo=US"
 check_clean_200 "/api/pulse"
+check_clean_200 "/api/sports/scoreboard?league=nfl"
 check_clean_200 "/static/whats-new.json"
 
 style_body="$(http_body "${BASE}/static/style.css")"

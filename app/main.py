@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -50,6 +51,7 @@ from app.source_prefs import (
 )
 from app.topics import build_topic, slugify, unslug
 from app.trends import build_trends, rank_lookup
+from app.sports import Event, EventState, LEAGUES, get_game_detail, get_scoreboard, get_sports_home_summary
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("news")
@@ -57,7 +59,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.11.14"
+APP_VERSION = "0.12.0"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -334,6 +336,147 @@ async def safety_page(request: Request):
             "page_title": "Safety & guidelines",
         },
     )
+
+
+def _sports_leagues() -> list[dict]:
+    return [{"slug": slug, **meta} for slug, meta in LEAGUES.items()]
+
+
+def _sports_event_view(event: Event) -> dict:
+    state = event.state.value
+    status_fallback = {
+        "scheduled": "Scheduled", "pregame": "Pregame", "in_progress": "Live",
+        "halftime": "Intermission", "final": "Final", "postponed": "Postponed",
+        "suspended": "Suspended", "cancelled": "Cancelled", "unknown": "Status unavailable",
+    }
+    meta = LEAGUES.get(event.league, {})
+    is_started = event.state in {EventState.IN_PROGRESS, EventState.HALFTIME, EventState.FINAL}
+    score = lambda team: str(team.score) if is_started and team.score is not None else "—"
+    return {
+        "id": event.id,
+        "league_slug": event.league,
+        "league_short_name": meta.get("short_name", event.league.upper()),
+        "state": state,
+        "is_live": event.state in {EventState.IN_PROGRESS, EventState.HALFTIME},
+        "status_text": event.status_detail or status_fallback[state],
+        "status_detail": event.status_detail or status_fallback[state],
+        "start_time_iso": event.start_time.isoformat(),
+        "start_time_display": event.start_time.strftime("%b %-d, %-I:%M %p UTC"),
+        "home_team": event.home_team.model_dump(),
+        "away_team": event.away_team.model_dump(),
+        "home_score_display": score(event.home_team),
+        "away_score_display": score(event.away_team),
+        "venue": event.venue,
+        "scoring_summary": event.scoring_summary,
+        "team_stats": event.team_stats,
+        "leaders": event.leaders,
+    }
+
+
+def _sports_payload_view(payload, events: list[Event]) -> dict:
+    return {
+        "available": payload.freshness != "fallback" or bool(events),
+        "stale": payload.freshness == "stale",
+        "freshness": payload.freshness,
+        "updated_at": payload.updated_at.isoformat(),
+        "updated_at_display": payload.updated_at.strftime("%-I:%M %p UTC"),
+        "source_label": "ESPN public score feed" if payload.provider_label == "espn" else payload.provider_label,
+        "events": [_sports_event_view(event) for event in events],
+    }
+
+
+async def _sports_board(league: str | None, target_date: date | None):
+    if league:
+        payload = await get_scoreboard(league, target_date)
+        return _sports_payload_view(payload, payload.data)
+    payload = await get_sports_home_summary(target_date)
+    events = [event for league_events in payload.data.values() for event in league_events]
+    events.sort(key=lambda event: (not event.state in {EventState.IN_PROGRESS, EventState.HALFTIME}, event.start_time))
+    return _sports_payload_view(payload, events)
+
+
+def _sports_date_links(path: str, target_date: date) -> dict:
+    from datetime import timedelta
+    return {
+        "previous": f"{path}?date={(target_date - timedelta(days=1)).isoformat()}",
+        "next": f"{path}?date={(target_date + timedelta(days=1)).isoformat()}",
+    }
+
+
+@app.get("/sports", response_class=HTMLResponse)
+async def sports_home(request: Request):
+    board = await _sports_board(None, None)
+    return templates.TemplateResponse("sports.html", {
+        "request": request, "public_base": PUBLIC_BASE, "page_title": "Sports scores and news",
+        "heading": "Sports", "leagues": _sports_leagues(), "active_league": None,
+        "scoreboard": board, "games_heading": "Top games", "show_date_nav": False,
+        "refresh_url": "/api/sports/scoreboard",
+    })
+
+
+@app.get("/sports/scores", response_class=HTMLResponse)
+async def sports_scores(request: Request, date: date | None = None):
+    target = date or datetime.now(timezone.utc).date()
+    board = await _sports_board(None, target)
+    return templates.TemplateResponse("sports.html", {
+        "request": request, "public_base": PUBLIC_BASE, "page_title": "Sports scores",
+        "heading": "Scores", "leagues": _sports_leagues(), "active_league": None,
+        "scoreboard": board, "games_heading": "Games", "show_date_nav": True,
+        "display_date": target.strftime("%A, %B %-d"), "date_links": _sports_date_links("/sports/scores", target),
+        "refresh_url": f"/api/sports/scoreboard?date={target.isoformat()}",
+    })
+
+
+@app.get("/sports/game/{game_id}", response_class=HTMLResponse)
+async def sports_game(request: Request, game_id: str):
+    try:
+        payload = await get_game_detail(game_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Game not found") from exc
+    if payload.data is None:
+        raise HTTPException(status_code=503, detail="Game information is temporarily unavailable")
+    game = _sports_event_view(payload.data)
+    return templates.TemplateResponse("sports_game.html", {
+        "request": request, "public_base": PUBLIC_BASE,
+        "page_title": f"{game['away_team']['name']} at {game['home_team']['name']}",
+        "game": game, "payload": _sports_payload_view(payload, [payload.data]),
+    })
+
+
+@app.get("/sports/{league}", response_class=HTMLResponse)
+async def sports_league(request: Request, league: str, date: date | None = None):
+    if league not in LEAGUES:
+        raise HTTPException(status_code=404, detail="League not found")
+    target = date or datetime.now(timezone.utc).date()
+    board = await _sports_board(league, target)
+    meta = LEAGUES[league]
+    path = f"/sports/{league}"
+    return templates.TemplateResponse("sports.html", {
+        "request": request, "public_base": PUBLIC_BASE, "page_title": f"{meta['short_name']} scores",
+        "heading": meta["name"], "leagues": _sports_leagues(), "active_league": league,
+        "scoreboard": board, "games_heading": "Schedule and scores", "show_date_nav": True,
+        "display_date": target.strftime("%A, %B %-d"), "date_links": _sports_date_links(path, target),
+        "refresh_url": f"/api/sports/scoreboard?league={league}&date={target.isoformat()}",
+    })
+
+
+@app.get("/api/sports/scoreboard")
+async def api_sports_scoreboard(league: str | None = None, date: date | None = None):
+    if league and league not in LEAGUES:
+        raise HTTPException(status_code=404, detail="League not found")
+    target = date or datetime.now(timezone.utc).date()
+    return JSONResponse(await _sports_board(league, target))
+
+
+@app.get("/api/sports/game/{game_id}")
+async def api_sports_game(game_id: str):
+    try:
+        payload = await get_game_detail(game_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Game not found") from exc
+    if payload.data is None:
+        raise HTTPException(status_code=503, detail="Game information is temporarily unavailable")
+    return JSONResponse(_sports_payload_view(payload, [payload.data]))
 
 
 @app.get("/api/pulse")

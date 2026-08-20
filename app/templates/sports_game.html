@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page sports-game-page" data-sports-page data-live-game="{{ 1 if game.is_live else 0 }}" data-refresh-url="/api/sports/game/{{ game.id }}">
+  <nav class="sports-breadcrumb" aria-label="Breadcrumb">
+    <a href="/sports">Sports</a><span aria-hidden="true">›</span>
+    <a href="/sports/{{ game.league_slug }}">{{ game.league_short_name }}</a><span aria-hidden="true">›</span>
+    <span>Game</span>
+  </nav>
+
+  {% if payload.stale %}<p class="sports-notice" role="status">This game may be delayed. Showing the latest information we have.</p>{% endif %}
+
+  <section class="game-hero" aria-labelledby="game-title">
+    <p class="game-kicker" data-game-status>{{ game.league_short_name }} · {{ game.status_text }}</p>
+    <h1 id="game-title" class="sr-only">{{ game.away_team.name }} at {{ game.home_team.name }}</h1>
+    <div class="game-teams">
+      <div class="game-team"><b>{{ game.away_team.abbreviation }}</b><span>{{ game.away_team.name }}</span><strong data-game-away-score>{{ game.away_score_display }}</strong></div>
+      <div class="game-at" aria-hidden="true">at</div>
+      <div class="game-team"><b>{{ game.home_team.abbreviation }}</b><span>{{ game.home_team.name }}</span><strong data-game-home-score>{{ game.home_score_display }}</strong></div>
+    </div>
+    <p class="game-detail-line">{{ game.status_detail }}{% if game.venue %} · {{ game.venue }}{% endif %}</p>
+  </section>
+
+  <div class="game-columns">
+    <section class="sports-panel" aria-labelledby="summary-heading">
+      <h2 id="summary-heading">Scoring summary</h2>
+      {% if game.scoring_summary %}
+        <ol class="game-events">
+          {% for item in game.scoring_summary %}<li><time>{{ item.clock }}</time><span>{{ item.text }}</span></li>{% endfor %}
+        </ol>
+      {% else %}<p class="muted">No scoring plays are available yet.</p>{% endif %}
+    </section>
+
+    <section class="sports-panel" aria-labelledby="stats-heading">
+      <h2 id="stats-heading">Team statistics</h2>
+      {% if game.team_stats %}
+        <div class="game-stats" role="table" aria-label="Team statistics">
+          {% for stat in game.team_stats %}
+            <div role="row"><span role="cell">{{ stat.away }}</span><b role="rowheader">{{ stat.label }}</b><span role="cell">{{ stat.home }}</span></div>
+          {% endfor %}
+        </div>
+      {% else %}<p class="muted">Team statistics are not available yet.</p>{% endif %}
+    </section>
+  </div>
+
+  <section class="sports-panel" aria-labelledby="leaders-heading">
+    <h2 id="leaders-heading">Game leaders</h2>
+    {% if game.leaders %}
+      <div class="game-leaders">
+        {% for leader in game.leaders %}<div><span>{{ leader.category }}</span><b>{{ leader.name }}</b><small>{{ leader.value }}</small></div>{% endfor %}
+      </div>
+    {% else %}<p class="muted">Player leaders will appear when they are available.</p>{% endif %}
+  </section>
+
+  <footer class="sports-source">{% if payload.source_label %}Data: {{ payload.source_label }}. {% endif %}Live information can be delayed or corrected.</footer>
+</main>
+{% endblock %}
+
+{% block scripts %}<script src="/static/sports.js?v={{ app_version }}" defer></script>{% endblock %}

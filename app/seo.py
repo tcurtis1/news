@@ -66,6 +66,15 @@ async def collect_sitemap_urls() -> list[dict[str, Any]]:
         {"loc": f"{PUBLIC_BASE}/category/entertainment", "changefreq": "hourly", "priority": "0.85", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/search", "changefreq": "hourly", "priority": "0.95", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/my", "changefreq": "weekly", "priority": "0.85", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports", "changefreq": "hourly", "priority": "0.95", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/scores", "changefreq": "hourly", "priority": "0.9", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/nfl", "changefreq": "hourly", "priority": "0.75", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/nba", "changefreq": "hourly", "priority": "0.75", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/mlb", "changefreq": "hourly", "priority": "0.75", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/nhl", "changefreq": "hourly", "priority": "0.75", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/wnba", "changefreq": "hourly", "priority": "0.7", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/epl", "changefreq": "hourly", "priority": "0.7", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/mls", "changefreq": "hourly", "priority": "0.7", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/safety", "changefreq": "monthly", "priority": "0.4", "lastmod": day},
     ]
 
