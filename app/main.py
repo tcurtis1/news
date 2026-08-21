@@ -406,8 +406,8 @@ def _sports_date_links(path: str, target_date: date) -> dict:
 @app.get("/sports", response_class=HTMLResponse)
 async def sports_home(request: Request):
     board = await _sports_board(None, None)
-    return templates.TemplateResponse("sports.html", {
-        "request": request, "public_base": PUBLIC_BASE, "page_title": "Sports scores and news",
+    return templates.TemplateResponse(request, "sports.html", {
+        "public_base": PUBLIC_BASE, "page_title": "Sports scores and news",
         "heading": "Sports", "leagues": _sports_leagues(), "active_league": None,
         "scoreboard": board, "games_heading": "Top games", "show_date_nav": False,
         "refresh_url": "/api/sports/scoreboard",
@@ -418,8 +418,8 @@ async def sports_home(request: Request):
 async def sports_scores(request: Request, date: date | None = None):
     target = date or datetime.now(timezone.utc).date()
     board = await _sports_board(None, target)
-    return templates.TemplateResponse("sports.html", {
-        "request": request, "public_base": PUBLIC_BASE, "page_title": "Sports scores",
+    return templates.TemplateResponse(request, "sports.html", {
+        "public_base": PUBLIC_BASE, "page_title": "Sports scores",
         "heading": "Scores", "leagues": _sports_leagues(), "active_league": None,
         "scoreboard": board, "games_heading": "Games", "show_date_nav": True,
         "display_date": target.strftime("%A, %B %-d"), "date_links": _sports_date_links("/sports/scores", target),
@@ -436,8 +436,8 @@ async def sports_game(request: Request, game_id: str):
     if payload.data is None:
         raise HTTPException(status_code=503, detail="Game information is temporarily unavailable")
     game = _sports_event_view(payload.data)
-    return templates.TemplateResponse("sports_game.html", {
-        "request": request, "public_base": PUBLIC_BASE,
+    return templates.TemplateResponse(request, "sports_game.html", {
+        "public_base": PUBLIC_BASE,
         "page_title": f"{game['away_team']['name']} at {game['home_team']['name']}",
         "game": game, "payload": _sports_payload_view(payload, [payload.data]),
     })
@@ -451,8 +451,8 @@ async def sports_league(request: Request, league: str, date: date | None = None)
     board = await _sports_board(league, target)
     meta = LEAGUES[league]
     path = f"/sports/{league}"
-    return templates.TemplateResponse("sports.html", {
-        "request": request, "public_base": PUBLIC_BASE, "page_title": f"{meta['short_name']} scores",
+    return templates.TemplateResponse(request, "sports.html", {
+        "public_base": PUBLIC_BASE, "page_title": f"{meta['short_name']} scores",
         "heading": meta["name"], "leagues": _sports_leagues(), "active_league": league,
         "scoreboard": board, "games_heading": "Schedule and scores", "show_date_nav": True,
         "display_date": target.strftime("%A, %B %-d"), "date_links": _sports_date_links(path, target),
