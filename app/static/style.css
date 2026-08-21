@@ -2569,6 +2569,15 @@ li.card.story-card:hover {
   padding: 0 !important;
 }
 
+/* "Load 20 more" hides not-yet-revealed cards via the [hidden] attribute --
+   the layout rule above must not override that, or every card behind the
+   fold renders visible from the start regardless of what the pagination
+   counter says. */
+.view-mode-cards > li.story-card[hidden],
+.view-mode-cards > .card.story-card[hidden] {
+  display: none !important;
+}
+
 /* 2. LIST MODE (Dense Compact Horizontal Row with Thumbnail on Right) */
 .view-mode-list {
   display: flex !important;
@@ -2587,6 +2596,11 @@ li.card.story-card:hover {
   padding: 0.85rem 1rem !important;
   gap: 1.15rem !important;
   border-radius: var(--radius) !important;
+}
+
+.view-mode-list > li.story-card[hidden],
+.view-mode-list > .card.story-card[hidden] {
+  display: none !important;
 }
 
 .view-mode-list .story-thumb {

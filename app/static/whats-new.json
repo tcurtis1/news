@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "load-more-pagination-fix",
+      "seq": 27,
+      "date": "2026-08-21",
+      "title": "\"Load 20 more\" fixed on Top Stories & topic pages",
+      "detail": "Switching to Cards or List view was silently showing every story at once while the counter still said fewer — Load 20 more now correctly reveals stories in batches.",
+      "href": "https://news.yoyosup.com/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "sports-scoreboard-foundation",
       "seq": 26,
       "date": "2026-08-19",

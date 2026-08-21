@@ -146,6 +146,21 @@ class TemplateRenderTests(unittest.TestCase):
         self.assertIn("data-discuss", Path(__file__).resolve().parents[1].joinpath("app/templates/_discuss_btn.html").read_text(encoding="utf-8"))
         self.assertIn("inline-discuss.js", Path(__file__).resolve().parents[1].joinpath("app/templates/base.html").read_text(encoding="utf-8"))
 
+    def test_view_mode_layout_does_not_override_hidden_pagination_cards(self):
+        # "Load 20 more" on pulse/topic pages hides not-yet-revealed cards via
+        # the [hidden] attribute. The .view-mode-cards/.view-mode-list layout
+        # rules use `display: ... !important`, which silently overrode the
+        # browser's default [hidden] -> display:none and made every card
+        # render from page load regardless of the pagination counter
+        # (found live 2026-08-21: 80 cards visible while the footer still
+        # said "40 of 80", and clicking "Load 20 more" did nothing visible
+        # since everything was already shown). These [hidden] overrides must
+        # stay in place, with higher selector specificity than the plain
+        # .view-mode-cards/.view-mode-list rules, to keep it fixed.
+        css = Path(__file__).resolve().parents[1].joinpath("app/static/style.css").read_text(encoding="utf-8")
+        self.assertIn(".view-mode-cards > li.story-card[hidden]", css)
+        self.assertIn(".view-mode-list > li.story-card[hidden]", css)
+
     def test_intersection_discuss_expands_inline(self):
         r = self.client.get("/search", params={"q": "kitchen sink"})
         self._assert_clean_200(r, "/search?q=kitchen sink")
