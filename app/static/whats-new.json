@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "sports-college-scores",
+      "seq": 28,
+      "date": "2026-08-21",
+      "title": "College football and basketball scores added",
+      "detail": "Sports now covers College Football, Men's College Basketball, and Women's College Basketball alongside NFL, NBA, MLB, NHL, WNBA, EPL, and MLS.",
+      "href": "https://news.yoyosup.com/sports",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "load-more-pagination-fix",
       "seq": 27,
       "date": "2026-08-21",

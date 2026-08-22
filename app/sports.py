@@ -61,6 +61,9 @@ LEAGUES = {
     "wnba": {"sport": "basketball", "league": "wnba", "name": "WNBA", "short_name": "WNBA", "path": "wnba"},
     "epl": {"sport": "soccer", "league": "eng.1", "name": "English Premier League", "short_name": "EPL", "path": "soccer"},
     "mls": {"sport": "soccer", "league": "usa.1", "name": "Major League Soccer", "short_name": "MLS", "path": "soccer"},
+    "cfb": {"sport": "football", "league": "college-football", "name": "College Football", "short_name": "CFB", "path": "college-football"},
+    "mcbb": {"sport": "basketball", "league": "mens-college-basketball", "name": "Men's College Basketball", "short_name": "CBB (M)", "path": "mens-college-basketball"},
+    "wcbb": {"sport": "basketball", "league": "womens-college-basketball", "name": "Women's College Basketball", "short_name": "CBB (W)", "path": "womens-college-basketball"},
 }
 
 CACHE_TTL = 30  # seconds
