@@ -203,12 +203,13 @@ def _read_cache(place: Place, *, allow_stale: bool = False) -> dict | None:
         if fresh or allow_stale:
             data = _ensure_derived(data, place)
             if data.get("consensus"):
-                from app.search import _IMAGE_CACHE
+                from app.search import get_cached_thumbnail
                 for c in data["consensus"]:
                     if not c.get("image_url"):
                         k = c.get("url") or c.get("title")
-                        if k and k in _IMAGE_CACHE:
-                            c["image_url"] = _IMAGE_CACHE[k]
+                        img = get_cached_thumbnail(k, c.get("title", ""))
+                        if img:
+                            c["image_url"] = img
             out = apply_deltas(data, _read_json(yday))
             if not fresh:
                 out["cache"] = "stale"

@@ -339,12 +339,13 @@ def _read_cache(*, allow_stale: bool = False) -> dict | None:
             data["cache"] = "stale"
         # Hydrate missing image_url from persistent image cache
         if data.get("stories"):
-            from app.search import _IMAGE_CACHE
+            from app.search import get_cached_thumbnail
             for s in data["stories"]:
                 if not s.get("image_url"):
                     k = s.get("url") or s.get("title")
-                    if k and k in _IMAGE_CACHE:
-                        s["image_url"] = _IMAGE_CACHE[k]
+                    img = get_cached_thumbnail(k, s.get("title", ""))
+                    if img:
+                        s["image_url"] = img
         return data
     except Exception:
         return None

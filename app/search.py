@@ -118,8 +118,36 @@ def _clean_query(q: str) -> str:
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/data"))
 IMAGE_CACHE_FILE = CACHE_DIR / "image_cache.json"
 
-_IMAGE_CACHE: dict[str, str] = {}
+_IMAGE_CACHE: dict[str, Any] = {}
 _LAST_CACHE_SAVE = 0.0
+
+
+def _title_fingerprint(title: str) -> str:
+    t = (title or "").lower().strip()
+    t = re.sub(r"[^\w\s]", " ", t)
+    return re.sub(r"\s+", " ", t)
+
+
+def get_cached_thumbnail(cache_key: str | None, title: str = "") -> str | None:
+    """Look up a cached thumbnail, but only trust it if it was cached for
+    this same headline. Google News reuses one URL for an evolving "Live
+    Updates" story, so a cache keyed on URL alone can otherwise keep
+    serving whatever photo an earlier, unrelated headline update resolved
+    to (e.g. a US Open thumbnail lingering on a Trump/Iran live-updates
+    story) indefinitely. Legacy entries cached before this check existed
+    carry no title, so they get one re-resolution the first time they're
+    looked up against a known title, then behave normally after that.
+    """
+    if not cache_key:
+        return None
+    cached = _IMAGE_CACHE.get(cache_key)
+    if cached is None:
+        return None
+    if isinstance(cached, dict):
+        if not title or cached.get("title_fp") == _title_fingerprint(title):
+            return cached.get("img")
+        return None
+    return None if title else cached
 
 
 def _load_image_cache() -> None:
@@ -197,16 +225,20 @@ async def resolve_article_thumbnail(
     cache_key = url or title
     if not cache_key:
         return None
-    if cache_key in _IMAGE_CACHE:
-        return _IMAGE_CACHE[cache_key]
+    cached = get_cached_thumbnail(cache_key, title)
+    if cached is not None:
+        return cached
+
+    def _cache_put(img: str) -> None:
+        _IMAGE_CACHE[cache_key] = {"img": img, "title_fp": _title_fingerprint(title)}
+        _save_image_cache_debounced()
 
     # YouTube fast path
     if url:
         yt_m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url)
         if yt_m:
             img = f"https://img.youtube.com/vi/{yt_m.group(1)}/hqdefault.jpg"
-            _IMAGE_CACHE[cache_key] = img
-            _save_image_cache_debounced()
+            _cache_put(img)
             return img
 
     STOP = {
@@ -253,8 +285,7 @@ async def resolve_article_thumbnail(
                         if child.tag.lower().endswith("image") and child.text:
                             img = _upgrade_image_url(child.text.strip())
                             if img and "rsslogo" not in img:
-                                _IMAGE_CACHE[cache_key] = img
-                                _save_image_cache_debounced()
+                                _cache_put(img)
                                 return img
         except Exception:
             pass
@@ -300,8 +331,7 @@ async def resolve_article_thumbnail(
                     if img_url.startswith("http") and not img_url.endswith(".gif"):
                         upgraded = _upgrade_image_url(img_url)
                         if upgraded:
-                            _IMAGE_CACHE[cache_key] = upgraded
-                            _save_image_cache_debounced()
+                            _cache_put(upgraded)
                             return upgraded
         except Exception:
             pass
@@ -321,8 +351,7 @@ async def resolve_article_thumbnail(
                 data = r.json()
                 thumb = data.get("thumbnail", {}).get("source") or data.get("originalimage", {}).get("source")
                 if thumb and thumb.startswith("http") and not thumb.endswith(".svg"):
-                    _IMAGE_CACHE[cache_key] = thumb
-                    _save_image_cache_debounced()
+                    _cache_put(thumb)
                     return thumb
         except Exception:
             pass

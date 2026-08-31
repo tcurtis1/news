@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "top-stories-thumbnail-mismatch-fix",
+      "seq": 29,
+      "date": "2026-08-31",
+      "title": "Top Stories thumbnails no longer go stale on live-updates stories",
+      "detail": "Fixed a bug where a breaking story's photo could freeze on an old, unrelated image (like a tennis photo showing on an Iran story) as a live-updates headline evolved throughout the day. Thumbnails now refresh whenever the headline changes.",
+      "href": "/",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "sports-college-scores",
       "seq": 28,
       "date": "2026-08-21",
