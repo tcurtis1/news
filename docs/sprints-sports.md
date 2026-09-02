@@ -64,7 +64,7 @@ They do not want odds, video, fantasy, injury databases, LLM recaps, or more lea
 
 ---
 
-## S1 — Live scores that actually move
+## S1 — Live scores that actually move — **shipped 2026-09-01**
 
 **Goal:** If a card is live, the number changes. Tapping it does not rewind the game.
 

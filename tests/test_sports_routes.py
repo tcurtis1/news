@@ -120,6 +120,18 @@ def test_invalid_league_date_and_game(monkeypatch):
     assert client.get("/sports/game/nfl_missing").status_code == 503
 
 
+def test_empty_boxscore_headers_are_omitted(monkeypatch):
+    game = sample_event()
+    game.team_stats = [
+        {"label": "Batting", "away": "—", "home": "—"},
+        {"label": "Hits", "away": "8", "home": "11"},
+    ]
+    install_fakes(monkeypatch, game=game)
+    response = TestClient(main_mod.app).get("/sports/game/nfl_123")
+    assert "Hits" in response.text
+    assert "Batting" not in response.text
+
+
 def test_scheduled_game_hides_zero_as_score(monkeypatch):
     game = sample_event(EventState.SCHEDULED)
     game.home_team.score = 0

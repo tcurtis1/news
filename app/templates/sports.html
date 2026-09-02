@@ -88,10 +88,10 @@
         </section>
       {% endif %}
     {% endfor %}
-  {% else %}
+  {% elif scoreboard.available %}
     <div class="sports-empty">
       <h3>No games today</h3>
-      <p>{% if not scoreboard.available %}Scores are temporarily unavailable.{% else %}Nothing live, final, or upcoming in this window.{% endif %}</p>
+      <p>Nothing live, final, or upcoming in this window.</p>
     </div>
   {% endif %}
 

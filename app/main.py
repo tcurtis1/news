@@ -60,7 +60,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.12.1"
+APP_VERSION = "0.12.2"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -362,6 +362,15 @@ def _sports_event_view(event: Event) -> dict:
     if not is_live and not is_final and _ESPN_CLOCK_STATUS.search(status_text or ""):
         status_text = status_fallback[state]
     tv = ", ".join(event.tv_broadcasters[:2]) if event.tv_broadcasters else ""
+    stats = []
+    for stat in event.team_stats or []:
+        away, home = str(stat.get("away") or ""), str(stat.get("home") or "")
+        label = str(stat.get("label") or "").strip().lower()
+        if away in ("—", "-", "") and home in ("—", "-", ""):
+            continue
+        if label in ("batting", "pitching", "fielding", "records"):
+            continue
+        stats.append(stat)
     return {
         "id": event.id,
         "league_slug": event.league,
@@ -381,7 +390,7 @@ def _sports_event_view(event: Event) -> dict:
         "venue": event.venue,
         "tv": tv,
         "scoring_summary": event.scoring_summary,
-        "team_stats": event.team_stats,
+        "team_stats": stats,
         "leaders": event.leaders,
     }
 

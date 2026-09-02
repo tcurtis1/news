@@ -338,6 +338,29 @@ async def get_scoreboard(league: str, target_date: Optional[date] = None) -> Spo
 
     return await _fetch_with_cache(key, fetcher, [])
 
+
+def overlay_scoreboard_event(detail: Event, board: Event) -> Event:
+    """Prefer the live scoreboard clock/score when the game package lags."""
+    detail.state = board.state
+    if board.status_detail:
+        detail.status_detail = board.status_detail
+    if board.clock:
+        detail.clock = board.clock
+    if board.period:
+        detail.period = board.period
+    if board.venue:
+        detail.venue = board.venue
+    if board.home_team.score is not None:
+        detail.home_team.score = board.home_team.score
+    if board.away_team.score is not None:
+        detail.away_team.score = board.away_team.score
+    if board.home_team.winner is not None:
+        detail.home_team.winner = board.home_team.winner
+    if board.away_team.winner is not None:
+        detail.away_team.winner = board.away_team.winner
+    return detail
+
+
 async def get_game_detail(game_id: str) -> SportsPayload:
     parts = game_id.split("_", 1)
     if len(parts) != 2 or parts[0] not in LEAGUES:
@@ -357,7 +380,20 @@ async def get_game_detail(game_id: str) -> SportsPayload:
         package = raw_data.get("gamepackageJSON") or raw_data.get("__gamepackage__") or raw_data
         return parse_espn_event(league, package)
 
-    return await _fetch_with_cache(key, fetcher, None)
+    payload = await _fetch_with_cache(key, fetcher, None)
+    detail = payload.data
+    if not isinstance(detail, Event):
+        return payload
+    try:
+        board = await get_scoreboard(league, None)
+    except Exception:
+        return payload
+    for event in board.data or []:
+        if event.id == game_id:
+            overlay_scoreboard_event(detail, event)
+            break
+    return payload
+
 
 async def get_sports_home_summary(target_date: Optional[date] = None) -> SportsPayload:
     now = datetime.now(tz=timezone.utc)

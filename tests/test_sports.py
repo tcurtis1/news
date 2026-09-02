@@ -4,7 +4,7 @@ from datetime import datetime, timezone, date
 from app.sports import (
     Event, EventState, ProviderAdapter, Team, clear_cache, get_game_detail,
     get_league_catalog, get_scoreboard, get_sports_home_summary, group_events,
-    parse_espn_event, set_provider,
+    overlay_scoreboard_event, parse_espn_event, set_provider,
 )
 
 class MockProvider(ProviderAdapter):
@@ -178,6 +178,50 @@ def test_game_detail(setup_teardown):
     assert payload.data.id == "nba_555"
     assert payload.data.state == EventState.FINAL
     assert payload.data.home_team.id == "10"
+
+
+def test_game_detail_overlays_live_scoreboard(setup_teardown):
+    provider = setup_teardown
+    game_url = "https://cdn.espn.com/core/mlb/game"
+    board_url = "https://cdn.espn.com/core/mlb/scoreboard"
+    provider.responses[(game_url, frozenset({"xhr": "1", "gameId": "401"}.items()))] = {
+        "header": {
+            "id": "401",
+            "status": {"type": {"name": "STATUS_IN_PROGRESS", "shortDetail": "Bot 6th"}},
+            "competitions": [{"competitors": [
+                {"homeAway": "home", "score": "11", "team": {"id": "23", "displayName": "Pirates", "abbreviation": "PIT"}},
+                {"homeAway": "away", "score": "7", "team": {"id": "26", "displayName": "Giants", "abbreviation": "SF"}},
+            ]}],
+        }
+    }
+    provider.responses[(board_url, frozenset({"xhr": "1"}.items()))] = {
+        "events": [{
+            "id": "401",
+            "status": {"type": {"name": "STATUS_IN_PROGRESS", "shortDetail": "Mid 8th"}},
+            "competitions": [{"competitors": [
+                {"homeAway": "home", "score": "12", "team": {"id": "23", "displayName": "Pirates", "abbreviation": "PIT"}},
+                {"homeAway": "away", "score": "12", "team": {"id": "26", "displayName": "Giants", "abbreviation": "SF"}},
+            ]}],
+        }]
+    }
+    payload = run(get_game_detail("mlb_401"))
+    assert payload.data.home_team.score == 12
+    assert payload.data.away_team.score == 12
+    assert payload.data.status_detail == "Mid 8th"
+
+
+def test_overlay_scoreboard_event_copies_live_fields():
+    older = _event("1", EventState.IN_PROGRESS, datetime(2026, 9, 1, 20, tzinfo=timezone.utc))
+    older.home_team.score = 11
+    older.away_team.score = 7
+    older.status_detail = "Bot 6th"
+    newer = _event("1", EventState.IN_PROGRESS, datetime(2026, 9, 1, 20, tzinfo=timezone.utc))
+    newer.home_team.score = 12
+    newer.away_team.score = 12
+    newer.status_detail = "Mid 8th"
+    overlay_scoreboard_event(older, newer)
+    assert older.home_team.score == 12
+    assert older.status_detail == "Mid 8th"
 
 def test_final_games_do_not_imply_polling():
     ev_data = {
