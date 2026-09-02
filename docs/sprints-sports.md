@@ -44,7 +44,7 @@ They do not want odds, video, fantasy, injury databases, LLM recaps, or more lea
 
 ---
 
-## S0 — Top is a glance, not a landfill
+## S0 — Top is a glance, not a landfill — **shipped 2026-09-01**
 
 **Goal:** A US-evening phone load answers who’s playing / who won / what’s next in one screen.
 

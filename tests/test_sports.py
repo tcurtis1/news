@@ -2,8 +2,9 @@ import pytest
 import asyncio
 from datetime import datetime, timezone, date
 from app.sports import (
-    get_league_catalog, get_scoreboard, get_game_detail, get_sports_home_summary,
-    EventState, ProviderAdapter, set_provider, clear_cache, parse_espn_event
+    Event, EventState, ProviderAdapter, Team, clear_cache, get_game_detail,
+    get_league_catalog, get_scoreboard, get_sports_home_summary, group_events,
+    parse_espn_event, set_provider,
 )
 
 class MockProvider(ProviderAdapter):
@@ -185,3 +186,42 @@ def test_final_games_do_not_imply_polling():
     }
     ev = parse_espn_event("nfl", ev_data)
     assert ev.state == EventState.FINAL
+
+
+def _event(eid, state, start, league="mlb"):
+    return Event(
+        id=f"{league}_{eid}",
+        name="Away at Home",
+        short_name="AWY @ HOM",
+        start_time=start,
+        state=state,
+        league=league,
+        away_team=Team(id="1", name="Away", abbreviation="AWY", is_home=False, score=1),
+        home_team=Team(id="2", name="Home", abbreviation="HOM", is_home=True, score=2),
+    )
+
+
+def test_home_mix_keeps_late_live_games():
+    now = datetime(2026, 9, 1, 23, 0, tzinfo=timezone.utc)
+    finals = [_event(i, EventState.FINAL, now.replace(hour=17), "mlb") for i in range(5)]
+    live = _event("live", EventState.IN_PROGRESS, now.replace(hour=20), "mlb")
+    grouped = group_events(finals + [live], now, window=True)
+    assert [event.id for event in grouped["live"]] == ["mlb_live"]
+    assert len(grouped["final"]) == 5
+
+
+def test_home_mix_drops_far_future_cbb():
+    now = datetime(2026, 9, 1, 18, 0, tzinfo=timezone.utc)
+    nov = _event("nov", EventState.SCHEDULED, datetime(2026, 11, 15, 0, tzinfo=timezone.utc), "mcbb")
+    grouped = group_events([nov], now, window=True)
+    assert grouped["upcoming"] == []
+    assert grouped["live"] == []
+
+
+def test_home_summary_does_not_truncate_league_to_five(setup_teardown):
+    provider = setup_teardown
+    url = "https://cdn.espn.com/core/mlb/scoreboard"
+    events = [{"id": str(i), "status": {"type": {"name": "STATUS_IN_PROGRESS", "state": "in"}}} for i in range(8)]
+    provider.responses[(url, frozenset({"xhr": "1"}.items()))] = {"events": events}
+    summary = run(get_sports_home_summary())
+    assert len(summary.data["mlb"]) == 8

@@ -6,9 +6,9 @@
 <main class="sports-page" data-sports-page data-refresh-url="{{ refresh_url }}">
   <header class="sports-hero">
     <div>
-      <p class="eyebrow">Scores without the clutter</p>
+      <p class="eyebrow">Who’s playing now</p>
       <h1>{{ heading }}</h1>
-      <p class="muted">Live and upcoming games, schedules, and game details. Times are shown in your local timezone.</p>
+      <p class="muted">Live games first, then tonight’s finals and what’s next. Times convert to your timezone.</p>
     </div>
     <a class="sports-scores-link" href="/sports/scores">All scores</a>
   </header>
@@ -34,44 +34,66 @@
     </nav>
   {% endif %}
 
-  <section aria-labelledby="games-heading">
-    <div class="sports-section-heading">
-      <h2 id="games-heading">{{ games_heading }}</h2>
-      {% if scoreboard.updated_at %}<span>Updated <time datetime="{{ scoreboard.updated_at }}">{{ scoreboard.updated_at_display }}</time></span>{% endif %}
-    </div>
+  {% set groups = scoreboard.groups if scoreboard.groups else {"live": scoreboard.events, "final": [], "upcoming": []} %}
+  {% set sections = [
+    ("live", "Live", groups.live),
+    ("final", "Final", groups.final),
+    ("upcoming", "Upcoming", groups.upcoming)
+  ] %}
+  {% set has_games = groups.live or groups.final or groups.upcoming %}
 
-    {% if scoreboard.events %}
-      <div class="score-grid" data-score-list aria-live="polite" aria-atomic="false">
-        {% for game in scoreboard.events %}
-          <article class="score-card{% if game.is_live %} is-live{% endif %}" data-game-id="{{ game.id }}">
-            <div class="score-card-top">
-              <span>{{ game.league_short_name }}</span>
-              <span class="game-state state-{{ game.state }}" data-game-status>{{ game.status_text }}</span>
-            </div>
-            <a class="score-matchup" href="/sports/game/{{ game.id }}" aria-label="{{ game.away_team.name }} at {{ game.home_team.name }}, {{ game.status_text }}">
-              <span class="score-team">
-                <span><b>{{ game.away_team.abbreviation }}</b><small>{{ game.away_team.name }}</small></span>
-                <strong data-game-away-score>{{ game.away_score_display }}</strong>
-              </span>
-              <span class="score-team">
-                <span><b>{{ game.home_team.abbreviation }}</b><small>{{ game.home_team.name }}</small></span>
-                <strong data-game-home-score>{{ game.home_score_display }}</strong>
-              </span>
-            </a>
-            <div class="score-card-meta">
-              <time datetime="{{ game.start_time_iso }}" data-local-time>{{ game.start_time_display }}</time>
-              {% if game.venue %}<span>{{ game.venue }}</span>{% endif %}
-            </div>
-          </article>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="sports-empty">
-        <h3>No games found</h3>
-        <p>There may be no games scheduled for this league and date.</p>
-      </div>
-    {% endif %}
-  </section>
+  {% if scoreboard.updated_at %}
+    <p class="sports-updated">Updated <time datetime="{{ scoreboard.updated_at }}" data-local-time>{{ scoreboard.updated_at_display }}</time></p>
+  {% endif %}
+
+  {% if has_games %}
+    {% for key, title, games in sections %}
+      {% if games %}
+        <section class="sports-section" aria-labelledby="games-{{ key }}">
+          <div class="sports-section-heading">
+            <h2 id="games-{{ key }}">{{ title }}</h2>
+          </div>
+          <div class="score-grid" data-score-list aria-live="polite" aria-atomic="false">
+            {% for game in games %}
+              <article class="score-card{% if game.is_live %} is-live{% endif %}" data-game-id="{{ game.id }}">
+                <div class="score-card-top">
+                  <span>{{ game.league_short_name }}</span>
+                  <span class="game-state state-{{ game.state }}" data-game-status>
+                    {% if game.is_live %}<span class="live-pill">Live</span>{% endif %}
+                    {{ game.status_text }}
+                  </span>
+                </div>
+                <a class="score-matchup" href="/sports/game/{{ game.id }}" aria-label="{{ game.away_team.name }} at {{ game.home_team.name }}, {{ game.status_text }}">
+                  <span class="score-team{% if game.away_team.winner %} is-winner{% endif %}">
+                    <span><b>{{ game.away_team.abbreviation }}</b><small>{{ game.away_team.name }}</small></span>
+                    <strong data-game-away-score{% if game.away_score_display == '—' %} class="score-empty"{% endif %}>{{ game.away_score_display }}</strong>
+                  </span>
+                  <span class="score-team{% if game.home_team.winner %} is-winner{% endif %}">
+                    <span><b>{{ game.home_team.abbreviation }}</b><small>{{ game.home_team.name }}</small></span>
+                    <strong data-game-home-score{% if game.home_score_display == '—' %} class="score-empty"{% endif %}>{{ game.home_score_display }}</strong>
+                  </span>
+                </a>
+                <div class="score-card-meta">
+                  {% if game.show_start_time %}
+                    <time datetime="{{ game.start_time_iso }}" data-local-time>{{ game.start_time_display }}</time>
+                  {% elif game.venue %}
+                    <span>{{ game.venue }}</span>
+                  {% endif %}
+                  {% if game.show_start_time and game.venue %}<span>{{ game.venue }}</span>{% endif %}
+                  {% if game.tv and game.show_start_time %}<span>{{ game.tv }}</span>{% endif %}
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    <div class="sports-empty">
+      <h3>No games today</h3>
+      <p>{% if not scoreboard.available %}Scores are temporarily unavailable.{% else %}Nothing live, final, or upcoming in this window.{% endif %}</p>
+    </div>
+  {% endif %}
 
   <footer class="sports-source">
     {% if scoreboard.source_label %}Data: {{ scoreboard.source_label }}.{% endif %}
@@ -81,5 +103,16 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+(function () {
+  document.querySelectorAll("time[data-local-time]").forEach(function (node) {
+    var instant = new Date(node.getAttribute("datetime"));
+    if (Number.isNaN(instant.getTime())) return;
+    node.textContent = new Intl.DateTimeFormat(undefined, {
+      weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+    }).format(instant);
+  });
+})();
+</script>
 <script src="/static/sports.js?v={{ app_version }}" defer></script>
 {% endblock %}

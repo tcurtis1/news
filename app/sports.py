@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from typing import Dict, Any, Optional, List, Tuple
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -67,6 +67,13 @@ LEAGUES = {
 }
 
 CACHE_TTL = 30  # seconds
+LIVE_STATES = {EventState.IN_PROGRESS, EventState.HALFTIME}
+FINAL_STATES = {EventState.FINAL}
+UPCOMING_STATES = {EventState.SCHEDULED, EventState.PREGAME}
+HOME_FINAL_HOURS = 12
+HOME_UPCOMING_HOURS = 48
+HOME_FINAL_CAP = 8
+HOME_UPCOMING_CAP = 12
 
 class CachedData(BaseModel):
     timestamp: float
@@ -366,7 +373,7 @@ async def get_sports_home_summary(target_date: Optional[date] = None) -> SportsP
             summary_data[lg] = []
             stale = True
         else:
-            summary_data[lg] = res.data[:5]
+            summary_data[lg] = list(res.data or [])
             if res.freshness == "stale":
                 stale = True
             elif res.freshness == "fallback":
@@ -384,3 +391,45 @@ async def get_sports_home_summary(target_date: Optional[date] = None) -> SportsP
         provider_label="espn",
         data=summary_data
     )
+
+
+def group_events(
+    events: List[Event],
+    now: Optional[datetime] = None,
+    *,
+    window: bool = False,
+) -> Dict[str, List[Event]]:
+    """Split a slate into Live / Final / Upcoming.
+
+    ``window=True`` is the /sports home mix: every live game, recent finals,
+    and games in the next two days — not ESPN's first five per league.
+    """
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    live: List[Event] = []
+    final: List[Event] = []
+    upcoming: List[Event] = []
+    final_after = now - timedelta(hours=HOME_FINAL_HOURS)
+    upcoming_until = now + timedelta(hours=HOME_UPCOMING_HOURS)
+    for event in events:
+        start = event.start_time
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if event.state in LIVE_STATES:
+            live.append(event)
+        elif event.state in FINAL_STATES:
+            if not window or start >= final_after:
+                final.append(event)
+        elif event.state in UPCOMING_STATES:
+            if not window or start <= upcoming_until:
+                upcoming.append(event)
+        elif not window:
+            upcoming.append(event)
+    live.sort(key=lambda event: event.start_time, reverse=True)
+    final.sort(key=lambda event: event.start_time, reverse=True)
+    upcoming.sort(key=lambda event: event.start_time)
+    if window:
+        final = final[:HOME_FINAL_CAP]
+        upcoming = upcoming[:HOME_UPCOMING_CAP]
+    return {"live": live, "final": final, "upcoming": upcoming}

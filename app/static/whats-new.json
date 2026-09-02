@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "sports-live-first",
+      "seq": 30,
+      "date": "2026-09-01",
+      "title": "Sports now leads with live games",
+      "detail": "The Sports page groups Live, Final, and Upcoming. Every live game shows up, not just ESPN’s first five, and times convert to your timezone.",
+      "href": "https://news.yoyosup.com/sports",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "top-stories-thumbnail-mismatch-fix",
       "seq": 29,
       "date": "2026-08-31",

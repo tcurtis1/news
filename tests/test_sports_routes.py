@@ -61,10 +61,13 @@ def test_sports_home_and_navigation_render(monkeypatch):
     install_fakes(monkeypatch)
     response = TestClient(main_mod.app).get("/sports")
     assert response.status_code == 200
-    assert "Scores without the clutter" in response.text
+    assert "Sports scores and news" not in response.text
+    assert "Who" in response.text and "playing now" in response.text
     assert "Away Team" in response.text
     assert 'href="/sports"' in response.text
     assert 'data-game-id="nfl_123"' in response.text
+    assert 'id="games-live"' in response.text
+    assert "live-pill" in response.text
 
 
 def test_league_scoreboard_and_date_navigation(monkeypatch):
@@ -86,6 +89,8 @@ def test_scoreboard_api_is_normalized(monkeypatch):
     assert body["stale"] is False
     assert body["events"][0]["state"] == "in_progress"
     assert body["events"][0]["home_score_display"] == "20"
+    assert body["groups"]["live"][0]["id"] == "nfl_123"
+    assert body["groups"]["final"] == []
 
 
 def test_game_center_renders_every_optional_branch(monkeypatch):
