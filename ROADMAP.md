@@ -4,6 +4,9 @@ Living product list. Ship small; prefer honest UX over flashy features.
 
 ## Now / next
 
+### Sports — make `/sports` a glance, then news
+Scoreboard is live (ESPN public feed) but Top is a landfill: first-5-per-league drops most live games, times flash UTC, live poll only updates `games[0]`, title claims news with none. **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md). Do **S0 (Live / Final / Upcoming mix)** then **S1 (poll + cache)** before headlines or MyTeams.
+
 ### 1. Bias / political leaning badge — **shipped v1 (0.9.0)**
 - Per-hit outlet badge + topic/query coverage aggregate.
 - Labels: Lean left · Lean right · Mixed / center · Unclear.
