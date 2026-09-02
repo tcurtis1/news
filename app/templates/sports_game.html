@@ -60,6 +60,21 @@
   </section>
   {% endif %}
 
+  <section class="sports-news sports-panel" data-sports-news data-news-away="{{ game.away_team.name }}" data-news-home="{{ game.home_team.name }}">
+    <h2>News</h2>
+    <p class="sports-news-links">
+      <a href="/search?q={{ game.away_team.name | urlencode }}">{{ game.away_team.name }}</a>
+      ·
+      <a href="/search?q={{ game.home_team.name | urlencode }}">{{ game.home_team.name }}</a>
+    </p>
+    <ul class="sports-headlines" hidden></ul>
+    <p class="sports-rank-chip" data-rank-chip hidden></p>
+    <div class="sports-follow">
+      <button type="button" class="mynews-follow" data-topic="{{ game.away_team.name }}">Follow {{ game.away_team.name }} in MyNews</button>
+      <button type="button" class="mynews-follow" data-topic="{{ game.home_team.name }}">Follow {{ game.home_team.name }} in MyNews</button>
+    </div>
+  </section>
+
   <footer class="sports-source">{% if payload.source_label %}Data: {{ payload.source_label }}. {% endif %}Live information can be delayed or corrected.</footer>
 </main>
 {% endblock %}

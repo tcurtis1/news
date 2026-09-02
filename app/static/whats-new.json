@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "sports-headlines",
+      "seq": 33,
+      "date": "2026-09-02",
+      "title": "Sports now shows real headlines",
+      "detail": "League and game pages link into News search, list Google News headlines, and let you follow a team in MyNews. Still no ESPN recaps.",
+      "href": "https://news.yoyosup.com/sports",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "sports-my-teams",
       "seq": 32,
       "date": "2026-09-01",

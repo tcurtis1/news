@@ -69,6 +69,20 @@ LEAGUES = {
 }
 
 CACHE_TTL = 30  # seconds
+HEADLINES_TTL = 30 * 60
+HEADLINES_LIMIT = 8
+LEAGUE_NEWS_QUERY = {
+    "nfl": "NFL",
+    "nba": "NBA",
+    "mlb": "MLB",
+    "nhl": "NHL",
+    "wnba": "WNBA",
+    "epl": "Premier League",
+    "mls": "MLS soccer",
+    "cfb": "college football",
+    "mcbb": "college basketball",
+    "wcbb": "women's college basketball",
+}
 LIVE_STATES = {EventState.IN_PROGRESS, EventState.HALFTIME}
 FINAL_STATES = {EventState.FINAL}
 UPCOMING_STATES = {EventState.SCHEDULED, EventState.PREGAME}
@@ -82,6 +96,7 @@ class CachedData(BaseModel):
     data: Any
 
 _app_cache: Dict[str, CachedData] = {}
+_headlines_cache: Dict[str, CachedData] = {}
 _cache_locks: Dict[str, asyncio.Lock] = {}
 
 def get_cache_lock(key: str) -> asyncio.Lock:
@@ -104,7 +119,37 @@ def set_provider(provider: ProviderAdapter):
 
 def clear_cache():
     _app_cache.clear()
+    _headlines_cache.clear()
     _cache_locks.clear()
+
+
+def league_news_query(league: str) -> str:
+    return LEAGUE_NEWS_QUERY.get(league, "")
+
+
+async def get_sports_headlines(query: str, limit: int = HEADLINES_LIMIT) -> dict:
+    """Cached Google News RSS for a league or team phrase. Never raises."""
+    from app.search import google_news_headlines
+
+    q = " ".join((query or "").split())[:80]
+    cap = max(1, min(int(limit or HEADLINES_LIMIT), HEADLINES_LIMIT))
+    if not q:
+        return {"query": "", "headlines": []}
+    key = f"headlines:{q.lower()}:{cap}"
+    now = time.time()
+    cached = _headlines_cache.get(key)
+    if cached and (now - cached.timestamp < HEADLINES_TTL):
+        return cached.data
+    try:
+        headlines = await google_news_headlines(q, limit=cap)
+        payload = {"query": q, "headlines": headlines}
+        _headlines_cache[key] = CachedData(timestamp=now, data=payload)
+        return payload
+    except Exception as exc:
+        logger.warning("sports headlines failed q=%r: %s", q, exc)
+        if cached:
+            return cached.data
+        return {"query": q, "headlines": []}
 
 def _broadcast_names(*bags: Any) -> List[str]:
     names: List[str] = []

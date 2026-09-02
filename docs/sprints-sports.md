@@ -116,7 +116,7 @@ They do not want odds, video, fantasy, injury databases, LLM recaps, or more lea
 
 ---
 
-## S4 — News, finally, and only as News
+## S4 — News, finally, and only as News — **shipped 2026-09-02**
 
 **Goal:** Stop lying about “sports news” by **linking into** search/topic/MyNews. Do not mint recaps.
 

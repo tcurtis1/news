@@ -64,8 +64,9 @@ def test_sports_home_and_navigation_render(monkeypatch):
     install_fakes(monkeypatch)
     response = TestClient(main_mod.app).get("/sports")
     assert response.status_code == 200
-    assert "Sports scores and news" not in response.text
+    assert "Sports scores and news" in response.text
     assert "Who" in response.text and "playing now" in response.text
+    assert "data-sports-news" not in response.text
     assert "Away Team" in response.text
     assert 'href="/sports"' in response.text
     assert 'data-game-id="nfl_123"' in response.text
@@ -85,6 +86,9 @@ def test_league_scoreboard_and_date_navigation(monkeypatch):
     assert '/sports/nfl?date=2026-08-18' in response.text
     assert '/sports/nfl?date=2026-08-20' in response.text
     assert 'aria-current="page">NFL' in response.text
+    assert "data-sports-news" in response.text
+    assert "More NFL news" in response.text
+    assert "/search?q=NFL" in response.text
 
 
 def test_scoreboard_api_is_normalized(monkeypatch):
@@ -98,6 +102,18 @@ def test_scoreboard_api_is_normalized(monkeypatch):
     assert body["events"][0]["home_score_display"] == "20"
     assert body["groups"]["live"][0]["id"] == "nfl_123"
     assert body["groups"]["final"] == []
+
+
+def test_sports_headlines_api_uses_league_query(monkeypatch):
+    async def fake_headlines(query, limit=8):
+        assert query == "NFL"
+        return {"query": query, "headlines": [{"title": "NFL news", "url": "https://example.com/n", "source": "AP"}]}
+
+    monkeypatch.setattr(main_mod, "get_sports_headlines", fake_headlines)
+    response = TestClient(main_mod.app).get("/api/sports/headlines?league=nfl")
+    assert response.status_code == 200
+    assert response.json()["headlines"][0]["title"] == "NFL news"
+    assert TestClient(main_mod.app).get("/api/sports/headlines?league=nope").status_code == 404
 
 
 def test_game_center_renders_every_optional_branch(monkeypatch):
@@ -114,6 +130,10 @@ def test_game_center_renders_every_optional_branch(monkeypatch):
     assert "Week 3 · AWY 4-0 at HOM 3-0" in response.text
     assert 'class="team-star"' in response.text
     assert "Batting" not in response.text or "Hits" in response.text
+    assert "Follow Away Team in MyNews" in response.text
+    assert "Follow Home Team in MyNews" in response.text
+    assert 'data-news-away="Away Team"' in response.text
+    assert "/search?q=" in response.text
 
 
 def test_stale_scoreboard_is_labeled(monkeypatch):

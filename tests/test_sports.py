@@ -1,10 +1,12 @@
 import pytest
 import asyncio
 from datetime import datetime, timezone, date
+from app.search import SearchHit, google_news_headlines
 from app.sports import (
     Event, EventState, ProviderAdapter, Team, clear_cache, get_game_detail,
-    get_league_catalog, get_scoreboard, get_sports_home_summary, group_events,
-    overlay_scoreboard_event, parse_espn_event, set_provider,
+    get_league_catalog, get_scoreboard, get_sports_headlines, get_sports_home_summary,
+    group_events, league_news_query, overlay_scoreboard_event, parse_espn_event,
+    set_provider,
 )
 
 class MockProvider(ProviderAdapter):
@@ -397,3 +399,42 @@ def test_home_summary_does_not_truncate_league_to_five(setup_teardown):
     provider.responses[(url, frozenset({"xhr": "1"}.items()))] = {"events": events}
     summary = run(get_sports_home_summary())
     assert len(summary.data["mlb"]) == 8
+
+
+def test_league_news_query_uses_plain_league_names():
+    assert league_news_query("nfl") == "NFL"
+    assert league_news_query("cfb") == "college football"
+    assert league_news_query("nope") == ""
+
+
+def test_google_news_headlines_skip_non_http(monkeypatch):
+    async def fake_fetch(client, q, *, place=None, limit=12, score_base=1000):
+        return [
+            SearchHit(title="Good", url="https://a.test/x", source="AP"),
+            SearchHit(title="Bad", url="javascript:alert(1)", source="x"),
+        ]
+
+    monkeypatch.setattr("app.search._fetch_google_news", fake_fetch)
+    assert run(google_news_headlines("NFL")) == [
+        {"title": "Good", "url": "https://a.test/x", "source": "AP"}
+    ]
+
+
+def test_sports_headlines_cache_and_https_only(monkeypatch):
+    calls = {"n": 0}
+
+    async def fake_google(query, limit=8):
+        calls["n"] += 1
+        assert query == "NFL"
+        return [
+            {"title": "NFL opens week 1", "url": "https://example.com/nfl", "source": "AP"},
+            {"title": "Bad", "url": "javascript:alert(1)", "source": "x"},
+        ]
+
+    monkeypatch.setattr("app.search.google_news_headlines", fake_google)
+    clear_cache()
+    first = run(get_sports_headlines("NFL"))
+    second = run(get_sports_headlines("NFL"))
+    assert first == second
+    assert calls["n"] == 1
+    assert first["headlines"][0]["url"].startswith("https://")

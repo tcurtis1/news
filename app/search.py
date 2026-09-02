@@ -534,6 +534,36 @@ async def _fetch_google_news(
         return []
 
 
+async def google_news_headlines(query: str, limit: int = 8) -> list[dict[str, str]]:
+    """Publisher-outbound Google News RSS hits for a phrase. Fail open."""
+    q = re.sub(r"\s+", " ", (query or "").strip())[:80]
+    if not q:
+        return []
+    cap = max(1, min(int(limit or 8), 8))
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            hits = await _fetch_google_news(client, q, limit=cap)
+    except Exception as exc:
+        log.warning("google_news_headlines failed q=%r: %s", q, exc)
+        return []
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for hit in hits:
+        url = str(hit.url or "").strip()
+        title = str(hit.title or "").strip()
+        if not title or not url.startswith("http") or url in seen:
+            continue
+        seen.add(url)
+        out.append({
+            "title": title[:220],
+            "url": url,
+            "source": str(hit.source or "Google News")[:80],
+        })
+        if len(out) >= cap:
+            break
+    return out
+
+
 async def _fetch_google_news_for_pref(
     client: httpx.AsyncClient,
     topic: str,

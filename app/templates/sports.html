@@ -8,7 +8,7 @@
     <div>
       <p class="eyebrow">Who’s playing now</p>
       <h1>{{ heading }}</h1>
-      <p class="muted">Live games first, then tonight’s finals and what’s next. Times convert to your timezone.</p>
+      <p class="muted">Live games first, then tonight’s finals and what’s next. Times convert to your timezone.{% if news_query %} Headlines below are from Google News, not ESPN recaps.{% endif %}</p>
     </div>
     <a class="sports-scores-link" href="/sports/scores">All scores</a>
   </header>
@@ -98,6 +98,16 @@
       <h3>No games today</h3>
       <p>Nothing live, final, or upcoming in this window.</p>
     </div>
+  {% endif %}
+
+  {% if news_query %}
+  <section class="sports-news" data-sports-news data-news-league="{{ active_league }}" data-news-more="/search?q={{ news_query | urlencode }}">
+    <div class="sports-section-heading">
+      <h2>News</h2>
+      <a href="/search?q={{ news_query | urlencode }}">More {{ news_query }} news</a>
+    </div>
+    <ul class="sports-headlines" hidden></ul>
+  </section>
   {% endif %}
 
   <footer class="sports-source">
