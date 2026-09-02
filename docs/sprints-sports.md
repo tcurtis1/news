@@ -100,7 +100,7 @@ They do not want odds, video, fantasy, injury databases, LLM recaps, or more lea
 
 ---
 
-## S3 — Context chips + MyTeams (device only)
+## S3 — Context chips + MyTeams (device only) — **shipped 2026-09-01**
 
 **Goal:** Second visit is personal; first visit has a one-line “why this card” **only when ESPN already sent a string**.
 
@@ -163,7 +163,7 @@ They do not want odds, video, fantasy, injury databases, LLM recaps, or more lea
 | `app/seo.py` + `base.html` | Game `noindex` |
 | `tests/test_sports.py` / `test_sports_routes.py` | Live-not-truncated; poll updates every id |
 
-Analytics: sports currently has **zero** `ALLOWED_CLIENT_EVENTS`. Add `sports_view` / `sports_team_star` only when S3 ships, if News analytics allowlist is the right place.
+Analytics: `sports_team_star` fires on star (not unstar). No `sports_view` — page views already go through the existing path.
 
 ## Anti-dev-circle
 

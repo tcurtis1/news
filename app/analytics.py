@@ -48,6 +48,7 @@ ALLOWED_CLIENT_EVENTS = {
     "story_click",
     "topic_open",
     "share_click",
+    "sports_team_star",
 }
 
 _COUNTRY_NAMES = {

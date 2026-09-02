@@ -82,6 +82,11 @@
                   {% if game.show_start_time and game.venue %}<span>{{ game.venue }}</span>{% endif %}
                   {% if game.tv and game.show_start_time %}<span>{{ game.tv }}</span>{% endif %}
                 </div>
+                {% if game.context_line %}<p class="score-context">{{ game.context_line }}</p>{% endif %}
+                <div class="score-card-stars">
+                  <button type="button" class="team-star" data-team-key="{{ game.league_slug }}:{{ game.away_team.id }}" data-team-id="{{ game.away_team.id }}" data-team-name="{{ game.away_team.name }}" data-team-abbr="{{ game.away_team.abbreviation }}" data-league="{{ game.league_slug }}" aria-pressed="false">Star {{ game.away_team.abbreviation }}</button>
+                  <button type="button" class="team-star" data-team-key="{{ game.league_slug }}:{{ game.home_team.id }}" data-team-id="{{ game.home_team.id }}" data-team-name="{{ game.home_team.name }}" data-team-abbr="{{ game.home_team.abbreviation }}" data-league="{{ game.league_slug }}" aria-pressed="false">Star {{ game.home_team.abbreviation }}</button>
+                </div>
               </article>
             {% endfor %}
           </div>

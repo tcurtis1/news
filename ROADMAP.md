@@ -5,7 +5,7 @@ Living product list. Ship small; prefer honest UX over flashy features.
 ## Now / next
 
 ### Sports — make `/sports` a glance, then news
-Scoreboard is live (ESPN public feed) but Top is a landfill: first-5-per-league drops most live games, times flash UTC, live poll only updates `games[0]`, title claims news with none. **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md). **S0 shipped 2026-09-01** (Live / Final / Upcoming; all live games). Next: **S1 (poll + cache)** then headlines / MyTeams.
+Scoreboard is live (ESPN public feed). **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md). **S0–S3 shipped 2026-09-01** (live-first mix, ticking scores, game pages, records/week/rank context, MyTeams on this device). Next: **S4 headlines via search/MyNews** (still no ESPN recaps, no login).
 
 ### 1. Bias / political leaning badge — **shipped v1 (0.9.0)**
 - Per-hit outlet badge + topic/query coverage aggregate.

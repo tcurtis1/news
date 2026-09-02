@@ -289,9 +289,11 @@ def test_overlay_scoreboard_event_copies_live_fields():
     newer.home_team.score = 12
     newer.away_team.score = 12
     newer.status_detail = "Mid 8th"
+    newer.context_line = "SF 73-64 at PIT 61-76"
     overlay_scoreboard_event(older, newer)
     assert older.home_team.score == 12
     assert older.status_detail == "Mid 8th"
+    assert older.context_line == "SF 73-64 at PIT 61-76"
 
 def test_final_games_do_not_imply_polling():
     ev_data = {
@@ -330,6 +332,62 @@ def test_home_mix_drops_far_future_cbb():
     grouped = group_events([nov], now, window=True)
     assert grouped["upcoming"] == []
     assert grouped["live"] == []
+
+
+def test_context_line_uses_records_week_rank_weather_and_skips_tickets():
+    ev = parse_espn_event("cfb", {
+        "id": "401",
+        "week": {"number": 3},
+        "competitions": [{
+            "notes": [
+                {"headline": "Tickets available now"},
+                {"headline": "SEC opener"},
+            ],
+            "weather": {"displayValue": "Clear, 72°F"},
+            "competitors": [
+                {
+                    "homeAway": "home",
+                    "team": {"id": "1", "displayName": "Penn State", "abbreviation": "PSU"},
+                    "records": [{"type": "total", "summary": "3-0"}],
+                    "curatedRank": {"current": 12},
+                },
+                {
+                    "homeAway": "away",
+                    "team": {"id": "2", "displayName": "Ohio State", "abbreviation": "OSU"},
+                    "records": [{"type": "total", "summary": "4-0"}],
+                    "curatedRank": {"current": 5},
+                },
+            ],
+        }],
+    })
+    line = ev.context_line or ""
+    assert "Week 3" in line
+    assert "SEC opener" in line
+    assert "ticket" not in line.lower()
+    assert "#5 OSU 4-0" in line
+    assert "#12 PSU 3-0" in line
+    assert "Clear, 72°F" in line
+
+
+def test_context_line_skips_empty_records_and_unranked():
+    ev = parse_espn_event("mlb", {
+        "id": "2",
+        "competitions": [{
+            "competitors": [
+                {
+                    "homeAway": "home",
+                    "team": {"id": "1", "abbreviation": "HOM", "displayName": "Home", "curatedRank": {"current": 99}},
+                    "records": [{"type": "total", "summary": "0-0"}],
+                },
+                {
+                    "homeAway": "away",
+                    "team": {"id": "2", "abbreviation": "AWY", "displayName": "Away"},
+                    "records": [{"type": "home", "summary": "10-2"}],
+                },
+            ],
+        }],
+    })
+    assert not ev.context_line
 
 
 def test_home_summary_does_not_truncate_league_to_five(setup_teardown):

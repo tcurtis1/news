@@ -60,7 +60,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.12.3"
+APP_VERSION = "0.12.4"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -390,6 +390,7 @@ def _sports_event_view(event: Event) -> dict:
         "venue": event.venue,
         "situation": event.situation or "",
         "tv": tv,
+        "context_line": event.context_line or "",
         "scoring_summary": event.scoring_summary,
         "team_stats": stats,
         "leaders": event.leaders,

@@ -23,6 +23,7 @@ def sample_event(state=EventState.IN_PROGRESS):
         state=state, clock="04:21", period=4, league="nfl", status_detail="4th 4:21",
         venue="Test Field",
         situation="2-1, 1 out",
+        context_line="Week 3 · AWY 4-0 at HOM 3-0",
         tv_broadcasters=["ESPN"],
         away_team=Team(id="1", name="Away Team", abbreviation="AWY", score=17, is_home=False),
         home_team=Team(id="2", name="Home Team", abbreviation="HOM", score=20, is_home=True),
@@ -70,6 +71,10 @@ def test_sports_home_and_navigation_render(monkeypatch):
     assert 'data-game-id="nfl_123"' in response.text
     assert 'id="games-live"' in response.text
     assert "live-pill" in response.text
+    assert "Week 3 · AWY 4-0 at HOM 3-0" in response.text
+    assert 'class="team-star"' in response.text
+    assert 'data-team-key="nfl:1"' in response.text
+    assert 'data-team-key="nfl:2"' in response.text
 
 
 def test_league_scoreboard_and_date_navigation(monkeypatch):
@@ -106,6 +111,8 @@ def test_game_center_renders_every_optional_branch(monkeypatch):
     assert "Test Field" in response.text
     assert "ESPN" in response.text
     assert "2-1, 1 out" in response.text
+    assert "Week 3 · AWY 4-0 at HOM 3-0" in response.text
+    assert 'class="team-star"' in response.text
     assert "Batting" not in response.text or "Hits" in response.text
 
 

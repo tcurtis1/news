@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "sports-my-teams",
+      "seq": 32,
+      "date": "2026-09-01",
+      "title": "Star your teams on Sports",
+      "detail": "Star a team to pin its games at the top of Sports. Saved on this device, no account. Cards also show records, week, and rank when ESPN already has them.",
+      "href": "https://news.yoyosup.com/sports",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "sports-game-page",
       "seq": 31,
       "date": "2026-09-01",

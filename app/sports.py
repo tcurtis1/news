@@ -43,6 +43,7 @@ class Event(BaseModel):
     status_detail: str = ""
     venue: Optional[str] = None
     situation: Optional[str] = None
+    context_line: Optional[str] = None
     scoring_summary: List[Dict[str, str]] = Field(default_factory=list)
     team_stats: List[Dict[str, str]] = Field(default_factory=list)
     leaders: List[Dict[str, str]] = Field(default_factory=list)
@@ -299,6 +300,65 @@ def _extract_situation(package: Dict[str, Any], competition: Dict[str, Any]) -> 
     return ", ".join(bits)
 
 
+def _overall_record(comp: Dict[str, Any]) -> str:
+    for rec in comp.get("records") or []:
+        if not isinstance(rec, dict):
+            continue
+        if rec.get("type") == "total" or str(rec.get("name") or "").lower() == "overall":
+            summary = str(rec.get("summary") or "").strip()
+            if summary and summary not in ("0-0", "0-0-0"):
+                return summary
+    return ""
+
+
+def _team_rank(comp: Dict[str, Any]) -> Optional[int]:
+    rank = (comp.get("curatedRank") or (comp.get("team") or {}).get("curatedRank") or {}).get("current")
+    try:
+        value = int(rank)
+    except (TypeError, ValueError):
+        return None
+    if value <= 0 or value >= 99:
+        return None
+    return value
+
+
+def _context_line(ev: Dict[str, Any], package: Dict[str, Any], competition: Dict[str, Any], home: Team, away: Team, home_comp: Dict[str, Any], away_comp: Dict[str, Any]) -> str:
+    bits: List[str] = []
+    week = ev.get("week") or package.get("week") or (package.get("header") or {}).get("week") or {}
+    number = week.get("number") if isinstance(week, dict) else None
+    try:
+        week_n = int(number)
+    except (TypeError, ValueError):
+        week_n = 0
+    if week_n > 0:
+        bits.append(f"Week {week_n}")
+    for note in competition.get("notes") or ev.get("notes") or []:
+        if not isinstance(note, dict):
+            continue
+        headline = str(note.get("headline") or "").strip()
+        if headline and "ticket" not in headline.lower():
+            bits.append(headline)
+            break
+    rec_bits = []
+    for team, comp in ((away, away_comp), (home, home_comp)):
+        rank = _team_rank(comp)
+        record = _overall_record(comp)
+        label = (f"#{rank} " if rank else "") + team.abbreviation
+        if record:
+            rec_bits.append(f"{label} {record}")
+        elif rank:
+            rec_bits.append(label)
+    if rec_bits:
+        bits.append(" at ".join(rec_bits) if len(rec_bits) == 2 else rec_bits[0])
+    weather = competition.get("weather") or (package.get("gameInfo") or {}).get("weather") or {}
+    display = ""
+    if isinstance(weather, dict):
+        display = str(weather.get("displayValue") or weather.get("condition") or "").strip()
+    if display:
+        bits.append(display)
+    return " · ".join(bits)[:180]
+
+
 def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
     package = ev
     if isinstance(ev.get("header"), dict):
@@ -375,6 +435,8 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
     away_team = None
     home_extra: Dict[str, Any] = {}
     away_extra: Dict[str, Any] = {}
+    home_comp: Dict[str, Any] = {}
+    away_comp: Dict[str, Any] = {}
     for comp in competitors:
         t_data = comp.get("team", {})
         score_str = comp.get("score")
@@ -392,9 +454,11 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
         if team.is_home:
             home_team = team
             home_extra = extra
+            home_comp = comp
         else:
             away_team = team
             away_extra = extra
+            away_comp = comp
 
     if not home_team:
         home_team = Team(id="0", name="Home", abbreviation="HOM", is_home=True)
@@ -411,6 +475,7 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
     team_stats = _extract_team_stats(pkg, home_team, away_team, home_extra, away_extra)
     leaders = _extract_leaders(pkg)
     situation = _extract_situation(pkg, comp0)
+    context_line = _context_line(ev, pkg, comp0, home_team, away_team, home_comp, away_comp)
 
     return Event(
         id=id_,
@@ -427,6 +492,7 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
         status_detail=str(status_detail),
         venue=venue,
         situation=situation or None,
+        context_line=context_line or None,
         scoring_summary=scoring_summary,
         team_stats=team_stats,
         leaders=leaders,
@@ -527,6 +593,8 @@ def overlay_scoreboard_event(detail: Event, board: Event) -> Event:
         detail.home_team.winner = board.home_team.winner
     if board.away_team.winner is not None:
         detail.away_team.winner = board.away_team.winner
+    if board.context_line:
+        detail.context_line = board.context_line
     return detail
 
 

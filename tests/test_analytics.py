@@ -25,11 +25,12 @@ class AnalyticsTests(unittest.TestCase):
             analytics.STORE_PATH = Path(tmp) / "analytics.json"
             try:
                 self.assertTrue(asyncio.run(analytics.record_client_event("session_new")))
+                self.assertTrue(asyncio.run(analytics.record_client_event("sports_team_star")))
                 self.assertFalse(asyncio.run(analytics.record_client_event("<script>bad</script>")))
                 stats = analytics.get_stats()
-                self.assertEqual(stats["actions"], 1)
-                self.assertEqual(stats["by_event"], {"session_new": 1})
-                self.assertEqual(list(stats["by_day_event"].values()), [{"session_new": 1}])
+                self.assertEqual(stats["actions"], 2)
+                self.assertEqual(stats["by_event"], {"session_new": 1, "sports_team_star": 1})
+                self.assertEqual(list(stats["by_day_event"].values()), [{"session_new": 1, "sports_team_star": 1}])
             finally:
                 analytics.CACHE_DIR, analytics.STORE_PATH = old_dir, old_path
 
