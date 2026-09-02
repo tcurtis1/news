@@ -2765,6 +2765,7 @@ li.card.story-card:hover {
 .sports-follow { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .mynews-follow { padding: 0.35rem 0.65rem; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--muted); font-size: 0.78rem; font-weight: 700; cursor: pointer; }
 .mynews-follow[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.sports-mynews-link { align-self: center; font-size: 0.78rem; font-weight: 700; }
 .sports-rank-chip { margin: 0; color: var(--muted); font-size: 0.82rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 

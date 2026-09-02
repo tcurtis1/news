@@ -132,6 +132,7 @@ def test_game_center_renders_every_optional_branch(monkeypatch):
     assert "Batting" not in response.text or "Hits" in response.text
     assert "Follow Away Team in MyNews" in response.text
     assert "Follow Home Team in MyNews" in response.text
+    assert 'href="/my"' in response.text
     assert 'data-news-away="Away Team"' in response.text
     assert "/search?q=" in response.text
 
