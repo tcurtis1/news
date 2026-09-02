@@ -13,14 +13,14 @@
   {% if payload.stale %}<p class="sports-notice" role="status">This game may be delayed. Showing the latest information we have.</p>{% endif %}
 
   <section class="game-hero" aria-labelledby="game-title">
-    <p class="game-kicker" data-game-status>{{ game.league_short_name }} · {{ game.status_text }}</p>
+    <p class="game-kicker" data-game-status>{% if game.is_live %}<span class="live-pill">Live</span> {% endif %}{{ game.league_short_name }} · {{ game.status_text }}</p>
     <h1 id="game-title" class="sr-only">{{ game.away_team.name }} at {{ game.home_team.name }}</h1>
     <div class="game-teams">
-      <div class="game-team"><b>{{ game.away_team.abbreviation }}</b><span>{{ game.away_team.name }}</span><strong data-game-away-score>{{ game.away_score_display }}</strong></div>
+      <div class="game-team{% if game.away_team.winner %} is-winner{% endif %}"><b>{{ game.away_team.abbreviation }}</b><span>{{ game.away_team.name }}</span><strong data-game-away-score>{{ game.away_score_display }}</strong></div>
       <div class="game-at" aria-hidden="true">at</div>
-      <div class="game-team"><b>{{ game.home_team.abbreviation }}</b><span>{{ game.home_team.name }}</span><strong data-game-home-score>{{ game.home_score_display }}</strong></div>
+      <div class="game-team{% if game.home_team.winner %} is-winner{% endif %}"><b>{{ game.home_team.abbreviation }}</b><span>{{ game.home_team.name }}</span><strong data-game-home-score>{{ game.home_score_display }}</strong></div>
     </div>
-    <p class="game-detail-line">{{ game.status_detail }}{% if game.venue %} · {{ game.venue }}{% endif %}</p>
+    <p class="game-detail-line">{{ game.status_detail }}{% if game.situation %} · {{ game.situation }}{% endif %}{% if game.venue %} · {{ game.venue }}{% endif %}{% if game.tv %} · {{ game.tv }}{% endif %}</p>
   </section>
 
   {% if game.scoring_summary or game.team_stats %}

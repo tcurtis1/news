@@ -79,6 +79,52 @@ def test_normalization_and_statuses():
     ev_data["status"]["type"]["state"] = "in"
     assert parse_espn_event("nfl", ev_data).state == EventState.IN_PROGRESS
 
+def test_game_package_scoring_situation_and_tv():
+    package = {
+        "header": {
+            "id": "401",
+            "status": {"type": {"name": "STATUS_IN_PROGRESS", "shortDetail": "Mid 3rd"}},
+            "competitions": [{
+                "outs": 0,
+                "broadcasts": [{"media": {"shortName": "YES"}}],
+                "competitors": [
+                    {"homeAway": "home", "score": "0", "hits": 1, "errors": 0, "team": {"id": "1", "displayName": "Angels", "abbreviation": "LAA"}},
+                    {"homeAway": "away", "score": "4", "hits": 5, "errors": 0, "winner": False, "team": {"id": "2", "displayName": "Yankees", "abbreviation": "NYY"}},
+                ],
+            }],
+        },
+        "gameInfo": {"venue": {"fullName": "Angel Stadium"}},
+        "situation": {"outs": 0, "balls": 0, "strikes": 0},
+        "broadcasts": [{"media": {"shortName": "MLB.TV"}}],
+        "plays": [
+            {"scoringPlay": True, "text": "Jones homered to center.", "period": {"displayValue": "1st Inning"}},
+            {"scoringPlay": False, "text": "Ball"},
+        ],
+        "boxscore": {
+            "teams": [
+                {"homeAway": "away", "statistics": [{"name": "batting", "stats": [{"name": "homeRuns", "displayValue": "2"}]}]},
+                {"homeAway": "home", "statistics": [{"name": "batting", "stats": [{"name": "homeRuns", "displayValue": "0"}]}]},
+            ],
+            "players": [{
+                "team": {"abbreviation": "NYY"},
+                "statistics": [{
+                    "labels": ["H-AB", "AB", "R", "H", "RBI"],
+                    "athletes": [{"athlete": {"shortName": "S. Jones"}, "stats": ["1-2", "2", "1", "1", "2"]}],
+                }],
+            }],
+        },
+    }
+    ev = parse_espn_event("mlb", package)
+    assert ev.venue == "Angel Stadium"
+    assert "YES" in ev.tv_broadcasters and "MLB.TV" in ev.tv_broadcasters
+    assert ev.situation == "0-0, 0 outs"
+    assert ev.scoring_summary[0]["text"].startswith("Jones homered")
+    labels = {row["label"]: row for row in ev.team_stats}
+    assert labels["Hits"]["away"] == "5"
+    assert labels["Home runs"]["away"] == "2"
+    assert ev.leaders[0]["name"] == "S. Jones"
+
+
 def test_missing_optional_fields():
     ev_data = {"id": "1002"}
     ev = parse_espn_event("mlb", ev_data)

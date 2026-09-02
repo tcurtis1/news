@@ -42,6 +42,7 @@ class Event(BaseModel):
     league: str = ""
     status_detail: str = ""
     venue: Optional[str] = None
+    situation: Optional[str] = None
     scoring_summary: List[Dict[str, str]] = Field(default_factory=list)
     team_stats: List[Dict[str, str]] = Field(default_factory=list)
     leaders: List[Dict[str, str]] = Field(default_factory=list)
@@ -103,6 +104,187 @@ def set_provider(provider: ProviderAdapter):
 def clear_cache():
     _app_cache.clear()
     _cache_locks.clear()
+
+def _broadcast_names(*bags: Any) -> List[str]:
+    names: List[str] = []
+    seen = set()
+    for bag in bags:
+        items = bag if isinstance(bag, list) else []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            media = item.get("media") if isinstance(item.get("media"), dict) else {}
+            for candidate in (
+                *(item.get("names") or []),
+                item.get("station"),
+                media.get("shortName"),
+                media.get("name"),
+            ):
+                label = str(candidate or "").strip()
+                key = label.lower()
+                if label and key not in seen:
+                    seen.add(key)
+                    names.append(label)
+    return names[:4]
+
+
+def _extract_scoring(package: Dict[str, Any]) -> List[Dict[str, str]]:
+    rows: List[Dict[str, str]] = []
+    plays = package.get("scoringPlays")
+    if not isinstance(plays, list) or not plays:
+        plays = [p for p in (package.get("plays") or []) if isinstance(p, dict) and p.get("scoringPlay")]
+    for play in plays:
+        if not isinstance(play, dict):
+            continue
+        text = str(play.get("text") or play.get("shortText") or "").strip()
+        if not text:
+            continue
+        period = play.get("period")
+        if isinstance(period, dict):
+            clock = str(period.get("displayValue") or period.get("type") or "")
+        else:
+            clock_obj = play.get("clock")
+            if isinstance(clock_obj, dict):
+                clock = str(clock_obj.get("displayValue") or "")
+            else:
+                clock = str(clock_obj or period or "")
+        rows.append({"clock": clock, "text": text})
+        if len(rows) >= 12:
+            break
+    return rows
+
+
+def _nested_stat_map(groups: Any) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    if not isinstance(groups, list):
+        return out
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        nested = group.get("stats")
+        if isinstance(nested, list):
+            for stat in nested:
+                if not isinstance(stat, dict):
+                    continue
+                name = str(stat.get("name") or "")
+                value = str(stat.get("displayValue") or stat.get("value") or "").strip()
+                if name and value:
+                    out[name] = value
+        else:
+            name = str(group.get("name") or "")
+            value = str(group.get("displayValue") or group.get("value") or "").strip()
+            if name and value:
+                out[name] = value
+    return out
+
+
+def _extract_team_stats(package: Dict[str, Any], home: Team, away: Team, home_extra: Dict[str, Any], away_extra: Dict[str, Any]) -> List[Dict[str, str]]:
+    rows: List[Dict[str, str]] = []
+    has_line = home_extra.get("hits") is not None or home_extra.get("errors") is not None
+    if has_line or (home.score or 0) or (away.score or 0):
+        rows.append({"label": "Runs", "away": str(away.score if away.score is not None else "—"), "home": str(home.score if home.score is not None else "—")})
+    if away_extra.get("hits") is not None or home_extra.get("hits") is not None:
+        rows.append({"label": "Hits", "away": str(away_extra.get("hits", "—")), "home": str(home_extra.get("hits", "—"))})
+    if away_extra.get("errors") is not None or home_extra.get("errors") is not None:
+        rows.append({"label": "Errors", "away": str(away_extra.get("errors", "—")), "home": str(home_extra.get("errors", "—"))})
+    box_teams = ((package.get("boxscore") or {}).get("teams") or []) if isinstance(package.get("boxscore"), dict) else []
+    by_home = {}
+    for team in box_teams:
+        if isinstance(team, dict):
+            by_home[bool(team.get("homeAway") == "home")] = team
+    away_map = _nested_stat_map((by_home.get(False) or {}).get("statistics"))
+    home_map = _nested_stat_map((by_home.get(True) or {}).get("statistics"))
+    seen_labels = {row["label"].lower() for row in rows}
+    for name in ("homeRuns", "strikeouts", "walks", "totalYards", "firstDowns", "turnovers", "possessionTime", "totalRebounds", "assists"):
+        if name not in away_map and name not in home_map:
+            continue
+        label = {
+            "homeRuns": "Home runs", "strikeouts": "Strikeouts", "walks": "Walks",
+            "totalYards": "Total yards", "firstDowns": "First downs", "turnovers": "Turnovers",
+            "possessionTime": "Possession", "totalRebounds": "Rebounds", "assists": "Assists",
+        }[name]
+        if label.lower() in seen_labels:
+            continue
+        rows.append({"label": label, "away": away_map.get(name, "—"), "home": home_map.get(name, "—")})
+        seen_labels.add(label.lower())
+        if len(rows) >= 8:
+            break
+    return [row for row in rows if not (row["away"] in ("—", "") and row["home"] in ("—", ""))]
+
+
+def _extract_leaders(package: Dict[str, Any]) -> List[Dict[str, str]]:
+    rows: List[Dict[str, str]] = []
+    for category in package.get("leaders") or []:
+        if not isinstance(category, dict):
+            continue
+        entries = category.get("leaders") or []
+        if not entries:
+            continue
+        athlete = entries[0].get("athlete") or {}
+        name = str(athlete.get("displayName") or athlete.get("shortName") or "").strip()
+        value = str(entries[0].get("displayValue") or entries[0].get("value") or "").strip()
+        if name and value and value not in ("—", "-"):
+            rows.append({
+                "category": str(category.get("displayName") or category.get("name") or "Leader"),
+                "name": name,
+                "value": value,
+            })
+        if len(rows) >= 4:
+            return rows
+    players = ((package.get("boxscore") or {}).get("players") or []) if isinstance(package.get("boxscore"), dict) else []
+    hitters: List[tuple] = []
+    for side in players:
+        if not isinstance(side, dict):
+            continue
+        team = (side.get("team") or {}).get("abbreviation") or ""
+        for group in side.get("statistics") or []:
+            if not isinstance(group, dict):
+                continue
+            labels = [str(x) for x in (group.get("labels") or [])]
+            if "H" not in labels or "RBI" not in labels:
+                continue
+            hi, ri = labels.index("H"), labels.index("RBI")
+            for athlete_row in group.get("athletes") or []:
+                stats = athlete_row.get("stats") or []
+                if len(stats) <= max(hi, ri):
+                    continue
+                try:
+                    hits = int(str(stats[hi]).split("-")[0])
+                    rbi = int(str(stats[ri]))
+                except (TypeError, ValueError):
+                    continue
+                person = athlete_row.get("athlete") or {}
+                name = str(person.get("shortName") or person.get("displayName") or "").strip()
+                if name and (hits or rbi):
+                    hitters.append((hits, rbi, name, team, f"{hits} H, {rbi} RBI"))
+    hitters.sort(reverse=True)
+    for hits, rbi, name, team, value in hitters[:4]:
+        rows.append({"category": f"{team} batting".strip(), "name": name, "value": value})
+    return rows[:4]
+
+
+def _extract_situation(package: Dict[str, Any], competition: Dict[str, Any]) -> str:
+    sit = package.get("situation") if isinstance(package.get("situation"), dict) else {}
+    outs = sit.get("outs")
+    if outs is None:
+        outs = competition.get("outs")
+    balls, strikes = sit.get("balls"), sit.get("strikes")
+    bits = []
+    if balls is not None and strikes is not None:
+        bits.append(f"{balls}-{strikes}")
+    if outs is not None:
+        bits.append("0 outs" if outs == 0 else ("1 out" if outs == 1 else f"{outs} outs"))
+    on = []
+    if sit.get("onFirst"):
+        on.append("1st")
+    if sit.get("onSecond"):
+        on.append("2nd")
+    if sit.get("onThird"):
+        on.append("3rd")
+    if on:
+        bits.append("runners on " + ", ".join(on))
+    return ", ".join(bits)
+
 
 def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
     package = ev
@@ -178,6 +360,8 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
     competitors = comp0.get("competitors", [])
     home_team = None
     away_team = None
+    home_extra: Dict[str, Any] = {}
+    away_extra: Dict[str, Any] = {}
     for comp in competitors:
         t_data = comp.get("team", {})
         score_str = comp.get("score")
@@ -191,58 +375,29 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
             is_home=(comp.get("homeAway") == "home"),
             winner=comp.get("winner")
         )
+        extra = {"hits": comp.get("hits"), "errors": comp.get("errors")}
         if team.is_home:
             home_team = team
+            home_extra = extra
         else:
             away_team = team
+            away_extra = extra
 
     if not home_team:
         home_team = Team(id="0", name="Home", abbreviation="HOM", is_home=True)
     if not away_team:
         away_team = Team(id="1", name="Away", abbreviation="AWY", is_home=False)
 
-    tv = []
-    broadcasters = comp0.get("broadcasts", [])
-    for b in broadcasters:
-        names = b.get("names", [])
-        if names:
-            tv.extend(names)
-        elif "media" in b and "shortName" in b["media"]:
-            tv.append(b["media"]["shortName"])
-
-    venue = (comp0.get("venue") or {}).get("fullName")
-
-    scoring_summary = []
-    for play in package.get("scoringPlays", []) if isinstance(package, dict) else []:
-        text = play.get("text") or play.get("shortText")
-        if text:
-            scoring_summary.append({"clock": str((play.get("clock") or {}).get("displayValue") or play.get("period", "")), "text": str(text)})
-
-    team_stats = []
-    box_teams = ((package.get("boxscore") or {}).get("teams") or []) if isinstance(package, dict) else []
-    if len(box_teams) >= 2:
-        by_home = {bool(t.get("homeAway") == "home"): t for t in box_teams}
-        away_stats = {s.get("name"): s for s in (by_home.get(False, {}).get("statistics") or [])}
-        home_stats = {s.get("name"): s for s in (by_home.get(True, {}).get("statistics") or [])}
-        for stat_name in list(away_stats)[:12]:
-            away_stat = away_stats[stat_name]
-            home_stat = home_stats.get(stat_name, {})
-            team_stats.append({
-                "label": str(away_stat.get("label") or away_stat.get("displayName") or stat_name),
-                "away": str(away_stat.get("displayValue") or away_stat.get("value") or "—"),
-                "home": str(home_stat.get("displayValue") or home_stat.get("value") or "—"),
-            })
-
-    leaders = []
-    for category in package.get("leaders", []) if isinstance(package, dict) else []:
-        entries = category.get("leaders") or []
-        if entries:
-            athlete = entries[0].get("athlete") or {}
-            leaders.append({
-                "category": str(category.get("displayName") or category.get("name") or "Leader"),
-                "name": str(athlete.get("displayName") or athlete.get("shortName") or "—"),
-                "value": str(entries[0].get("displayValue") or entries[0].get("value") or "—"),
-            })
+    pkg = package if isinstance(package, dict) else {}
+    tv = _broadcast_names(pkg.get("broadcasts"), comp0.get("broadcasts"))
+    venue = (
+        (comp0.get("venue") or {}).get("fullName")
+        or ((pkg.get("gameInfo") or {}).get("venue") or {}).get("fullName")
+    )
+    scoring_summary = _extract_scoring(pkg)
+    team_stats = _extract_team_stats(pkg, home_team, away_team, home_extra, away_extra)
+    leaders = _extract_leaders(pkg)
+    situation = _extract_situation(pkg, comp0)
 
     return Event(
         id=id_,
@@ -258,6 +413,7 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
         league=league_key,
         status_detail=str(status_detail),
         venue=venue,
+        situation=situation or None,
         scoring_summary=scoring_summary,
         team_stats=team_stats,
         leaders=leaders,

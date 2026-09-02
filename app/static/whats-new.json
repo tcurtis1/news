@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "sports-game-page",
+      "seq": 31,
+      "date": "2026-09-01",
+      "title": "Sports game pages now show scoring, TV, and the count",
+      "detail": "Tap a live or final game for scoring plays, hits and errors, who is on TV, and balls-strikes-outs when the feed has them. Empty placeholder tables are gone.",
+      "href": "https://news.yoyosup.com/sports",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "sports-live-first",
       "seq": 30,
       "date": "2026-09-01",

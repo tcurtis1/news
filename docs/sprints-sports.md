@@ -82,7 +82,7 @@ They do not want odds, video, fantasy, injury databases, LLM recaps, or more lea
 
 ---
 
-## S2 — Game page worth one tap
+## S2 — Game page worth one tap — **shipped 2026-09-01**
 
 **Goal:** Tap a live/final game, see score, situation, real scoring/leaders if ESPN sent them, TV. Omit empty panels.
 

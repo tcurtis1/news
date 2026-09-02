@@ -22,6 +22,8 @@ def sample_event(state=EventState.IN_PROGRESS):
         start_time=datetime(2026, 8, 19, 23, 0, tzinfo=timezone.utc),
         state=state, clock="04:21", period=4, league="nfl", status_detail="4th 4:21",
         venue="Test Field",
+        situation="2-1, 1 out",
+        tv_broadcasters=["ESPN"],
         away_team=Team(id="1", name="Away Team", abbreviation="AWY", score=17, is_home=False),
         home_team=Team(id="2", name="Home Team", abbreviation="HOM", score=20, is_home=True),
         scoring_summary=[{"clock": "4:21", "text": "Home field goal"}],
@@ -102,6 +104,9 @@ def test_game_center_renders_every_optional_branch(monkeypatch):
     assert "Total yards" in response.text
     assert "Pat Example" in response.text
     assert "Test Field" in response.text
+    assert "ESPN" in response.text
+    assert "2-1, 1 out" in response.text
+    assert "Batting" not in response.text or "Hits" in response.text
 
 
 def test_stale_scoreboard_is_labeled(monkeypatch):

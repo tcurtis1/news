@@ -2734,6 +2734,8 @@ li.card.story-card:hover {
 .game-kicker, .game-detail-line { margin: 0.2rem 0; color: var(--muted); }
 .game-teams { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.8rem; margin: 1rem 0; }
 .game-team { display: grid; justify-items: center; gap: 0.15rem; min-width: 0; }
+.game-team.is-winner b { color: var(--text); }
+.game-team.is-winner strong { font-weight: 900; }
 .game-team b { color: var(--accent); font-size: 1.1rem; }
 .game-team span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .game-team strong { font-size: clamp(2rem, 8vw, 3.5rem); font-variant-numeric: tabular-nums; }
