@@ -125,6 +125,30 @@ def test_game_package_scoring_situation_and_tv():
     assert ev.leaders[0]["name"] == "S. Jones"
 
 
+def test_season_boxscore_totals_are_not_used_as_game_stats():
+    package = {
+        "id": "9",
+        "competitions": [{"competitors": [
+            {"homeAway": "home", "score": "2", "hits": 3, "errors": 0, "team": {"id": "1", "abbreviation": "HOM", "displayName": "Home"}},
+            {"homeAway": "away", "score": "1", "hits": 2, "errors": 1, "team": {"id": "2", "abbreviation": "AWY", "displayName": "Away"}},
+        ]}],
+        "boxscore": {"teams": [
+            {"homeAway": "away", "statistics": [{"name": "batting", "stats": [
+                {"name": "gamesPlayed", "displayValue": "138"},
+                {"name": "homeRuns", "displayValue": "143"},
+            ]}]},
+            {"homeAway": "home", "statistics": [{"name": "batting", "stats": [
+                {"name": "gamesPlayed", "displayValue": "137"},
+                {"name": "homeRuns", "displayValue": "169"},
+            ]}]},
+        ]},
+    }
+    ev = parse_espn_event("mlb", package)
+    labels = {row["label"] for row in ev.team_stats}
+    assert "Home runs" not in labels
+    assert "Hits" in labels
+
+
 def test_missing_optional_fields():
     ev_data = {"id": "1002"}
     ev = parse_espn_event("mlb", ev_data)

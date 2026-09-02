@@ -194,6 +194,16 @@ def _extract_team_stats(package: Dict[str, Any], home: Team, away: Team, home_ex
             by_home[bool(team.get("homeAway") == "home")] = team
     away_map = _nested_stat_map((by_home.get(False) or {}).get("statistics"))
     home_map = _nested_stat_map((by_home.get(True) or {}).get("statistics"))
+    def _season_totals(stat_map: Dict[str, str]) -> bool:
+        for key in ("gamesPlayed", "teamGamesPlayed"):
+            try:
+                if int(float(stat_map.get(key) or "0")) > 2:
+                    return True
+            except (TypeError, ValueError):
+                continue
+        return False
+    if _season_totals(away_map) or _season_totals(home_map):
+        away_map, home_map = {}, {}
     seen_labels = {row["label"].lower() for row in rows}
     for name in ("homeRuns", "strikeouts", "walks", "totalYards", "firstDowns", "turnovers", "possessionTime", "totalRebounds", "assists"):
         if name not in away_map and name not in home_map:
@@ -251,7 +261,10 @@ def _extract_leaders(package: Dict[str, Any]) -> List[Dict[str, str]]:
                 try:
                     hits = int(str(stats[hi]).split("-")[0])
                     rbi = int(str(stats[ri]))
+                    ab = int(str(stats[labels.index("AB")])) if "AB" in labels else 0
                 except (TypeError, ValueError):
+                    continue
+                if hits > 6 or ab > 6:
                     continue
                 person = athlete_row.get("athlete") or {}
                 name = str(person.get("shortName") or person.get("displayName") or "").strip()
