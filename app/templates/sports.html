@@ -27,10 +27,10 @@
   {% endif %}
 
   {% if show_date_nav %}
-    <nav class="sports-date-nav" aria-label="Scoreboard date">
-      <a href="{{ date_links.previous }}" aria-label="Previous day">← Previous</a>
-      <span>{{ display_date }}</span>
-      <a href="{{ date_links.next }}" aria-label="Next day">Next →</a>
+    <nav class="sports-date-nav" aria-label="Scoreboard date" data-date-nav data-date-path="{{ date_nav_path }}" data-date="{{ scoreboard_date }}" data-date-explicit="{{ 1 if date_explicit else 0 }}">
+      <a href="{{ date_links.previous }}" data-date-prev aria-label="Previous day">← Previous</a>
+      <span data-date-label>{{ display_date }}</span>
+      <a href="{{ date_links.next }}" data-date-next aria-label="Next day">Next →</a>
     </nav>
   {% endif %}
 
@@ -86,6 +86,7 @@
                 <div class="score-card-stars">
                   <button type="button" class="team-star" data-team-key="{{ game.league_slug }}:{{ game.away_team.id }}" data-team-id="{{ game.away_team.id }}" data-team-name="{{ game.away_team.name }}" data-team-abbr="{{ game.away_team.abbreviation }}" data-league="{{ game.league_slug }}" aria-pressed="false">Star {{ game.away_team.abbreviation }}</button>
                   <button type="button" class="team-star" data-team-key="{{ game.league_slug }}:{{ game.home_team.id }}" data-team-id="{{ game.home_team.id }}" data-team-name="{{ game.home_team.name }}" data-team-abbr="{{ game.home_team.abbreviation }}" data-league="{{ game.league_slug }}" aria-pressed="false">Star {{ game.home_team.abbreviation }}</button>
+                  <button type="button" class="score-share" data-share data-share-line="{{ game.share_line }}" data-share-url="{{ public_base }}/sports/game/{{ game.id }}">Share</button>
                 </div>
               </article>
             {% endfor %}
@@ -120,6 +121,37 @@
 {% block scripts %}
 <script>
 (function () {
+  try {
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) {
+      var secure = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = "yoyonews_tz=" + encodeURIComponent(tz) + "; path=/; max-age=31536000; SameSite=Lax" + secure;
+    }
+  } catch (e) {}
+  var pad = function (n) { return String(n).padStart(2, "0"); };
+  var ymd = function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+  var addDays = function (value, n) {
+    var p = String(value || "").split("-").map(Number);
+    var d = new Date(p[0], p[1] - 1, p[2] + n);
+    return ymd(d);
+  };
+  var nav = document.querySelector("[data-date-nav]");
+  if (nav && nav.getAttribute("data-date-explicit") !== "1") {
+    var local = ymd(new Date());
+    var path = nav.getAttribute("data-date-path") || "";
+    var label = nav.querySelector("[data-date-label]");
+    var prev = nav.querySelector("[data-date-prev]");
+    var next = nav.querySelector("[data-date-next]");
+    if (label) {
+      var parts = local.split("-").map(Number);
+      label.textContent = new Intl.DateTimeFormat(undefined, {
+        weekday: "long", month: "long", day: "numeric"
+      }).format(new Date(parts[0], parts[1] - 1, parts[2]));
+    }
+    if (prev) prev.setAttribute("href", path + "?date=" + addDays(local, -1));
+    if (next) next.setAttribute("href", path + "?date=" + addDays(local, 1));
+    nav.setAttribute("data-date", local);
+  }
   document.querySelectorAll("time[data-local-time]").forEach(function (node) {
     var instant = new Date(node.getAttribute("datetime"));
     if (Number.isNaN(instant.getTime())) return;

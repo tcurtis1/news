@@ -26,6 +26,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **MyNews** — personal topic board (`/my`, localStorage, no auth) | Live |
 | **Source preference** — Conservative / Balanced / Liberal headlines | Live |
 | **Privacy-friendly analytics** — bot filtering, sessions, return visits, useful actions; no visitor IDs | Live |
+| **Sports** — live-first scores, game pages, MyTeams, headlines, share | Live |
 
 ## Feature backlog (product todo)
 

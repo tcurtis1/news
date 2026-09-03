@@ -76,6 +76,10 @@ def test_sports_home_and_navigation_render(monkeypatch):
     assert 'class="team-star"' in response.text
     assert 'data-team-key="nfl:1"' in response.text
     assert 'data-team-key="nfl:2"' in response.text
+    assert 'name="robots" content="index,follow"' in response.text
+    assert "noindex" not in response.text
+    assert "Share" in response.text
+    assert 'data-share-line="AWY 17 @ HOM 20, 4th 4:21"' in response.text
 
 
 def test_league_scoreboard_and_date_navigation(monkeypatch):
@@ -85,6 +89,7 @@ def test_league_scoreboard_and_date_navigation(monkeypatch):
     assert "NFL" in response.text
     assert '/sports/nfl?date=2026-08-18' in response.text
     assert '/sports/nfl?date=2026-08-20' in response.text
+    assert 'data-date-explicit="1"' in response.text
     assert 'aria-current="page">NFL' in response.text
     assert "data-sports-news" in response.text
     assert "More NFL news" in response.text
@@ -102,6 +107,7 @@ def test_scoreboard_api_is_normalized(monkeypatch):
     assert body["events"][0]["home_score_display"] == "20"
     assert body["groups"]["live"][0]["id"] == "nfl_123"
     assert body["groups"]["final"] == []
+    assert body["events"][0]["share_line"] == "AWY 17 @ HOM 20, 4th 4:21"
 
 
 def test_sports_headlines_api_uses_league_query(monkeypatch):
@@ -135,6 +141,9 @@ def test_game_center_renders_every_optional_branch(monkeypatch):
     assert 'href="/my"' in response.text
     assert 'data-news-away="Away Team"' in response.text
     assert "/search?q=" in response.text
+    assert 'name="robots" content="noindex,follow"' in response.text
+    assert 'data-share-line="AWY 17 @ HOM 20, 4th 4:21"' in response.text
+    assert "Share score" in response.text
 
 
 def test_stale_scoreboard_is_labeled(monkeypatch):
@@ -173,3 +182,53 @@ def test_scheduled_game_hides_zero_as_score(monkeypatch):
     response = TestClient(main_mod.app).get("/sports/nfl")
     assert response.status_code == 200
     assert response.text.count(">—<") >= 2
+
+
+def test_implicit_date_nav_uses_site_timezone_not_utc(monkeypatch):
+    install_fakes(monkeypatch)
+    monkeypatch.setattr(main_mod, "TZ_NAME", "America/Denver")
+    monkeypatch.setattr(
+        main_mod,
+        "_sports_now",
+        lambda tz: datetime(2026, 9, 3, 5, 0, tzinfo=timezone.utc).astimezone(tz),
+    )
+    seen = {}
+    event = sample_event()
+
+    async def fake_scoreboard(league, target_date=None):
+        seen["date"] = target_date
+        return payload([event])
+
+    monkeypatch.setattr(main_mod, "get_scoreboard", fake_scoreboard)
+    response = TestClient(main_mod.app).get("/sports/nfl")
+    assert response.status_code == 200
+    assert seen.get("date") is None
+    assert "/sports/nfl?date=2026-09-01" in response.text
+    assert "/sports/nfl?date=2026-09-03" in response.text
+    assert "2026-09-04" not in response.text
+    assert "September 2" in response.text
+    assert 'data-date-explicit="0"' in response.text
+
+
+def test_date_nav_honors_timezone_cookie(monkeypatch):
+    install_fakes(monkeypatch)
+    monkeypatch.setattr(main_mod, "TZ_NAME", "America/Denver")
+    monkeypatch.setattr(
+        main_mod,
+        "_sports_now",
+        lambda tz: datetime(2026, 9, 3, 5, 0, tzinfo=timezone.utc).astimezone(tz),
+    )
+    client = TestClient(main_mod.app)
+    client.cookies.set("yoyonews_tz", "Europe/London")
+    response = client.get("/sports/nfl")
+    assert response.status_code == 200
+    assert "September 3" in response.text
+    assert "/sports/nfl?date=2026-09-02" in response.text
+    assert "/sports/nfl?date=2026-09-04" in response.text
+
+
+def test_robots_disallow_game_pages():
+    response = TestClient(main_mod.app).get("/robots.txt")
+    assert response.status_code == 200
+    assert "Disallow: /sports/game/" in response.text
+    assert "Disallow: /admin/" in response.text

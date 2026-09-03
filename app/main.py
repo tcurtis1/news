@@ -8,6 +8,7 @@ import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
@@ -16,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.analytics import (
     ADMIN_KEY as ANALYTICS_ADMIN_KEY,
+    TZ_NAME,
     country_label,
     get_stats,
     is_probable_bot,
@@ -52,7 +54,7 @@ from app.source_prefs import (
 )
 from app.topics import build_topic, slugify, unslug
 from app.trends import build_trends, rank_lookup
-from app.sports import Event, EventState, LEAGUES, get_game_detail, get_scoreboard, get_sports_headlines, get_sports_home_summary, group_events, league_news_query
+from app.sports import Event, EventState, LEAGUES, compact_score_line, get_game_detail, get_scoreboard, get_sports_headlines, get_sports_home_summary, group_events, league_news_query
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("news")
@@ -60,7 +62,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.12.6"
+APP_VERSION = "0.12.7"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -394,6 +396,14 @@ def _sports_event_view(event: Event) -> dict:
         "scoring_summary": event.scoring_summary,
         "team_stats": stats,
         "leaders": event.leaders,
+        "share_line": compact_score_line(
+            event.away_team.abbreviation,
+            event.home_team.abbreviation,
+            away_score=score(event.away_team),
+            home_score=score(event.home_team),
+            status=status_text,
+            started=is_started,
+        ),
     }
 
 
@@ -435,6 +445,34 @@ def _sports_date_links(path: str, target_date: date) -> dict:
     }
 
 
+def _sports_tz(name: str):
+    try:
+        return ZoneInfo((name or "").strip() or TZ_NAME)
+    except Exception:
+        return ZoneInfo("America/Denver")
+
+
+def _sports_now(tz):
+    return datetime.now(tz)
+
+
+def _sports_local_today(request: Request) -> date:
+    """Visitor's calendar date (cookie) or the site TZ — never UTC-tomorrow."""
+    return _sports_now(_sports_tz(request.cookies.get("yoyonews_tz") or TZ_NAME)).date()
+
+
+def _sports_date_nav(request: Request, path: str, explicit: date | None) -> dict:
+    nav_date = explicit or _sports_local_today(request)
+    return {
+        "show_date_nav": True,
+        "display_date": nav_date.strftime("%A, %B %-d"),
+        "date_links": _sports_date_links(path, nav_date),
+        "date_nav_path": path,
+        "scoreboard_date": nav_date.isoformat(),
+        "date_explicit": bool(explicit),
+    }
+
+
 @app.get("/sports", response_class=HTMLResponse)
 async def sports_home(request: Request):
     board = await _sports_board(None, None)
@@ -448,14 +486,16 @@ async def sports_home(request: Request):
 
 @app.get("/sports/scores", response_class=HTMLResponse)
 async def sports_scores(request: Request, date: date | None = None):
-    target = date or datetime.now(timezone.utc).date()
-    board = await _sports_board(None, target)
+    board = await _sports_board(None, date)
+    refresh = "/api/sports/scoreboard"
+    if date:
+        refresh += f"?date={date.isoformat()}"
     return templates.TemplateResponse(request, "sports.html", {
         "public_base": PUBLIC_BASE, "page_title": "Sports scores",
         "heading": "Scores", "leagues": _sports_leagues(), "active_league": None,
-        "scoreboard": board, "games_heading": "Games", "show_date_nav": True,
-        "display_date": target.strftime("%A, %B %-d"), "date_links": _sports_date_links("/sports/scores", target),
-        "refresh_url": f"/api/sports/scoreboard?date={target.isoformat()}",
+        "scoreboard": board, "games_heading": "Games",
+        **_sports_date_nav(request, "/sports/scores", date),
+        "refresh_url": refresh,
         "news_query": "",
     })
 
@@ -480,16 +520,18 @@ async def sports_game(request: Request, game_id: str):
 async def sports_league(request: Request, league: str, date: date | None = None):
     if league not in LEAGUES:
         raise HTTPException(status_code=404, detail="League not found")
-    target = date or datetime.now(timezone.utc).date()
-    board = await _sports_board(league, target)
+    board = await _sports_board(league, date)
     meta = LEAGUES[league]
     path = f"/sports/{league}"
+    refresh = f"/api/sports/scoreboard?league={league}"
+    if date:
+        refresh += f"&date={date.isoformat()}"
     return templates.TemplateResponse(request, "sports.html", {
         "public_base": PUBLIC_BASE, "page_title": f"{meta['short_name']} scores and news",
         "heading": meta["name"], "leagues": _sports_leagues(), "active_league": league,
-        "scoreboard": board, "games_heading": "Schedule and scores", "show_date_nav": True,
-        "display_date": target.strftime("%A, %B %-d"), "date_links": _sports_date_links(path, target),
-        "refresh_url": f"/api/sports/scoreboard?league={league}&date={target.isoformat()}",
+        "scoreboard": board, "games_heading": "Schedule and scores",
+        **_sports_date_nav(request, path, date),
+        "refresh_url": refresh,
         "news_query": league_news_query(league),
     })
 

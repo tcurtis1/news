@@ -134,7 +134,7 @@ They do not want odds, video, fantasy, injury databases, LLM recaps, or more lea
 
 ---
 
-## S5 — Index hygiene + share (after S0–S1)
+## S5 — Index hygiene + share — **shipped 2026-09-02**
 
 **Goal:** Game URLs stay useful boxes, not a farm. A score is forwardable.
 

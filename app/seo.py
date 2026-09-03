@@ -164,6 +164,7 @@ def render_robots_txt() -> str:
         "# App / admin (no need to index)\n"
         "Disallow: /admin/\n"
         "Disallow: /api/\n"
+        "Disallow: /sports/game/\n"
         "\n"
         f"Sitemap: {PUBLIC_BASE}/sitemap.xml\n"
     )

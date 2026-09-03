@@ -29,7 +29,9 @@
   <link rel="icon" href="/static/favicon.ico?v=compass2" sizes="any" />
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=compass2" />
   <link rel="canonical" href="{{ public_base }}{{ request.url.path }}" />
-  {% if request.url.path in ['/', '/search', '/my', '/safety'] or request.url.path.startswith('/topic/') or request.url.path.startswith('/journalist/') or request.url.path.startswith('/sports') %}
+  {% if request.url.path.startswith('/sports/game/') %}
+  <meta name="robots" content="noindex,follow" />
+  {% elif request.url.path in ['/', '/search', '/my', '/safety'] or request.url.path.startswith('/topic/') or request.url.path.startswith('/journalist/') or request.url.path.startswith('/sports') %}
   <meta name="robots" content="index,follow" />
   {% elif request.url.path.startswith('/admin') or request.url.path.startswith('/api') %}
   <meta name="robots" content="noindex,nofollow" />

@@ -25,6 +25,7 @@
     <div class="score-card-stars">
       <button type="button" class="team-star" data-team-key="{{ game.league_slug }}:{{ game.away_team.id }}" data-team-id="{{ game.away_team.id }}" data-team-name="{{ game.away_team.name }}" data-team-abbr="{{ game.away_team.abbreviation }}" data-league="{{ game.league_slug }}" aria-pressed="false">Star {{ game.away_team.abbreviation }}</button>
       <button type="button" class="team-star" data-team-key="{{ game.league_slug }}:{{ game.home_team.id }}" data-team-id="{{ game.home_team.id }}" data-team-name="{{ game.home_team.name }}" data-team-abbr="{{ game.home_team.abbreviation }}" data-league="{{ game.league_slug }}" aria-pressed="false">Star {{ game.home_team.abbreviation }}</button>
+      <button type="button" class="score-share" data-share data-share-line="{{ game.share_line }}" data-share-url="{{ public_base }}/sports/game/{{ game.id }}">Share score</button>
     </div>
   </section>
 

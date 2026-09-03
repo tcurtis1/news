@@ -3,6 +3,18 @@
   "site": "news",
   "entries": [
     {
+      "id": "sports-share-score",
+      "seq": 34,
+      "date": "2026-09-02",
+      "title": "Share a live score",
+      "detail": "Tap Share on a game for a one-line score you can text: SF 12 @ PIT 12, Bot 8th.",
+      "href": "https://news.yoyosup.com/sports",
+      "tags": [
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "sports-headlines",
       "seq": 33,
       "date": "2026-09-02",

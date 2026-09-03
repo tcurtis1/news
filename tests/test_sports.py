@@ -3,10 +3,10 @@ import asyncio
 from datetime import datetime, timezone, date
 from app.search import SearchHit, google_news_headlines
 from app.sports import (
-    Event, EventState, ProviderAdapter, Team, clear_cache, get_game_detail,
-    get_league_catalog, get_scoreboard, get_sports_headlines, get_sports_home_summary,
-    group_events, league_news_query, overlay_scoreboard_event, parse_espn_event,
-    set_provider,
+    Event, EventState, ProviderAdapter, Team, clear_cache, compact_score_line,
+    get_game_detail, get_league_catalog, get_scoreboard, get_sports_headlines,
+    get_sports_home_summary, group_events, league_news_query, overlay_scoreboard_event,
+    parse_espn_event, set_provider,
 )
 
 class MockProvider(ProviderAdapter):
@@ -197,6 +197,12 @@ def test_provider_timeout_and_stale_cache(setup_teardown):
     assert payload3.freshness == "fallback"
     assert payload3.data == []
     assert "Network error" in payload3.error
+
+def test_compact_score_line():
+    assert compact_score_line("SF", "PIT", away_score="12", home_score="12", status="Bot 8th", started=True) == "SF 12 @ PIT 12, Bot 8th"
+    assert compact_score_line("AWY", "HOM", status="Scheduled", started=False) == "AWY @ HOM, Scheduled"
+    assert compact_score_line("NYY", "BOS", away_score="—", home_score="—", status="Pregame", started=False) == "NYY @ BOS, Pregame"
+
 
 def test_timezone_day_boundary():
     ev_data = {

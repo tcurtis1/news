@@ -55,6 +55,30 @@ class SportsPayload(BaseModel):
     error: Optional[str] = None
     data: Any
 
+
+def compact_score_line(
+    away_abbr: str,
+    home_abbr: str,
+    *,
+    away_score: str = "—",
+    home_score: str = "—",
+    status: str = "",
+    started: bool = False,
+) -> str:
+    """One-line score for SMS / Web Share: ``SF 12 @ PIT 12, Bot 8th``."""
+    away = (away_abbr or "AWAY").strip() or "AWAY"
+    home = (home_abbr or "HOME").strip() or "HOME"
+    status = " ".join((status or "").split())
+    blank = {"", "—", "-"}
+    scored = started and away_score not in blank and home_score not in blank
+    if scored:
+        line = f"{away} {away_score} @ {home} {home_score}"
+    else:
+        line = f"{away} @ {home}"
+    if status:
+        line = f"{line}, {status}"
+    return line
+
 LEAGUES = {
     "nfl": {"sport": "football", "league": "nfl", "name": "NFL", "short_name": "NFL", "path": "nfl"},
     "nba": {"sport": "basketball", "league": "nba", "name": "NBA", "short_name": "NBA", "path": "nba"},

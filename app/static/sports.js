@@ -270,6 +270,67 @@
     return Boolean(document.querySelector(".score-card.is-live, .game-state.state-in_progress")) || page.dataset.liveGame === "1";
   };
 
+  var shareLineFromGame = function (game) {
+    if (game && game.share_line) return game.share_line;
+    if (!game) return "";
+    var away = (game.away_team && game.away_team.abbreviation) || "AWAY";
+    var home = (game.home_team && game.home_team.abbreviation) || "HOME";
+    var started = Boolean(game.is_live || game.is_final);
+    var as = game.away_score_display;
+    var hs = game.home_score_display;
+    var line = started && as && as !== "—" && hs && hs !== "—"
+      ? away + " " + as + " @ " + home + " " + hs
+      : away + " @ " + home;
+    if (game.status_text) line += ", " + game.status_text;
+    return line;
+  };
+
+  var smsHref = function (text) {
+    var body = encodeURIComponent(text);
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent) ? "sms:&body=" + body : "sms:?body=" + body;
+  };
+
+  var shareScore = function (btn) {
+    var line = btn.getAttribute("data-share-line") || "";
+    var card = btn.closest("[data-game-id]");
+    var url = btn.getAttribute("data-share-url") || (card ? location.origin + "/sports/game/" + card.getAttribute("data-game-id") : location.href);
+    if (!line) return;
+    var payload = line + "\n" + url;
+    var mark = function () {
+      if (window.yoyoNewsEvent) window.yoyoNewsEvent("share_click");
+      var prev = btn.getAttribute("data-share-label") || btn.textContent;
+      btn.setAttribute("data-share-label", prev);
+      btn.textContent = "Copied";
+      window.setTimeout(function () { btn.textContent = prev; }, 1600);
+    };
+    if (navigator.share) {
+      navigator.share({ title: line, text: line, url: url }).then(function () {
+        if (window.yoyoNewsEvent) window.yoyoNewsEvent("share_click");
+      }).catch(function () {});
+      return;
+    }
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      if (window.yoyoNewsEvent) window.yoyoNewsEvent("share_click");
+      location.href = smsHref(payload);
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(payload).then(mark).catch(function () {
+        location.href = smsHref(payload);
+      });
+      return;
+    }
+    location.href = smsHref(payload);
+  };
+
+  document.addEventListener("click", function (ev) {
+    var btn = ev.target.closest && ev.target.closest("[data-share]");
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    shareScore(btn);
+  });
+
   var applyOne = function (root, game) {
     var status = root.querySelector("[data-game-status]");
     var away = root.querySelector("[data-game-away-score]");
@@ -292,6 +353,9 @@
     if (root.classList && root.classList.contains("score-card")) {
       root.classList.toggle("is-live", Boolean(game.is_live));
     }
+    var shareBtn = root.querySelector("[data-share]");
+    var line = shareLineFromGame(game);
+    if (shareBtn && line) shareBtn.setAttribute("data-share-line", line);
   };
 
   var applyGame = function (game) {

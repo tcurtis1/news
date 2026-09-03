@@ -5,7 +5,7 @@ Living product list. Ship small; prefer honest UX over flashy features.
 ## Now / next
 
 ### Sports — make `/sports` a glance, then news
-Scoreboard is live (ESPN public feed). **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md). **S0–S4 shipped** (live-first mix, ticking scores, game pages, MyTeams, Google News headlines + Follow in MyNews). Next: **S5 index hygiene + share**.
+Scoreboard is live (ESPN public feed). **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md). **S0–S5 shipped** (live-first mix, ticking scores, game pages, MyTeams, headlines + Follow, noindex game URLs, local date nav, compact share).
 
 ### 1. Bias / political leaning badge — **shipped v1 (0.9.0)**
 - Per-hit outlet badge + topic/query coverage aggregate.
