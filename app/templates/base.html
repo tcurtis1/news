@@ -7,7 +7,17 @@
     (function(){try{var m=document.cookie.match(/(?:^|; )yoyo_theme=(light|dark)(?:;|$)/);var t=m?m[1]:localStorage.getItem('yoyo_theme_v1');if(!t)t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}}catch(e){}})();
   </script>
   <title>{{ page_title }} · yoyosup News</title>
-  <meta name="description" content="Daily Intersection (mass attention) and Curious Pulse on yoyosup.com." />
+  <meta name="description" content="{{ meta_description | default('Daily Intersection (mass attention) and Curious Pulse on yoyosup.com.') }}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="yoyosup News" />
+  <meta property="og:title" content="{{ page_title }} · yoyosup News" />
+  <meta property="og:description" content="{{ meta_description | default('Daily Intersection (mass attention) and Curious Pulse on yoyosup.com.') }}" />
+  <meta property="og:url" content="{{ public_base }}{{ request.url.path }}" />
+  <meta property="og:image" content="{{ public_base }}/static/apple-touch-icon.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="{{ page_title }} · yoyosup News" />
+  <meta name="twitter:description" content="{{ meta_description | default('Daily Intersection (mass attention) and Curious Pulse on yoyosup.com.') }}" />
+  <meta name="twitter:image" content="{{ public_base }}/static/apple-touch-icon.png" />
   <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.9.9') }}" />
   <script src="/static/theme.js?v={{ app_version }}"></script>
   <script src="/static/view-pref.js?v={{ app_version }}"></script>
