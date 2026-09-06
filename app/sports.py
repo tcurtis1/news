@@ -658,6 +658,38 @@ def _poll_sort_key(poll_type: str) -> int:
         return 99
 
 
+def _poll_type(block: Dict[str, Any]) -> str:
+    ptype = str(block.get("type") or "").strip().lower()
+    if ptype:
+        return ptype
+    pid = str(block.get("id") or "").strip()
+    return {"1": "ap", "2": "usa", "7": "cfp", "8": "cfp", "20": "fcs", "11": "afca", "12": "afca"}.get(pid, pid)
+
+
+def _id_from_team_url(url: str) -> str:
+    parts = (url or "").split("/")
+    for i, part in enumerate(parts):
+        if part == "id" and i + 1 < len(parts) and parts[i + 1].isdigit():
+            return parts[i + 1]
+    return ""
+
+
+def _week_label(raw: Dict[str, Any], chosen: Dict[str, Any]) -> str:
+    occ = chosen.get("occurrence") if isinstance(chosen.get("occurrence"), dict) else {}
+    label = str(occ.get("displayValue") or "").strip()
+    if label:
+        return label
+    season = raw.get("requestedSeason") if isinstance(raw.get("requestedSeason"), dict) else {}
+    week = season.get("week") if isinstance(season.get("week"), dict) else {}
+    label = str(week.get("displayValue") or "").strip()
+    if label:
+        return label
+    for item in raw.get("weekFilters") or []:
+        if isinstance(item, dict) and item.get("selected"):
+            return str(item.get("label") or "").strip()
+    return ""
+
+
 def _rank_trend(current: int, previous: Any, trend_raw: Any) -> Tuple[str, str]:
     try:
         prev = int(previous)
@@ -686,7 +718,7 @@ def parse_espn_rankings(league: str, raw: Dict[str, Any], poll: Optional[str] = 
     for block in raw.get("rankings") or []:
         if not isinstance(block, dict):
             continue
-        ptype = str(block.get("type") or "").strip().lower()
+        ptype = _poll_type(block)
         if not ptype or ptype in RANKINGS_SKIP_TYPES or ptype.startswith("afca"):
             continue
         ranks = [row for row in (block.get("ranks") or []) if isinstance(row, dict)]
@@ -695,8 +727,8 @@ def parse_espn_rankings(league: str, raw: Dict[str, Any], poll: Optional[str] = 
         polls.append({
             "id": str(block.get("id") or ptype),
             "type": ptype,
-            "name": str(block.get("name") or block.get("shortName") or "Top 25").strip(),
-            "short_name": str(block.get("shortName") or block.get("name") or "Top 25").strip(),
+            "name": str(block.get("name") or block.get("shortName") or block.get("short_name") or "Top 25").strip(),
+            "short_name": str(block.get("shortName") or block.get("short_name") or block.get("name") or "Top 25").strip(),
             "ranks": ranks,
             "occurrence": block.get("occurrence") if isinstance(block.get("occurrence"), dict) else {},
         })
@@ -710,33 +742,33 @@ def parse_espn_rankings(league: str, raw: Dict[str, Any], poll: Optional[str] = 
                 break
     if chosen is None and polls:
         chosen = polls[0]
-    week_label = ""
-    season = raw.get("requestedSeason") if isinstance(raw.get("requestedSeason"), dict) else {}
-    week = season.get("week") if isinstance(season.get("week"), dict) else {}
-    week_label = str(week.get("displayValue") or "").strip()
-    if chosen:
-        occ_label = str((chosen.get("occurrence") or {}).get("displayValue") or "").strip()
-        if occ_label:
-            week_label = occ_label
+    week_label = _week_label(raw, chosen or {})
     teams: List[Dict[str, Any]] = []
     if chosen:
         for row in chosen["ranks"][:25]:
+            current_raw = row.get("current") if row.get("current") is not None else row.get("rank")
             try:
-                current = int(row.get("current"))
+                current = int(current_raw)
             except (TypeError, ValueError):
                 continue
             if current <= 0 or current > 25:
                 continue
             team = row.get("team") if isinstance(row.get("team"), dict) else {}
             name = str(
-                team.get("nickname") or team.get("location") or team.get("displayName") or team.get("name") or ""
+                team.get("nickname")
+                or team.get("location")
+                or team.get("displayName")
+                or team.get("name")
+                or row.get("team_display_name")
+                or ""
             ).strip()
-            abbr = str(team.get("abbreviation") or "").strip() or "TEAM"
-            team_id = str(team.get("id") or "").strip()
+            abbr = str(team.get("abbreviation") or row.get("team_abbreviation") or "").strip() or "TEAM"
+            team_id = str(team.get("id") or "").strip() or _id_from_team_url(str(row.get("team_url") or ""))
             if not name or not team_id:
                 continue
-            previous_label, trend = _rank_trend(current, row.get("previous"), row.get("trend"))
-            record = str(row.get("recordSummary") or "").strip()
+            previous = row.get("previous") if row.get("previous") is not None else row.get("previous_rank")
+            record = str(row.get("recordSummary") or row.get("formatted_record") or "").strip()
+            previous_label, trend = _rank_trend(current, previous, row.get("trend"))
             query = " ".join(part for part in (name, news_q) if part)
             teams.append({
                 "current": current,
@@ -765,12 +797,18 @@ async def get_rankings(league: str, poll: Optional[str] = None) -> SportsPayload
     if league not in RANKINGS_LEAGUES:
         raise ValueError(f"No Top 25 poll for league: {league}")
     l_info = LEAGUES[league]
-    url = f"https://site.api.espn.com/apis/site/v2/sports/{l_info['sport']}/{l_info['path']}/rankings"
+    url = f"https://cdn.espn.com/core/{l_info['path']}/rankings"
     key = f"rankings_{league}"
 
     async def fetcher():
-        raw = await _provider.fetch(url)
-        return raw if isinstance(raw, dict) else {}
+        raw = await _provider.fetch(url, params={"xhr": "1"})
+        if not isinstance(raw, dict):
+            return {}
+        content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+        inner = content.get("data") if isinstance(content.get("data"), dict) else {}
+        if inner.get("rankings"):
+            return inner
+        return raw
 
     payload = await _fetch_with_cache(key, fetcher, {}, ttl=RANKINGS_TTL)
     parsed = parse_espn_rankings(league, payload.data or {}, poll=poll)

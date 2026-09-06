@@ -469,10 +469,28 @@ def test_has_college_rankings_only_for_cfb_cbb():
     assert not has_college_rankings("nfl")
 
 
+def test_parse_cdn_rankings_shape():
+    parsed = parse_espn_rankings("cfb", {
+        "weekFilters": [{"label": "Preseason", "selected": True}],
+        "rankings": [{
+            "id": 1, "name": "AP Top 25", "short_name": "AP Poll",
+            "ranks": [{
+                "rank": 1, "previous_rank": 0, "trend": "-1", "formatted_record": "0-0",
+                "team_display_name": "Ohio State", "team_abbreviation": "OSU",
+                "team_url": "https://www.espn.com/college-football/team/_/id/194/ohio-state-buckeyes",
+            }],
+        }],
+    })
+    assert parsed["poll"] == "ap"
+    assert parsed["week_label"] == "Preseason"
+    assert parsed["teams"][0]["team_id"] == "194"
+    assert parsed["teams"][0]["trend"] == "new"
+
+
 def test_get_rankings_uses_espn_path(setup_teardown):
     provider = setup_teardown
-    url = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings"
-    provider.responses[(url, frozenset())] = _ranking_payload()
+    url = "https://cdn.espn.com/core/college-football/rankings"
+    provider.responses[(url, frozenset({"xhr": "1"}.items()))] = {"content": {"data": _ranking_payload()}}
     payload = run(get_rankings("cfb"))
     assert payload.freshness == "fresh"
     assert payload.data["teams"][0]["abbreviation"] == "OSU"
