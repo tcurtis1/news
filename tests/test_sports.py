@@ -4,9 +4,9 @@ from datetime import datetime, timezone, date
 from app.search import SearchHit, google_news_headlines
 from app.sports import (
     Event, EventState, ProviderAdapter, Team, clear_cache, compact_score_line,
-    get_game_detail, get_league_catalog, get_scoreboard, get_sports_headlines,
-    get_sports_home_summary, group_events, league_news_query, overlay_scoreboard_event,
-    parse_espn_event, set_provider,
+    get_game_detail, get_league_catalog, get_rankings, get_scoreboard, get_sports_headlines,
+    get_sports_home_summary, group_events, has_college_rankings, league_news_query,
+    overlay_scoreboard_event, parse_espn_event, parse_espn_rankings, set_provider,
 )
 
 class MockProvider(ProviderAdapter):
@@ -411,6 +411,73 @@ def test_league_news_query_uses_plain_league_names():
     assert league_news_query("nfl") == "NFL"
     assert league_news_query("cfb") == "college football"
     assert league_news_query("nope") == ""
+
+
+def _ranking_payload():
+    return {
+        "requestedSeason": {"week": {"displayValue": "Preseason"}},
+        "rankings": [
+            {
+                "id": "1", "type": "ap", "name": "AP Top 25", "shortName": "AP Poll",
+                "occurrence": {"displayValue": "Preseason"},
+                "ranks": [
+                    {"current": 1, "previous": 0, "trend": "-1", "recordSummary": "0-0",
+                     "team": {"id": "194", "nickname": "Ohio State", "abbreviation": "OSU"}},
+                    {"current": 2, "previous": 4, "trend": "+2", "recordSummary": "11-1",
+                     "team": {"id": "251", "nickname": "Texas", "abbreviation": "TEX"}},
+                    {"current": 3, "previous": 3, "trend": "0", "recordSummary": "10-2",
+                     "team": {"id": "52", "nickname": "Florida State", "abbreviation": "FSU"}},
+                ],
+            },
+            {
+                "id": "2", "type": "usa", "name": "AFCA Coaches Poll", "shortName": "AFCA Coaches Poll",
+                "ranks": [{"current": 1, "previous": 1, "trend": "—", "recordSummary": "0-0",
+                           "team": {"id": "194", "nickname": "Ohio State", "abbreviation": "OSU"}}],
+            },
+            {
+                "id": "20", "type": "fcs", "name": "FCS Coaches Poll", "shortName": "FCS Coaches Poll",
+                "ranks": [{"current": 1, "previous": 1, "recordSummary": "0-0",
+                           "team": {"id": "1", "nickname": "North Dakota State", "abbreviation": "NDSU"}}],
+            },
+        ],
+    }
+
+
+def test_parse_rankings_prefers_ap_and_skips_fcs():
+    parsed = parse_espn_rankings("cfb", _ranking_payload())
+    assert parsed["available"] is True
+    assert parsed["poll"] == "ap"
+    assert parsed["poll_name"] == "AP Top 25"
+    assert parsed["week_label"] == "Preseason"
+    assert [p["type"] for p in parsed["polls"]] == ["ap", "usa"]
+    assert parsed["teams"][0]["name"] == "Ohio State"
+    assert parsed["teams"][0]["trend"] == "new"
+    assert parsed["teams"][0]["previous_label"] == "NR"
+    assert parsed["teams"][1]["trend"] == "+2"
+    assert parsed["teams"][2]["trend"] == "—"
+    assert parsed["teams"][0]["news_query"] == "Ohio State college football"
+    coaches = parse_espn_rankings("cfb", _ranking_payload(), poll="usa")
+    assert coaches["poll"] == "usa"
+    assert coaches["poll_name"] == "AFCA Coaches Poll"
+    assert len(coaches["teams"]) == 1
+
+
+def test_has_college_rankings_only_for_cfb_cbb():
+    assert has_college_rankings("cfb")
+    assert has_college_rankings("mcbb")
+    assert has_college_rankings("wcbb")
+    assert not has_college_rankings("nfl")
+
+
+def test_get_rankings_uses_espn_path(setup_teardown):
+    provider = setup_teardown
+    url = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings"
+    provider.responses[(url, frozenset())] = _ranking_payload()
+    payload = run(get_rankings("cfb"))
+    assert payload.freshness == "fresh"
+    assert payload.data["teams"][0]["abbreviation"] == "OSU"
+    with pytest.raises(ValueError):
+        run(get_rankings("nfl"))
 
 
 def test_google_news_headlines_skip_non_http(monkeypatch):

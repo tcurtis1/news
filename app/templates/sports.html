@@ -13,12 +13,7 @@
     <a class="sports-scores-link" href="/sports/scores">All scores</a>
   </header>
 
-  <nav class="sports-leagues" aria-label="Sports leagues">
-    <a href="/sports"{% if not active_league %} aria-current="page"{% endif %}>Top</a>
-    {% for league in leagues %}
-      <a href="/sports/{{ league.slug }}"{% if active_league == league.slug %} aria-current="page"{% endif %}>{{ league.short_name }}</a>
-    {% endfor %}
-  </nav>
+  {% include "_sports_nav.html" %}
 
   {% if scoreboard.stale %}
     <p class="sports-notice" role="status">Scores may be delayed. Showing the latest information we have.</p>

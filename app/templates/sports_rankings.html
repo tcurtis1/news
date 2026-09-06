@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow">College poll</p>
+      <h1>{{ heading }}</h1>
+      <p class="muted">AP Top 25 from ESPN’s public poll feed. Not a Yoyosup ranking.{% if news_query %} Headlines below are from Google News.{% endif %}</p>
+    </div>
+    <a class="sports-scores-link" href="/sports/{{ active_league }}">Scores</a>
+  </header>
+
+  {% include "_sports_nav.html" %}
+
+  {% if rankings.stale %}
+    <p class="sports-notice" role="status">Poll may be delayed. Showing the latest information we have.</p>
+  {% elif not rankings.available %}
+    <p class="sports-notice" role="status">No Top 25 poll in this feed right now.</p>
+  {% endif %}
+
+  {% if rankings.polls|length > 1 %}
+  <nav class="sports-polls" aria-label="Poll">
+    {% for poll in rankings.polls %}
+      <a href="/sports/{{ active_league }}/top25{% if poll.type != 'ap' %}?poll={{ poll.type }}{% endif %}"{% if rankings.poll == poll.type %} aria-current="page"{% endif %}>{{ poll.name }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+
+  {% if rankings.available %}
+    <section class="sports-section" aria-labelledby="top25-heading">
+      <div class="sports-section-heading">
+        <h2 id="top25-heading">{{ rankings.poll_name }}</h2>
+        {% if rankings.week_label %}<span>{{ rankings.week_label }}</span>{% endif %}
+      </div>
+      <ol class="rank-table">
+        {% for team in rankings.teams %}
+        <li class="rank-row">
+          <span class="rank-num">{{ team.current }}</span>
+          <span class="rank-team">
+            <b>{{ team.name }}</b>
+            <small>{{ team.abbreviation }}{% if team.record %} · {{ team.record }}{% endif %}</small>
+          </span>
+          <span class="rank-trend{% if team.trend.startswith('+') %} is-up{% elif team.trend.startswith('-') %} is-down{% endif %}">{{ team.trend }}</span>
+          <span class="rank-actions">
+            <button type="button" class="team-star" data-team-key="{{ active_league }}:{{ team.team_id }}" data-team-id="{{ team.team_id }}" data-team-name="{{ team.name }}" data-team-abbr="{{ team.abbreviation }}" data-league="{{ active_league }}" aria-pressed="false">Star {{ team.abbreviation }}</button>
+            {% if team.news_query %}<a class="rank-news" href="/search?q={{ team.news_query | urlencode }}">News</a>{% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+  {% endif %}
+
+  {% if news_query %}
+  <section class="sports-news" data-sports-news data-news-league="{{ active_league }}" data-news-more="/search?q={{ news_query | urlencode }}">
+    <div class="sports-section-heading">
+      <h2>News</h2>
+      <a href="/search?q={{ news_query | urlencode }}">More {{ news_query }} news</a>
+    </div>
+    <ul class="sports-headlines" hidden></ul>
+  </section>
+  {% endif %}
+
+  <footer class="sports-source">
+    {% if rankings.source_label %}Data: {{ rankings.source_label }}.{% endif %}
+    Rankings are the poll ESPN published, not our ranking.
+  </footer>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/sports.js?v={{ app_version }}" defer></script>
+{% endblock %}

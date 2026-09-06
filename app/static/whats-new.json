@@ -3,6 +3,19 @@
   "site": "news",
   "entries": [
     {
+      "id": "sports-college-top25",
+      "seq": 35,
+      "date": "2026-09-05",
+      "title": "College Top 25 on Sports",
+      "detail": "AP Top 25 for college football and basketball. Open CFB or CBB, then Top 25.",
+      "href": "https://news.yoyosup.com/sports/cfb/top25",
+      "tags": [
+        "news",
+        "sports"
+      ],
+      "site": "news"
+    },
+    {
       "id": "sports-share-score",
       "seq": 34,
       "date": "2026-09-02",

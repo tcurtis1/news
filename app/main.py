@@ -54,7 +54,7 @@ from app.source_prefs import (
 )
 from app.topics import build_topic, slugify, unslug
 from app.trends import build_trends, rank_lookup
-from app.sports import Event, EventState, LEAGUES, compact_score_line, get_game_detail, get_scoreboard, get_sports_headlines, get_sports_home_summary, group_events, league_news_query
+from app.sports import Event, EventState, LEAGUES, compact_score_line, get_game_detail, get_rankings, get_scoreboard, get_sports_headlines, get_sports_home_summary, group_events, has_college_rankings, league_news_query
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("news")
@@ -62,7 +62,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.12.7"
+APP_VERSION = "0.12.8"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -481,6 +481,7 @@ async def sports_home(request: Request):
         "heading": "Sports", "leagues": _sports_leagues(), "active_league": None,
         "scoreboard": board, "games_heading": "Scores", "show_date_nav": False,
         "refresh_url": "/api/sports/scoreboard", "news_query": "",
+        "has_rankings": False, "rankings_view": "",
     })
 
 
@@ -497,6 +498,7 @@ async def sports_scores(request: Request, date: date | None = None):
         **_sports_date_nav(request, "/sports/scores", date),
         "refresh_url": refresh,
         "news_query": "",
+        "has_rankings": False, "rankings_view": "",
     })
 
 
@@ -533,6 +535,46 @@ async def sports_league(request: Request, league: str, date: date | None = None)
         **_sports_date_nav(request, path, date),
         "refresh_url": refresh,
         "news_query": league_news_query(league),
+        "has_rankings": has_college_rankings(league), "rankings_view": "scores",
+    })
+
+
+def _sports_rankings_view(payload) -> dict:
+    data = payload.data if isinstance(payload.data, dict) else {}
+    return {
+        "available": bool(data.get("available")) and payload.freshness != "fallback",
+        "stale": payload.freshness == "stale",
+        "freshness": payload.freshness,
+        "updated_at": payload.updated_at.isoformat(),
+        "updated_at_display": payload.updated_at.strftime("%-I:%M %p"),
+        "source_label": "ESPN public rankings" if payload.provider_label == "espn" else payload.provider_label,
+        "league": data.get("league") or "",
+        "poll": data.get("poll") or "",
+        "poll_name": data.get("poll_name") or "Top 25",
+        "week_label": data.get("week_label") or "",
+        "polls": data.get("polls") or [],
+        "teams": data.get("teams") or [],
+    }
+
+
+@app.get("/sports/{league}/top25", response_class=HTMLResponse)
+async def sports_league_top25(request: Request, league: str, poll: str | None = None):
+    if league not in LEAGUES or not has_college_rankings(league):
+        raise HTTPException(status_code=404, detail="League not found")
+    payload = await get_rankings(league, poll)
+    board = _sports_rankings_view(payload)
+    meta = LEAGUES[league]
+    return templates.TemplateResponse(request, "sports_rankings.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"{meta['short_name']} Top 25",
+        "meta_description": f"AP Top 25 for {meta['name']}. Records and last week, from ESPN’s public poll feed.",
+        "heading": meta["name"],
+        "leagues": _sports_leagues(),
+        "active_league": league,
+        "has_rankings": True,
+        "rankings_view": "top25",
+        "rankings": board,
+        "news_query": league_news_query(league),
     })
 
 
@@ -541,6 +583,14 @@ async def api_sports_scoreboard(league: str | None = None, date: date | None = N
     if league and league not in LEAGUES:
         raise HTTPException(status_code=404, detail="League not found")
     return JSONResponse(await _sports_board(league, date))
+
+
+@app.get("/api/sports/rankings")
+async def api_sports_rankings(league: str, poll: str | None = None):
+    if league not in LEAGUES or not has_college_rankings(league):
+        raise HTTPException(status_code=404, detail="League not found")
+    payload = await get_rankings(league, poll)
+    return JSONResponse(_sports_rankings_view(payload))
 
 
 @app.get("/api/sports/headlines")

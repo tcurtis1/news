@@ -162,6 +162,77 @@ def test_invalid_league_date_and_game(monkeypatch):
     assert client.get("/sports/game/nfl_missing").status_code == 503
 
 
+def _rankings_payload():
+    from datetime import datetime, timezone
+    from app.sports import SportsPayload
+    return SportsPayload(
+        updated_at=datetime(2026, 9, 5, 15, 0, tzinfo=timezone.utc),
+        freshness="fresh", provider_label="espn",
+        data={
+            "available": True, "league": "cfb", "poll": "ap", "poll_name": "AP Top 25",
+            "week_label": "Preseason",
+            "polls": [{"type": "ap", "name": "AP Poll"}, {"type": "usa", "name": "AFCA Coaches Poll"}],
+            "teams": [{
+                "current": 1, "previous_label": "NR", "trend": "new", "record": "0-0",
+                "team_id": "194", "name": "Ohio State", "abbreviation": "OSU",
+                "news_query": "Ohio State college football",
+            }],
+        },
+    )
+
+
+def test_college_top25_page_and_api(monkeypatch):
+    install_fakes(monkeypatch)
+
+    async def fake_rankings(league, poll=None):
+        assert league == "cfb"
+        return _rankings_payload()
+
+    monkeypatch.setattr(main_mod, "get_rankings", fake_rankings)
+    client = TestClient(main_mod.app)
+    page = client.get("/sports/cfb/top25")
+    assert page.status_code == 200
+    assert "AP Top 25" in page.text
+    assert "Ohio State" in page.text
+    assert "Top 25" in page.text
+    assert 'href="/sports/cfb/top25"' in page.text
+    assert 'href="/search?q=Ohio%20State%20college%20football"' in page.text
+    assert 'data-team-key="cfb:194"' in page.text
+    assert "AFCA Coaches Poll" in page.text
+    assert "No Top 25 poll in this feed right now" not in page.text
+    scores = client.get("/sports/cfb")
+    assert scores.status_code == 200
+    assert 'href="/sports/cfb/top25"' in scores.text
+    assert "Top 25" in scores.text
+    nfl = client.get("/sports/nfl")
+    assert 'href="/sports/nfl/top25"' not in nfl.text
+    assert client.get("/sports/nfl/top25").status_code == 404
+    api = client.get("/api/sports/rankings?league=cfb")
+    assert api.status_code == 200
+    assert api.json()["teams"][0]["name"] == "Ohio State"
+    assert client.get("/api/sports/rankings?league=nfl").status_code == 404
+
+
+def test_college_top25_empty_is_honest(monkeypatch):
+    install_fakes(monkeypatch)
+    from datetime import datetime, timezone
+    from app.sports import SportsPayload
+
+    async def fake_rankings(league, poll=None):
+        return SportsPayload(
+            updated_at=datetime(2026, 9, 5, 15, 0, tzinfo=timezone.utc),
+            freshness="fallback", provider_label="fallback",
+            data={"available": False, "league": league, "poll": "", "poll_name": "Top 25",
+                  "week_label": "", "polls": [], "teams": []},
+        )
+
+    monkeypatch.setattr(main_mod, "get_rankings", fake_rankings)
+    page = TestClient(main_mod.app).get("/sports/mcbb/top25")
+    assert page.status_code == 200
+    assert "No Top 25 poll in this feed right now" in page.text
+    assert "rank-table" not in page.text
+
+
 def test_empty_boxscore_headers_are_omitted(monkeypatch):
     game = sample_event()
     game.team_stats = [

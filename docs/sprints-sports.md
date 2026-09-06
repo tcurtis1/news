@@ -1,7 +1,7 @@
 # Sports sprints — make `/sports` compelling
 
 Live: https://news.yoyosup.com/sports  
-Code: `app/sports.py`, `app/main.py` (`_sports_board`, `_sports_event_view`), `app/templates/sports.html`, `sports_game.html`, `app/static/sports.js`
+Code: `app/sports.py`, `app/main.py` (`_sports_board`, `_sports_event_view`, rankings), `app/templates/sports.html`, `sports_rankings.html`, `sports_game.html`, `app/static/sports.js`
 
 **Thesis:** glanceable scores, then a door into News. Free, no signup, mobile-first, plain English. Not an ESPN clone.
 
@@ -151,11 +151,27 @@ They do not want odds, video, fantasy, injury databases, LLM recaps, or more lea
 
 ---
 
+## S6 — College Top 25 — **shipped 2026-09-05**
+
+**Goal:** On CFB / CBB, a fan can open the AP Top 25 without leaving Sports.
+
+**User-visible**
+- CFB, CBB (M), CBB (W) pages get a **Scores / Top 25** option.
+- `/sports/cfb/top25` (and mcbb/wcbb): AP poll 1–25, record, trend vs last week. CFP/coaches if ESPN sent them.
+- Star a team (same device list as scores). News → existing search.
+- NFL/NBA/etc. have no Top 25 link.
+
+**Out of scope:** Full standings, FCS/D2/D3 polls, inventing a Yoyosup ranking, dumping 25 cards onto `/sports` Top.
+
+**What’s New:** yes.
+
+---
+
 ## Implementation notes
 
 | File | Why |
 |------|-----|
-| `app/sports.py` | Home mix, parse records/notes/week/rank/TV, cache keys |
+| `app/sports.py` | Home mix, parse records/notes/week/rank/TV, cache keys, AP Top 25 |
 | `app/main.py` | Board grouping, UTC dates, event view dropping winner/TV, poll URL vs SSR |
 | `app/templates/sports.html` | Live/Final/Upcoming, copy/title |
 | `app/static/sports.js` | Update **all** cards; first-paint local time |
