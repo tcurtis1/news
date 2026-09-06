@@ -797,18 +797,31 @@ async def get_rankings(league: str, poll: Optional[str] = None) -> SportsPayload
     if league not in RANKINGS_LEAGUES:
         raise ValueError(f"No Top 25 poll for league: {league}")
     l_info = LEAGUES[league]
-    url = f"https://cdn.espn.com/core/{l_info['path']}/rankings"
     key = f"rankings_{league}"
+    sources = (
+        (f"https://site.web.api.espn.com/apis/site/v2/sports/{l_info['sport']}/{l_info['path']}/rankings", None),
+        (f"https://cdn.espn.com/core/{l_info['path']}/rankings", {"xhr": "1"}),
+    )
 
     async def fetcher():
-        raw = await _provider.fetch(url, params={"xhr": "1"})
-        if not isinstance(raw, dict):
-            return {}
-        content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
-        inner = content.get("data") if isinstance(content.get("data"), dict) else {}
-        if inner.get("rankings"):
-            return inner
-        return raw
+        last_error = None
+        for url, params in sources:
+            try:
+                raw = await _provider.fetch(url, params=params)
+            except Exception as exc:
+                last_error = exc
+                continue
+            if not isinstance(raw, dict):
+                continue
+            content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+            inner = content.get("data") if isinstance(content.get("data"), dict) else {}
+            if inner.get("rankings"):
+                return inner
+            if raw.get("rankings"):
+                return raw
+        if last_error:
+            raise last_error
+        return {}
 
     payload = await _fetch_with_cache(key, fetcher, {}, ttl=RANKINGS_TTL)
     parsed = parse_espn_rankings(league, payload.data or {}, poll=poll)
