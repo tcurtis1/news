@@ -15,7 +15,7 @@ class MockProvider(ProviderAdapter):
         self.delays = {}
         self.errors = {}
 
-    async def fetch(self, url: str, params=None):
+    async def fetch(self, url: str, params=None, **kwargs):
         key = (url, frozenset(params.items()) if params else frozenset())
         if key in self.errors:
             raise self.errors[key]

@@ -133,8 +133,8 @@ def get_cache_lock(key: str) -> asyncio.Lock:
     return _cache_locks[key]
 
 class ProviderAdapter:
-    async def fetch(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+    async def fetch(self, url: str, params: Optional[Dict[str, Any]] = None, timeout: float = 5.0) -> Any:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.get(url, params=params, headers={"User-Agent": "YoyoSup-News/1.0", "Accept": "application/json"})
             resp.raise_for_status()
             return resp.json()
@@ -807,7 +807,7 @@ async def get_rankings(league: str, poll: Optional[str] = None) -> SportsPayload
         last_error = None
         for url, params in sources:
             try:
-                raw = await _provider.fetch(url, params=params)
+                raw = await _provider.fetch(url, params=params, timeout=12.0)
             except Exception as exc:
                 last_error = exc
                 continue

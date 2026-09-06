@@ -192,14 +192,16 @@ def test_college_top25_page_and_api(monkeypatch):
     client = TestClient(main_mod.app)
     page = client.get("/sports/cfb/top25")
     assert page.status_code == 200
+    assert page.headers.get("cache-control") == "no-store"
     assert "AP Top 25" in page.text
     assert "Ohio State" in page.text
+    assert "rank-row" in page.text
     assert "Top 25" in page.text
     assert 'href="/sports/cfb/top25"' in page.text
     assert 'href="/search?q=Ohio%20State%20college%20football"' in page.text
     assert 'data-team-key="cfb:194"' in page.text
     assert "AFCA Coaches Poll" in page.text
-    assert "No Top 25 poll in this feed right now" not in page.text
+    assert "Couldn’t load the AP Top 25" not in page.text
     scores = client.get("/sports/cfb")
     assert scores.status_code == 200
     assert 'href="/sports/cfb/top25"' in scores.text
@@ -229,8 +231,8 @@ def test_college_top25_empty_is_honest(monkeypatch):
     monkeypatch.setattr(main_mod, "get_rankings", fake_rankings)
     page = TestClient(main_mod.app).get("/sports/mcbb/top25")
     assert page.status_code == 200
-    assert "No Top 25 poll in this feed right now" in page.text
-    assert "rank-table" not in page.text
+    assert "Couldn’t load the AP Top 25" in page.text
+    assert "rank-row" not in page.text
 
 
 def test_empty_boxscore_headers_are_omitted(monkeypatch):

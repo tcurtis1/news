@@ -18,7 +18,7 @@
   {% if rankings.stale %}
     <p class="sports-notice" role="status">Poll may be delayed. Showing the latest information we have.</p>
   {% elif not rankings.available %}
-    <p class="sports-notice" role="status">No Top 25 poll in this feed right now.</p>
+    <p class="sports-notice" role="status">Couldn’t load the AP Top 25. Pull to refresh, or try again in a moment.</p>
   {% endif %}
 
   {% if rankings.polls|length > 1 %}
@@ -35,9 +35,9 @@
         <h2 id="top25-heading">{{ rankings.poll_name }}</h2>
         {% if rankings.week_label %}<span>{{ rankings.week_label }}</span>{% endif %}
       </div>
-      <ol class="rank-table">
+      <div class="rank-table">
         {% for team in rankings.teams %}
-        <li class="rank-row">
+        <div class="rank-row">
           <span class="rank-num">{{ team.current }}</span>
           <span class="rank-team">
             <b>{{ team.name }}</b>
@@ -48,9 +48,9 @@
             <button type="button" class="team-star" data-team-key="{{ active_league }}:{{ team.team_id }}" data-team-id="{{ team.team_id }}" data-team-name="{{ team.name }}" data-team-abbr="{{ team.abbreviation }}" data-league="{{ active_league }}" aria-pressed="false">Star {{ team.abbreviation }}</button>
             {% if team.news_query %}<a class="rank-news" href="/search?q={{ team.news_query | urlencode }}">News</a>{% endif %}
           </span>
-        </li>
+        </div>
         {% endfor %}
-      </ol>
+      </div>
     </section>
   {% endif %}
 

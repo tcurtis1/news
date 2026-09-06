@@ -62,7 +62,7 @@ log = logging.getLogger("news")
 BASE = Path(__file__).resolve().parent
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "https://news.yoyosup.com")
 MOD_ADMIN_TOKEN = os.environ.get("MOD_ADMIN_TOKEN", "").strip()
-APP_VERSION = "0.12.8"
+APP_VERSION = "0.12.9"
 GEO_COOKIE = "yoyonews_geo"
 LEAN_COOKIE = "yoyonews_lean"
 GEO_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
@@ -564,7 +564,7 @@ async def sports_league_top25(request: Request, league: str, poll: str | None = 
     payload = await get_rankings(league, poll)
     board = _sports_rankings_view(payload)
     meta = LEAGUES[league]
-    return templates.TemplateResponse(request, "sports_rankings.html", {
+    response = templates.TemplateResponse(request, "sports_rankings.html", {
         "public_base": PUBLIC_BASE,
         "page_title": f"{meta['short_name']} Top 25",
         "meta_description": f"AP Top 25 for {meta['name']}. Records and last week, from ESPN’s public poll feed.",
@@ -576,6 +576,8 @@ async def sports_league_top25(request: Request, league: str, poll: str | None = 
         "rankings": board,
         "news_query": league_news_query(league),
     })
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/api/sports/scoreboard")
