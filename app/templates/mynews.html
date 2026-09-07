@@ -5,9 +5,8 @@
 
   <h1>👤 My Feed</h1>
   <p class="lede">
-    Your personal topic board — pick what you care about and we’ll pull today’s ranks
-    and headlines. <strong>Saved on this device only</strong> (no account). Set location
-    and source lean (Conservative / Balanced / Liberal) below.
+    News shaped around topics you choose and interests learned from what you search and open.
+    <strong>Saved on this device only</strong> (no account). You can turn personalization off anytime.
   </p>
 
   <input type="hidden" id="geo-hidden" value="{{ geo_code }}" />
@@ -38,6 +37,22 @@
       Comma-separated, up to 20.
     </p>
   </section>
+
+  <section class="my-personalize" aria-labelledby="my-personalize-title">
+    <div>
+      <h2 id="my-personalize-title">Auto-curate your feed</h2>
+      <p id="my-personalize-copy">On — learning from topics you search and open on yoyosup News. Nothing is sent with your interest profile.</p>
+    </div>
+    <label class="my-switch">
+      <input type="checkbox" id="my-personalize-toggle" checked />
+      <span aria-hidden="true"></span>
+      <span class="sr-only">Auto-curate your feed</span>
+    </label>
+  </section>
+  <div class="my-learned" id="my-learned" hidden>
+    <span class="my-learned-label">Picked for you:</span>
+    <span id="my-learned-chips"></span>
+  </div>
 
   {% include "_view_bar.html" %}
 

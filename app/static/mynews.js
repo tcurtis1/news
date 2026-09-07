@@ -1,9 +1,11 @@
 /**
- * MyNews — personal topic list in localStorage (no auth).
- * Schema: { v:1, topics: [{ slug, label, addedAt }] }
+ * My Feed — saved topics plus local, opt-out interest personalization (no auth).
+ * Saved schema: { v:1, topics: [{ slug, label, addedAt }] }
  */
 (function () {
   var KEY = "yoyonews_my_topics";
+  var INTERESTS_KEY = "yoyonews_interests_v1";
+  var PERSONALIZE_KEY = "yoyonews_personalize_v1";
   var MAX = 20;
   var geo = "US";
   var lean = "balanced";
@@ -72,6 +74,32 @@
     try {
       localStorage.setItem(KEY, JSON.stringify({ v: 1, topics: data.topics || [] }));
     } catch (e) {}
+  }
+
+  function personalizationEnabled() {
+    try { return localStorage.getItem(PERSONALIZE_KEY) !== "off"; }
+    catch (e) { return true; }
+  }
+
+  function learnedTopics(savedTopics) {
+    if (!personalizationEnabled()) return [];
+    try {
+      var interests = JSON.parse(localStorage.getItem(INTERESTS_KEY) || "{}");
+      var saved = {};
+      (savedTopics || []).forEach(function (t) { saved[t.slug] = true; });
+      var now = Date.now();
+      return Object.keys(interests || {}).map(function (key) { return interests[key]; })
+        .filter(function (item) {
+          return item && item.slug && item.label && !saved[item.slug] && now - (item.lastSeen || 0) < 90 * 86400000;
+        })
+        .sort(function (a, b) {
+          var aRank = (Number(a.score) || 0) * Math.max(0.25, 1 - (now - a.lastSeen) / (90 * 86400000));
+          var bRank = (Number(b.score) || 0) * Math.max(0.25, 1 - (now - b.lastSeen) / (90 * 86400000));
+          return bRank - aRank;
+        }).slice(0, 6).map(function (item) {
+          return { slug: item.slug, label: item.label, learned: true };
+        });
+    } catch (e) { return []; }
   }
 
   function el(id) {
@@ -333,7 +361,9 @@
       topicHref +
       '">' +
       escapeHtml(topic.label) +
-      "</a></h2>" +
+      "</a>" +
+      (topic.learned ? ' <span class="badge my-auto-badge">Picked for you</span>' : "") +
+      "</h2>" +
       '<p class="summary">' +
       escapeHtml(summary) +
       " · " +
@@ -423,7 +453,9 @@
       topicHref +
       '">' +
       escapeHtml(topic.label) +
-      "</a></h2>" +
+      "</a>" +
+      (topic.learned ? ' <span class="badge my-auto-badge">Picked for you</span>' : "") +
+      "</h2>" +
       '<p class="summary my-card-status">Loading ranks &amp; headlines…</p>' +
       '<div class="my-skel" aria-hidden="true">' +
       '<div class="my-skel-line"></div>' +
@@ -589,9 +621,38 @@
 
   function refresh() {
     var data = load();
+    var learned = learnedTopics(data.topics);
     renderChips(data.topics);
-    renderFeed(data.topics);
+    renderLearned(learned);
+    renderFeed(data.topics.concat(learned));
     updateUrlImport();
+  }
+
+  function renderLearned(topics) {
+    var box = el("my-learned");
+    var chips = el("my-learned-chips");
+    var copy = el("my-personalize-copy");
+    var toggle = el("my-personalize-toggle");
+    var enabled = personalizationEnabled();
+    if (toggle) toggle.checked = enabled;
+    if (copy) copy.textContent = enabled
+      ? "On — learning from topics you search and open on yoyosup News. Nothing is sent with your interest profile."
+      : "Off — your saved topics still work, and no new interests are learned.";
+    if (!box || !chips) return;
+    box.hidden = !enabled || !topics.length;
+    chips.innerHTML = topics.map(function (t) {
+      return '<span class="my-learned-chip">' + escapeHtml(t.label) + '</span>';
+    }).join("");
+  }
+
+  function wirePersonalization() {
+    var toggle = el("my-personalize-toggle");
+    if (!toggle) return;
+    toggle.checked = personalizationEnabled();
+    toggle.addEventListener("change", function () {
+      try { localStorage.setItem(PERSONALIZE_KEY, toggle.checked ? "on" : "off"); } catch (e) {}
+      refresh();
+    });
   }
 
   function updateUrlImport() {
@@ -657,6 +718,7 @@
 
     wireAddForm();
     wireClear();
+    wirePersonalization();
 
     // Import ?topics=a,b,c before first render (commas already OR)
     try {

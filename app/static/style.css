@@ -1965,6 +1965,31 @@ html[data-theme="dark"] .dist-bal {
   margin: 0 0 1.25rem;
 }
 
+.my-personalize {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: rgba(45, 212, 191, 0.07);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  margin: -0.45rem 0 0.75rem;
+}
+.my-personalize h2 { font-size: 1rem; margin: 0 0 0.18rem; }
+.my-personalize p { color: var(--muted); font-size: 0.82rem; margin: 0; }
+.my-switch { display: inline-flex; align-items: center; flex: 0 0 auto; cursor: pointer; }
+.my-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.my-switch > span[aria-hidden] { width: 2.8rem; height: 1.5rem; padding: 0.15rem; border-radius: 999px; background: var(--muted); transition: background 0.15s; }
+.my-switch > span[aria-hidden]::after { content: ""; display: block; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: white; transition: transform 0.15s; }
+.my-switch input:checked + span { background: var(--accent); }
+.my-switch input:checked + span::after { transform: translateX(1.3rem); }
+.my-switch input:focus-visible + span { outline: 3px solid rgba(45, 212, 191, 0.3); outline-offset: 2px; }
+.my-learned { margin: 0 0 0.9rem; color: var(--muted); font-size: 0.82rem; }
+.my-learned-label { margin-right: 0.35rem; font-weight: 700; }
+.my-learned-chip { display: inline-block; margin: 0.15rem 0.25rem 0.15rem 0; padding: 0.18rem 0.52rem; border-radius: 999px; background: rgba(45, 212, 191, 0.1); border: 1px solid var(--border); color: var(--text); }
+.my-auto-badge { margin-left: 0.35rem; vertical-align: middle; font-size: 0.68rem; }
+
 .my-filter-head {
   display: flex;
   flex-wrap: wrap;

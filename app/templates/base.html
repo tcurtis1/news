@@ -37,7 +37,7 @@
   <meta name="robots" content="noindex,nofollow" />
   {% endif %}
 </head>
-<body data-product="News">
+<body data-product="News"{% if request.url.path.startswith('/topic/') %} data-topic-label="{{ topic.title if topic else '' }}"{% endif %}>
   <div class="wrap">
     {# Canonical network chrome — same brand as tools + finance #}
     <header class="site-header">

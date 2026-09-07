@@ -5,9 +5,45 @@
   var SESSION_KEY = "yoyonews_session_v1";
   var READ_KEY = "yoyonews_read_stories_v1";
   var VISITED_TOPICS_KEY = "yoyonews_visited_topics_v1";
+  var INTERESTS_KEY = "yoyonews_interests_v1";
+  var PERSONALIZE_KEY = "yoyonews_personalize_v1";
   var SESSION_MS = 30 * 60 * 1000;
   var READ_LIMIT = 500;
   var VISITED_TOPICS_LIMIT = 500;
+  var INTERESTS_LIMIT = 40;
+
+  function personalizationEnabled() {
+    try { return localStorage.getItem(PERSONALIZE_KEY) !== "off"; }
+    catch (error) { return true; }
+  }
+
+  function interestSlug(label) {
+    return String(label || "").toLowerCase().trim().replace(/[#@]/g, "")
+      .replace(/[^\w\s-]/gu, "").replace(/[-\s]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  }
+
+  function rememberInterest(label, weight) {
+    label = String(label || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    var slug = interestSlug(label);
+    if (!slug || !personalizationEnabled()) return;
+    try {
+      var data = JSON.parse(localStorage.getItem(INTERESTS_KEY) || "{}");
+      if (!data || typeof data !== "object" || Array.isArray(data)) data = {};
+      var old = data[slug] || {};
+      data[slug] = { slug: slug, label: label, score: Math.min(20, (Number(old.score) || 0) + (weight || 1)), lastSeen: Date.now() };
+      Object.keys(data).sort(function (a, b) {
+        return (data[b].lastSeen || 0) - (data[a].lastSeen || 0);
+      }).slice(INTERESTS_LIMIT).forEach(function (key) { delete data[key]; });
+      localStorage.setItem(INTERESTS_KEY, JSON.stringify(data));
+    } catch (error) {}
+  }
+
+  window.YoyoNewsInterests = {
+    KEY: INTERESTS_KEY,
+    PERSONALIZE_KEY: PERSONALIZE_KEY,
+    enabled: personalizationEnabled,
+    remember: rememberInterest,
+  };
 
   function storyKey(href) {
     try {
@@ -161,7 +197,11 @@
   }
 
   sendPageView();
-  rememberTopicVisit(topicSlugFromHref(window.location.pathname));
+  var currentTopicSlug = topicSlugFromHref(window.location.pathname);
+  rememberTopicVisit(currentTopicSlug);
+  if (currentTopicSlug) {
+    rememberInterest(document.body.getAttribute("data-topic-label") || currentTopicSlug.replace(/-/g, " "), 3);
+  }
 
   try {
     var now = Date.now();
@@ -182,6 +222,7 @@
     if (link.matches("a[data-story-link]")) rememberRead(link);
     var href = link.getAttribute("href") || "";
     if (href.indexOf("/topic/") === 0) {
+      rememberInterest((link.textContent || topicSlugFromHref(href).replace(/-/g, " ")).trim(), 2);
       send("topic_open");
       return;
     }
@@ -192,7 +233,11 @@
   });
 
   document.addEventListener("submit", function (event) {
-    if (event.target && event.target.id === "search-form") send("search_submit");
+    if (event.target && event.target.id === "search-form") {
+      var input = event.target.querySelector('[name="q"]');
+      if (input) rememberInterest(input.value, 2);
+      send("search_submit");
+    }
   });
 
   applyAllReadStates(document);

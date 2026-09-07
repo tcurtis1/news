@@ -24,6 +24,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **Polymarket** — top markets by 24h volume | Live |
 | **YoyoSup logo** — SVG wordmark + mark | Live |
 | **MyNews** — personal topic board (`/my`, localStorage, no auth) | Live |
+| **Auto-curated My Feed** — learns from local searches/topic opens; on by default with visible opt-out | Live |
 | **Source preference** — Conservative / Balanced / Liberal headlines | Live |
 | **Privacy-friendly analytics** — bot filtering, sessions, return visits, useful actions; no visitor IDs | Live |
 | **Sports** — live-first scores, game pages, MyTeams, headlines, share, college Top 25 | Live |

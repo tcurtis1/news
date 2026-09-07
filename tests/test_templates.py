@@ -249,6 +249,8 @@ class TemplateRenderTests(unittest.TestCase):
     def test_mynews_page_renders(self):
         r = self.client.get("/my")
         self._assert_clean_200(r, "/my")
+        self.assertIn("Auto-curate your feed", r.text)
+        self.assertIn('id="my-personalize-toggle"', r.text)
 
     def test_safety_page_renders(self):
         r = self.client.get("/safety")
