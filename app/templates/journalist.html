@@ -31,9 +31,7 @@
         <button type="submit">Post comment</button>
       </div>
       <p class="t-snip">
-        Be kind. No spam. Comments are filtered for safety
-        (<a href="/safety">guidelines</a>).
-        Held comments are not public until reviewed.
+        Filtered for safety — held comments aren't public until reviewed.
       </p>
     </form>
 
@@ -83,7 +81,7 @@
   <section class="reader-rating" id="rate" aria-label="Reader bias poll">
     <h2 class="section-title section-title-lg">
       What do readers think?
-      <span class="muted-hint">{{ journalist.reader_rating.total }} vote{{ 's' if journalist.reader_rating.total != 1 else '' }} · not verified, shown separately from the estimate above</span>
+      <span class="muted-hint" title="Not verified, shown separately from the estimate above">{{ journalist.reader_rating.total }} vote{{ 's' if journalist.reader_rating.total != 1 else '' }}</span>
     </h2>
 
     {% if flash_error %}

@@ -35,10 +35,7 @@
       <button type="submit">Add</button>
     </form>
     <p class="muted-hint my-filter-hint">
-      Commas split topics (each searched alone — OR). Multi-word text is one phrase.
-      Up to 20. Share:
-      <code class="my-code">/my?topics=fed,housing</code>
-      · <a href="/search?geo={{ geo_code }}">Full Intersection</a>
+      Comma-separated, up to 20.
     </p>
   </section>
 
@@ -52,11 +49,6 @@
 
   <div id="my-feed" class="my-feed feed-container view-mode-cards" aria-live="polite"></div>
 
-  <p class="disclaimer">
-    MyNews runs in your browser. Topics never leave this device unless you open a topic page
-    or share a <code>?topics=</code> link. Headlines follow your source preference.
-    Not affiliated with listed platforms.
-  </p>
 {% endblock %}
 
 {% block scripts %}

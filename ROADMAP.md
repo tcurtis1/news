@@ -42,3 +42,4 @@ Scoreboard is live (ESPN public feed). **Sprints:** [docs/sprints-sports.md](doc
 - Pulse, Daily Intersection, geo, consensus Top 10, deltas, rank map, topic pages, moderated comments, Polymarket, sitemap/robots.
 - Bias badges v1, comment name memory, YoyoSup logo.
 - Bot-filtered page analytics plus privacy-friendly new/returning sessions and action events (no persistent visitor identifier).
+- **2026-09-07 — copy trim pass:** cut redundant ledes/hints/tooltips/disclaimers on Pulse, Daily Intersection, MyNews, geo panel, topic/journalist comment forms, lean-flip buttons, journalist vote count, safety page, and sports subhead — each was restating what a chip/badge/label/list already showed on the same page. No functional change; nav links removed from copy (`/search`, `/my`, `/safety`) remain reachable from the main header.
