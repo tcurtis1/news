@@ -3,6 +3,19 @@
   "site": "news",
   "entries": [
     {
+      "id": "auto-curated-my-feed",
+      "seq": 36,
+      "date": "2026-09-07",
+      "title": "My Feed can now learn what you follow",
+      "detail": "My Feed can pick topics from News searches and topic visits. The interest profile stays on this device, and you can turn personalization off anytime.",
+      "href": "https://news.yoyosup.com/my",
+      "tags": [
+        "news",
+        "my-feed"
+      ],
+      "site": "news"
+    },
+    {
       "id": "sports-college-top25",
       "seq": 35,
       "date": "2026-09-05",
