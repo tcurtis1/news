@@ -54,7 +54,7 @@ from app.source_prefs import (
 )
 from app.topics import build_topic, slugify, unslug
 from app.trends import build_trends, rank_lookup
-from app.sports import Event, EventState, LEAGUES, compact_score_line, get_game_detail, get_rankings, get_scoreboard, get_sports_headlines, get_sports_home_summary, group_events, has_college_rankings, league_news_query
+from app.sports import Event, EventState, LEAGUES, compact_score_line, get_game_detail, get_rankings, get_scoreboard, get_sports_headlines, get_sports_home_summary, get_standings, group_events, has_college_rankings, has_standings, league_news_query
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("news")
@@ -373,6 +373,12 @@ def _sports_event_view(event: Event) -> dict:
         if label in ("batting", "pitching", "fielding", "records"):
             continue
         stats.append(stat)
+    outs_disp = None
+    if event.outs is not None:
+        outs_disp = "1 Out" if event.outs == 1 else f"{event.outs} Outs"
+    count_disp = None
+    if event.balls is not None and event.strikes is not None:
+        count_disp = f"Count {event.balls}-{event.strikes}"
     return {
         "id": event.id,
         "league_slug": event.league,
@@ -391,6 +397,21 @@ def _sports_event_view(event: Event) -> dict:
         "away_score_display": score(event.away_team),
         "venue": event.venue,
         "situation": event.situation or "",
+        "outs": event.outs,
+        "outs_display": outs_disp,
+        "balls": event.balls,
+        "strikes": event.strikes,
+        "count_display": count_disp,
+        "on_first": event.on_first,
+        "on_second": event.on_second,
+        "on_third": event.on_third,
+        "has_bases": event.on_first or event.on_second or event.on_third,
+        "down_distance": event.down_distance or "",
+        "possession_text": event.possession_text or "",
+        "is_red_zone": event.is_red_zone,
+        "batter_name": event.batter_name or "",
+        "pitcher_name": event.pitcher_name or "",
+        "last_play": event.last_play or "",
         "tv": tv,
         "context_line": event.context_line or "",
         "scoring_summary": event.scoring_summary,
@@ -536,6 +557,7 @@ async def sports_league(request: Request, league: str, date: date | None = None)
         "refresh_url": refresh,
         "news_query": league_news_query(league),
         "has_rankings": has_college_rankings(league), "rankings_view": "scores",
+        "has_standings": has_standings(league), "standings_view": "scores",
     })
 
 
@@ -557,6 +579,34 @@ def _sports_rankings_view(payload) -> dict:
     }
 
 
+def _sports_standings_view(payload) -> dict:
+    data = payload.data if isinstance(payload.data, dict) else {}
+    divisions = []
+    for div in (data.get("divisions") or []):
+        teams = div.get("teams") or []
+        divisions.append({
+            "name": div.get("name") or "Standings",
+            "teams": teams,
+            "has_ties": any(t.get("ties") is not None for t in teams),
+            "has_pts": any(t.get("points") is not None for t in teams),
+            "has_pct": any(bool(t.get("pct")) for t in teams),
+            "has_gb": any(t.get("gb") not in (None, "", "-") for t in teams),
+            "has_diff": any(bool(t.get("diff")) for t in teams),
+            "has_strk": any(bool(t.get("streak")) for t in teams),
+            "has_l10": any(bool(t.get("l10")) for t in teams),
+        })
+    return {
+        "available": bool(divisions) and payload.freshness != "fallback",
+        "stale": payload.freshness == "stale",
+        "freshness": payload.freshness,
+        "updated_at": payload.updated_at.isoformat(),
+        "updated_at_display": payload.updated_at.strftime("%-I:%M %p"),
+        "source_label": "ESPN public standings" if payload.provider_label == "espn" else payload.provider_label,
+        "league": data.get("league") or "",
+        "divisions": divisions,
+    }
+
+
 @app.get("/sports/{league}/top25", response_class=HTMLResponse)
 async def sports_league_top25(request: Request, league: str, poll: str | None = None):
     if league not in LEAGUES or not has_college_rankings(league):
@@ -573,7 +623,32 @@ async def sports_league_top25(request: Request, league: str, poll: str | None = 
         "active_league": league,
         "has_rankings": True,
         "rankings_view": "top25",
+        "has_standings": has_standings(league),
         "rankings": board,
+        "news_query": league_news_query(league),
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/sports/{league}/standings", response_class=HTMLResponse)
+async def sports_league_standings(request: Request, league: str):
+    if league not in LEAGUES or not has_standings(league):
+        raise HTTPException(status_code=404, detail="League not found")
+    payload = await get_standings(league)
+    board = _sports_standings_view(payload)
+    meta = LEAGUES[league]
+    response = templates.TemplateResponse(request, "sports_standings.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"{meta['short_name']} Standings",
+        "meta_description": f"{meta['name']} standings and division records from ESPN’s public standings feed.",
+        "heading": meta["name"],
+        "leagues": _sports_leagues(),
+        "active_league": league,
+        "has_standings": True,
+        "standings_view": "standings",
+        "has_rankings": has_college_rankings(league),
+        "standings": board,
         "news_query": league_news_query(league),
     })
     response.headers["Cache-Control"] = "no-store"
@@ -593,6 +668,14 @@ async def api_sports_rankings(league: str, poll: str | None = None):
         raise HTTPException(status_code=404, detail="League not found")
     payload = await get_rankings(league, poll)
     return JSONResponse(_sports_rankings_view(payload))
+
+
+@app.get("/api/sports/standings")
+async def api_sports_standings(league: str):
+    if league not in LEAGUES or not has_standings(league):
+        raise HTTPException(status_code=404, detail="League not found")
+    payload = await get_standings(league)
+    return JSONResponse(_sports_standings_view(payload))
 
 
 @app.get("/api/sports/headlines")

@@ -2807,10 +2807,41 @@ li.card.story-card:hover {
 .sports-rank-chip { margin: 0; color: var(--muted); font-size: 0.82rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
+.team-identity { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.team-names { display: grid; min-width: 0; }
+.team-logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; display: inline-block; vertical-align: middle; }
+.team-logo-lg { width: 38px; height: 38px; object-fit: contain; margin-bottom: 0.25rem; }
+.score-situation { display: flex; align-items: center; gap: 0.5rem; padding: 0.42rem 0.75rem; background: color-mix(in srgb, var(--accent) 5%, var(--card)); border-top: 1px dashed var(--border); font-size: 0.76rem; color: var(--text); }
+.situation-baseball, .situation-football { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.base-diamond { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+.base-marker { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+.base-marker.is-occupied { fill: #b91c1c; stroke: #b91c1c; }
+.base-home { fill: var(--border); stroke: var(--muted); stroke-width: 0.8; opacity: 0.8; }
+.base-diamond-lg { width: 22px; height: 22px; }
+.red-zone-badge { display: inline-block; padding: 0.08rem 0.38rem; border-radius: 999px; background: #b91c1c; color: #fff; font-size: 0.68rem; font-weight: 850; letter-spacing: 0.04em; text-transform: uppercase; }
+.game-situation-bar { margin: 0.75rem 0; padding: 0.65rem 0.85rem; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 6%, var(--card)); text-align: left; }
+.game-situation-detail { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.game-situation-text { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.84rem; }
+.game-last-play { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.78rem; line-height: 1.35; }
+.standings-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: 13px; background: var(--card); }
+.standings-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; text-align: right; }
+.standings-table th, .standings-table td { padding: 0.55rem 0.65rem; border-top: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.standings-table thead tr th { border-top: 0; background: var(--panel); color: var(--muted); font-size: 0.74rem; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; }
+.standings-table .th-team, .standings-table .td-team { text-align: left; }
+.standings-table .td-team { font-weight: 750; }
+.standings-table .td-bold { font-weight: 850; color: var(--text); }
+.standings-table .td-actions { text-align: right; }
+.standings-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem; }
+.team-cell { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.team-cell-names { display: inline-flex; align-items: baseline; gap: 0.35rem; }
+.team-cell-names .team-full-name { color: var(--muted); font-weight: normal; font-size: 0.8rem; }
+.clinch-badge { display: inline-block; padding: 0.05rem 0.28rem; border-radius: 4px; background: color-mix(in srgb, var(--accent) 15%, var(--card)); color: var(--accent); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; }
+
 @media (max-width: 620px) {
   .sports-hero { align-items: start; flex-direction: column; }
   .sports-hero .muted { font-size: 0.9rem; }
   .sports-scores-link { font-size: 0.86rem; }
   .game-columns { grid-template-columns: 1fr; }
   .game-stats > div { grid-template-columns: minmax(0, 1fr) minmax(6rem, auto) minmax(0, 1fr); font-size: 0.85rem; }
+  .team-cell-names .team-full-name { display: none; }
 }

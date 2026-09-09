@@ -27,6 +27,7 @@ class Team(BaseModel):
     score: Optional[int] = None
     is_home: bool
     winner: Optional[bool] = None
+    logo: Optional[str] = None
 
 class Event(BaseModel):
     id: str
@@ -47,6 +48,18 @@ class Event(BaseModel):
     scoring_summary: List[Dict[str, str]] = Field(default_factory=list)
     team_stats: List[Dict[str, str]] = Field(default_factory=list)
     leaders: List[Dict[str, str]] = Field(default_factory=list)
+    outs: Optional[int] = None
+    balls: Optional[int] = None
+    strikes: Optional[int] = None
+    on_first: bool = False
+    on_second: bool = False
+    on_third: bool = False
+    down_distance: Optional[str] = None
+    possession_text: Optional[str] = None
+    is_red_zone: bool = False
+    batter_name: Optional[str] = None
+    pitcher_name: Optional[str] = None
+    last_play: Optional[str] = None
 
 class SportsPayload(BaseModel):
     updated_at: datetime
@@ -118,6 +131,8 @@ RANKINGS_TTL = 15 * 60
 RANKINGS_LEAGUES = frozenset({"cfb", "mcbb", "wcbb"})
 RANKINGS_POLL_ORDER = ("ap", "cfp", "usa")
 RANKINGS_SKIP_TYPES = frozenset({"fcs", "afca"})
+STANDINGS_TTL = 15 * 60
+STANDINGS_LEAGUES = frozenset({"mlb", "nfl", "nba", "nhl", "wnba", "mls", "epl"})
 
 class CachedData(BaseModel):
     timestamp: float
@@ -157,6 +172,10 @@ def league_news_query(league: str) -> str:
 
 def has_college_rankings(league: str) -> bool:
     return (league or "") in RANKINGS_LEAGUES
+
+
+def has_standings(league: str) -> bool:
+    return (league or "") in STANDINGS_LEAGUES
 
 
 async def get_sports_headlines(query: str, limit: int = HEADLINES_LIMIT) -> dict:
@@ -354,27 +373,95 @@ def _extract_leaders(package: Dict[str, Any]) -> List[Dict[str, str]]:
     return rows[:4]
 
 
-def _extract_situation(package: Dict[str, Any], competition: Dict[str, Any]) -> str:
-    sit = package.get("situation") if isinstance(package.get("situation"), dict) else {}
+def _extract_situation(package: Dict[str, Any], competition: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    sit = (
+        competition.get("situation")
+        if isinstance(competition.get("situation"), dict)
+        else None
+    ) or (
+        package.get("situation")
+        if isinstance(package.get("situation"), dict)
+        else {}
+    )
     outs = sit.get("outs")
     if outs is None:
         outs = competition.get("outs")
+    try:
+        outs = int(outs) if outs is not None else None
+    except (TypeError, ValueError):
+        outs = None
+
     balls, strikes = sit.get("balls"), sit.get("strikes")
+    try:
+        balls = int(balls) if balls is not None else None
+    except (TypeError, ValueError):
+        balls = None
+    try:
+        strikes = int(strikes) if strikes is not None else None
+    except (TypeError, ValueError):
+        strikes = None
+
+    on_first = bool(sit.get("onFirst"))
+    on_second = bool(sit.get("onSecond"))
+    on_third = bool(sit.get("onThird"))
+
+    down_distance = sit.get("downDistanceText")
+    if down_distance:
+        down_distance = str(down_distance).strip()
+    possession_text = sit.get("possessionText")
+    if possession_text:
+        possession_text = str(possession_text).strip()
+    is_red_zone = bool(sit.get("isRedZone"))
+
+    batter_obj = sit.get("batter", {}).get("athlete") if isinstance(sit.get("batter"), dict) else None
+    batter_name = (batter_obj.get("shortName") or batter_obj.get("displayName") or batter_obj.get("fullName")) if isinstance(batter_obj, dict) else None
+    batter_summary = sit.get("batter", {}).get("summary") if isinstance(sit.get("batter"), dict) else None
+
+    pitcher_obj = sit.get("pitcher", {}).get("athlete") if isinstance(sit.get("pitcher"), dict) else None
+    pitcher_name = (pitcher_obj.get("shortName") or pitcher_obj.get("displayName") or pitcher_obj.get("fullName")) if isinstance(pitcher_obj, dict) else None
+    pitcher_summary = sit.get("pitcher", {}).get("summary") if isinstance(sit.get("pitcher"), dict) else None
+
+    last_play = None
+    last_play_obj = sit.get("lastPlay")
+    if isinstance(last_play_obj, dict) and last_play_obj.get("text"):
+        last_play = str(last_play_obj.get("text")).strip()
+
     bits = []
-    if balls is not None and strikes is not None:
-        bits.append(f"{balls}-{strikes}")
-    if outs is not None:
-        bits.append("0 outs" if outs == 0 else ("1 out" if outs == 1 else f"{outs} outs"))
-    on = []
-    if sit.get("onFirst"):
-        on.append("1st")
-    if sit.get("onSecond"):
-        on.append("2nd")
-    if sit.get("onThird"):
-        on.append("3rd")
-    if on:
-        bits.append("runners on " + ", ".join(on))
-    return ", ".join(bits)
+    if down_distance:
+        bits.append(down_distance)
+        if possession_text:
+            bits.append(possession_text)
+    else:
+        if balls is not None and strikes is not None:
+            bits.append(f"{balls}-{strikes}")
+        if outs is not None:
+            bits.append("0 outs" if outs == 0 else ("1 out" if outs == 1 else f"{outs} outs"))
+        on = []
+        if on_first:
+            on.append("1st")
+        if on_second:
+            on.append("2nd")
+        if on_third:
+            on.append("3rd")
+        if on:
+            bits.append("runners on " + ", ".join(on))
+
+    line = ", ".join(bits)
+    parsed_fields = {
+        "outs": outs,
+        "balls": balls,
+        "strikes": strikes,
+        "on_first": on_first,
+        "on_second": on_second,
+        "on_third": on_third,
+        "down_distance": down_distance,
+        "possession_text": possession_text,
+        "is_red_zone": is_red_zone,
+        "batter_name": f"{batter_name} ({batter_summary})" if batter_name and batter_summary else batter_name,
+        "pitcher_name": f"{pitcher_name} ({pitcher_summary})" if pitcher_name and pitcher_summary else pitcher_name,
+        "last_play": last_play,
+    }
+    return line, parsed_fields
 
 
 def _overall_record(comp: Dict[str, Any]) -> str:
@@ -518,6 +605,7 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
         t_data = comp.get("team", {})
         score_str = comp.get("score")
         score = int(score_str) if score_str and str(score_str).isdigit() else None
+        logo = t_data.get("logo") or (t_data.get("logos", [{}])[0].get("href") if t_data.get("logos") else None)
 
         team = Team(
             id=str(t_data.get("id", "0")),
@@ -525,7 +613,8 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
             abbreviation=t_data.get("abbreviation", "UNK"),
             score=score,
             is_home=(comp.get("homeAway") == "home"),
-            winner=comp.get("winner")
+            winner=comp.get("winner"),
+            logo=logo,
         )
         extra = {"hits": comp.get("hits"), "errors": comp.get("errors")}
         if team.is_home:
@@ -551,7 +640,7 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
     scoring_summary = _extract_scoring(pkg)
     team_stats = _extract_team_stats(pkg, home_team, away_team, home_extra, away_extra)
     leaders = _extract_leaders(pkg)
-    situation = _extract_situation(pkg, comp0)
+    situation, situation_fields = _extract_situation(pkg, comp0)
     context_line = _context_line(ev, pkg, comp0, home_team, away_team, home_comp, away_comp)
 
     return Event(
@@ -573,6 +662,7 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
         scoring_summary=scoring_summary,
         team_stats=team_stats,
         leaders=leaders,
+        **situation_fields,
     )
 
 async def _fetch_with_cache(key: str, fetch_func, fallback_data: Any, ttl: int = CACHE_TTL) -> SportsPayload:
@@ -834,6 +924,137 @@ async def get_rankings(league: str, poll: Optional[str] = None) -> SportsPayload
     )
 
 
+def parse_espn_standings(league: str, raw: Dict[str, Any]) -> Dict[str, Any]:
+    content = raw.get("content", {}) if isinstance(raw.get("content"), dict) else raw
+    st = content.get("standings", {}) if isinstance(content.get("standings"), dict) else content
+    divisions = []
+
+    def parse_entries(entries: list) -> list:
+        rows = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            t = entry.get("team", {})
+            logo = t.get("logo") or (t.get("logos", [{}])[0].get("href") if t.get("logos") else None)
+            stats = {
+                s.get("name"): s.get("displayValue")
+                for s in entry.get("stats", [])
+                if isinstance(s, dict) and s.get("name")
+            }
+            wins = str(stats.get("wins") or "0")
+            losses = str(stats.get("losses") or "0")
+            ties = stats.get("ties") or stats.get("OTLosses")
+            pct = stats.get("winPercent") or ""
+            gb = stats.get("gamesBehind") or stats.get("divisionGamesBehind") or "-"
+            diff = stats.get("pointDifferential") or stats.get("differential") or ""
+            streak = stats.get("streak") or ""
+            l10 = stats.get("Last Ten Games") or ""
+            pts = stats.get("points")
+            clinch = stats.get("clincher")
+            abbr = str(t.get("abbreviation") or "")
+            name = str(t.get("displayName") or t.get("name") or "Unknown")
+            rows.append({
+                "id": str(t.get("id") or ""),
+                "name": name,
+                "abbreviation": abbr,
+                "logo": logo,
+                "wins": wins,
+                "losses": losses,
+                "ties": str(ties) if ties is not None else None,
+                "pct": pct,
+                "gb": gb,
+                "diff": diff,
+                "streak": streak,
+                "l10": l10,
+                "points": str(pts) if pts is not None else None,
+                "clinch": clinch,
+                "news_query": f"{abbr} {name}".strip(),
+            })
+        return rows
+
+    def collect(group: dict, parent_name: str = ""):
+        name = group.get("name", "")
+        subgroups = group.get("groups") or group.get("children") or []
+        entries = (group.get("standings") or {}).get("entries") or group.get("entries") or []
+        if subgroups:
+            for sub in subgroups:
+                collect(sub, parent_name=name)
+        elif entries:
+            div_name = name or parent_name or "Standings"
+            rows = parse_entries(entries)
+            if rows:
+                divisions.append({
+                    "name": div_name,
+                    "teams": rows,
+                })
+
+    top_groups = st.get("groups") or st.get("children") or []
+    if top_groups:
+        for g in top_groups:
+            if isinstance(g, dict):
+                collect(g)
+    else:
+        entries = (st.get("standings") or {}).get("entries") or st.get("entries") or []
+        if entries:
+            rows = parse_entries(entries)
+            if rows:
+                divisions.append({"name": "Standings", "teams": rows})
+
+    return {
+        "league": league,
+        "available": bool(divisions),
+        "divisions": divisions,
+    }
+
+
+async def get_standings(league: str) -> SportsPayload:
+    if league not in LEAGUES:
+        raise ValueError(f"Unsupported league: {league}")
+    if league not in STANDINGS_LEAGUES:
+        raise ValueError(f"No standings available for league: {league}")
+    l_info = LEAGUES[league]
+    key = f"standings_{league}"
+
+    if league in ("mls", "epl"):
+        sub_league = "usa.1" if league == "mls" else "eng.1"
+        sources = [
+            (f"https://cdn.espn.com/core/soccer/standings", {"xhr": "1", "league": sub_league}),
+            (f"https://site.web.api.espn.com/apis/v2/sports/soccer/{sub_league}/standings", None),
+        ]
+    else:
+        sources = [
+            (f"https://cdn.espn.com/core/{l_info['path']}/standings", {"xhr": "1"}),
+            (f"https://site.web.api.espn.com/apis/v2/sports/{l_info['sport']}/{l_info['path']}/standings", None),
+        ]
+
+    async def fetcher():
+        last_error = None
+        for url, params in sources:
+            try:
+                raw = await _provider.fetch(url, params=params, timeout=12.0)
+            except Exception as exc:
+                last_error = exc
+                continue
+            if not isinstance(raw, dict):
+                continue
+            parsed = parse_espn_standings(league, raw)
+            if parsed.get("divisions"):
+                return raw
+        if last_error:
+            raise last_error
+        return {}
+
+    payload = await _fetch_with_cache(key, fetcher, {}, ttl=STANDINGS_TTL)
+    parsed = parse_espn_standings(league, payload.data or {})
+    return SportsPayload(
+        updated_at=payload.updated_at,
+        freshness=payload.freshness,
+        provider_label=payload.provider_label,
+        error=payload.error,
+        data=parsed,
+    )
+
+
 def overlay_scoreboard_event(detail: Event, board: Event) -> Event:
     """Prefer the live scoreboard clock/score when the game package lags."""
     detail.state = board.state
@@ -855,6 +1076,32 @@ def overlay_scoreboard_event(detail: Event, board: Event) -> Event:
         detail.away_team.winner = board.away_team.winner
     if board.context_line:
         detail.context_line = board.context_line
+    if board.situation:
+        detail.situation = board.situation
+    if board.outs is not None:
+        detail.outs = board.outs
+    if board.balls is not None:
+        detail.balls = board.balls
+    if board.strikes is not None:
+        detail.strikes = board.strikes
+    detail.on_first = board.on_first
+    detail.on_second = board.on_second
+    detail.on_third = board.on_third
+    if board.down_distance:
+        detail.down_distance = board.down_distance
+    if board.possession_text:
+        detail.possession_text = board.possession_text
+    detail.is_red_zone = board.is_red_zone
+    if board.batter_name:
+        detail.batter_name = board.batter_name
+    if board.pitcher_name:
+        detail.pitcher_name = board.pitcher_name
+    if board.last_play:
+        detail.last_play = board.last_play
+    if board.home_team.logo and not detail.home_team.logo:
+        detail.home_team.logo = board.home_team.logo
+    if board.away_team.logo and not detail.away_team.logo:
+        detail.away_team.logo = board.away_team.logo
     return detail
 
 

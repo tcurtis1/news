@@ -60,14 +60,48 @@
                 </div>
                 <a class="score-matchup" href="/sports/game/{{ game.id }}" aria-label="{{ game.away_team.name }} at {{ game.home_team.name }}, {{ game.status_text }}">
                   <span class="score-team{% if game.away_team.winner %} is-winner{% endif %}">
-                    <span><b>{{ game.away_team.abbreviation }}</b><small>{{ game.away_team.name }}</small></span>
+                    <span class="team-identity">
+                      {% if game.away_team.logo %}
+                        <img class="team-logo" src="{{ game.away_team.logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                      {% endif %}
+                      <span class="team-names"><b>{{ game.away_team.abbreviation }}</b><small>{{ game.away_team.name }}</small></span>
+                    </span>
                     <strong data-game-away-score{% if game.away_score_display == '—' %} class="score-empty"{% endif %}>{{ game.away_score_display }}</strong>
                   </span>
                   <span class="score-team{% if game.home_team.winner %} is-winner{% endif %}">
-                    <span><b>{{ game.home_team.abbreviation }}</b><small>{{ game.home_team.name }}</small></span>
+                    <span class="team-identity">
+                      {% if game.home_team.logo %}
+                        <img class="team-logo" src="{{ game.home_team.logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                      {% endif %}
+                      <span class="team-names"><b>{{ game.home_team.abbreviation }}</b><small>{{ game.home_team.name }}</small></span>
+                    </span>
                     <strong data-game-home-score{% if game.home_score_display == '—' %} class="score-empty"{% endif %}>{{ game.home_score_display }}</strong>
                   </span>
                 </a>
+                {% if game.is_live and (game.has_bases or game.outs is not none or game.down_distance or game.is_red_zone or game.situation) %}
+                <div class="score-situation">
+                  {% if game.has_bases or game.outs is not none %}
+                    <span class="situation-baseball">
+                      <svg class="base-diamond" viewBox="0 0 20 20" width="16" height="16" aria-label="Bases: {% if game.on_first %}1st {% endif %}{% if game.on_second %}2nd {% endif %}{% if game.on_third %}3rd{% endif %}{% if not game.has_bases %}Empty{% endif %}">
+                        <polygon points="10,2 13,5 10,8 7,5" class="base-marker{% if game.on_second %} is-occupied{% endif %}"/>
+                        <polygon points="5,7 8,10 5,13 2,10" class="base-marker{% if game.on_third %} is-occupied{% endif %}"/>
+                        <polygon points="15,7 18,10 15,13 12,10" class="base-marker{% if game.on_first %} is-occupied{% endif %}"/>
+                        <polygon points="10,14 12,16 11,18 9,18 8,16" class="base-home"/>
+                      </svg>
+                      {% if game.outs_display %}<span>{{ game.outs_display }}</span>{% endif %}
+                      {% if game.count_display %}<span>{{ game.count_display }}</span>{% endif %}
+                    </span>
+                  {% elif game.down_distance or game.is_red_zone or game.possession_text %}
+                    <span class="situation-football">
+                      {% if game.is_red_zone %}<span class="red-zone-badge">Red Zone</span>{% endif %}
+                      {% if game.down_distance %}<b>{{ game.down_distance }}</b>{% endif %}
+                      {% if game.possession_text %}<span>{{ game.possession_text }}</span>{% endif %}
+                    </span>
+                  {% elif game.situation %}
+                    <span class="situation-text">{{ game.situation }}</span>
+                  {% endif %}
+                </div>
+                {% endif %}
                 <div class="score-card-meta">
                   {% if game.show_start_time %}
                     <time datetime="{{ game.start_time_iso }}" data-local-time>{{ game.start_time_display }}</time>

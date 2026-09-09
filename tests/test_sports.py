@@ -3,10 +3,11 @@ import asyncio
 from datetime import datetime, timezone, date
 from app.search import SearchHit, google_news_headlines
 from app.sports import (
-    Event, EventState, ProviderAdapter, Team, clear_cache, compact_score_line,
+    Event, EventState, ProviderAdapter, STANDINGS_LEAGUES, Team, clear_cache, compact_score_line,
     get_game_detail, get_league_catalog, get_rankings, get_scoreboard, get_sports_headlines,
-    get_sports_home_summary, group_events, has_college_rankings, league_news_query,
-    overlay_scoreboard_event, parse_espn_event, parse_espn_rankings, set_provider,
+    get_sports_home_summary, get_standings, group_events, has_college_rankings, has_standings,
+    league_news_query, overlay_scoreboard_event, parse_espn_event, parse_espn_rankings,
+    parse_espn_standings, set_provider,
 )
 
 class MockProvider(ProviderAdapter):
@@ -529,3 +530,241 @@ def test_sports_headlines_cache_and_https_only(monkeypatch):
     assert first == second
     assert calls["n"] == 1
     assert first["headlines"][0]["url"].startswith("https://")
+
+
+def test_team_logos_parsed():
+    ev_data = {
+        "id": "2001",
+        "name": "Team A at Team B",
+        "date": "2026-09-09T01:00Z",
+        "status": {"type": {"name": "STATUS_IN_PROGRESS", "state": "in"}},
+        "competitions": [{
+            "competitors": [
+                {
+                    "homeAway": "home",
+                    "team": {
+                        "id": "1",
+                        "displayName": "Home Team",
+                        "abbreviation": "HOM",
+                        "logo": "https://a.espncdn.com/i/teamlogos/mlb/500/hom.png",
+                    },
+                },
+                {
+                    "homeAway": "away",
+                    "team": {
+                        "id": "2",
+                        "displayName": "Away Team",
+                        "abbreviation": "AWY",
+                        "logos": [{"href": "https://a.espncdn.com/i/teamlogos/mlb/500/awy.png"}],
+                    },
+                },
+            ]
+        }],
+    }
+    ev = parse_espn_event("mlb", ev_data)
+    assert ev.home_team.logo == "https://a.espncdn.com/i/teamlogos/mlb/500/hom.png"
+    assert ev.away_team.logo == "https://a.espncdn.com/i/teamlogos/mlb/500/awy.png"
+
+
+def test_baseball_situation_parsed():
+    ev_data = {
+        "id": "2002",
+        "name": "Red Sox at Yankees",
+        "date": "2026-09-09T01:00Z",
+        "status": {"type": {"name": "STATUS_IN_PROGRESS", "state": "in"}},
+        "competitions": [{
+            "competitors": [
+                {"homeAway": "home", "team": {"id": "1", "abbreviation": "NYY"}},
+                {"homeAway": "away", "team": {"id": "2", "abbreviation": "BOS"}},
+            ],
+            "situation": {
+                "outs": 2,
+                "balls": 3,
+                "strikes": 2,
+                "onFirst": True,
+                "onSecond": False,
+                "onThird": True,
+                "batter": {"athlete": {"displayName": "Aaron Judge"}},
+                "pitcher": {"athlete": {"displayName": "Brayan Bello"}},
+                "lastPlay": {"text": "Aaron Judge strikes out swinging."},
+            },
+        }],
+    }
+    ev = parse_espn_event("mlb", ev_data)
+    assert ev.outs == 2
+    assert ev.balls == 3
+    assert ev.strikes == 2
+    assert ev.on_first is True
+    assert ev.on_second is False
+    assert ev.on_third is True
+    assert ev.batter_name == "Aaron Judge"
+    assert ev.pitcher_name == "Brayan Bello"
+    assert ev.last_play == "Aaron Judge strikes out swinging."
+    assert "2 outs" in ev.situation.lower() or "3-2" in ev.situation
+
+
+def test_football_situation_parsed():
+    ev_data = {
+        "id": "2003",
+        "name": "Chiefs at Ravens",
+        "date": "2026-09-09T01:00Z",
+        "status": {"type": {"name": "STATUS_IN_PROGRESS", "state": "in"}},
+        "competitions": [{
+            "competitors": [
+                {"homeAway": "home", "team": {"id": "1", "abbreviation": "BAL"}},
+                {"homeAway": "away", "team": {"id": "2", "abbreviation": "KC"}},
+            ],
+            "situation": {
+                "down": 3,
+                "distance": 4,
+                "downDistanceText": "3rd & 4 at BAL 18",
+                "possession": "2",
+                "possessionText": "KC ball",
+                "isRedZone": True,
+                "lastPlay": {"text": "Patrick Mahomes pass short right to Travis Kelce for 6 yards."},
+            },
+        }],
+    }
+    ev = parse_espn_event("nfl", ev_data)
+    assert ev.down_distance == "3rd & 4 at BAL 18"
+    assert ev.possession_text == "KC ball"
+    assert ev.is_red_zone is True
+    assert "Patrick Mahomes" in ev.last_play
+    assert "3rd & 4" in ev.situation
+
+
+def test_overlay_preserves_situation_and_logos():
+    detail = Event(
+        id="mlb_1", name="A at B", short_name="A @ B",
+        start_time=datetime(2026, 9, 9, 0, 0, tzinfo=timezone.utc),
+        state=EventState.IN_PROGRESS, clock="", period=1, league="mlb", status_detail="",
+        venue="", situation="",
+        away_team=Team(id="1", name="Away", abbreviation="AWY", is_home=False),
+        home_team=Team(id="2", name="Home", abbreviation="HOM", is_home=True),
+    )
+    board = Event(
+        id="mlb_1", name="A at B", short_name="A @ B",
+        start_time=datetime(2026, 9, 9, 0, 0, tzinfo=timezone.utc),
+        state=EventState.IN_PROGRESS, clock="", period=5, league="mlb", status_detail="Mid 5th",
+        venue="", situation="1-2, 1 out",
+        away_team=Team(id="1", name="Away", abbreviation="AWY", is_home=False, logo="https://awy.png"),
+        home_team=Team(id="2", name="Home", abbreviation="HOM", is_home=True, logo="https://hom.png"),
+        outs=1, balls=1, strikes=2, on_first=True, on_second=False, on_third=True,
+        batter_name="Batter", pitcher_name="Pitcher",
+    )
+    overlaid = overlay_scoreboard_event(detail, board)
+    assert overlaid.outs == 1
+    assert overlaid.balls == 1
+    assert overlaid.strikes == 2
+    assert overlaid.on_first is True
+    assert overlaid.on_third is True
+    assert overlaid.batter_name == "Batter"
+    assert overlaid.away_team.logo == "https://awy.png"
+    assert overlaid.home_team.logo == "https://hom.png"
+
+
+def test_parse_espn_standings_groups_and_children():
+    # Test groups structure (typical MLB/NFL)
+    raw_groups = {
+        "content": {
+            "standings": {
+                "groups": [{
+                    "name": "AL East",
+                    "standings": {
+                        "entries": [{
+                            "team": {
+                                "id": "10", "name": "Yankees", "displayName": "New York Yankees",
+                                "abbreviation": "NYY",
+                                "logo": "https://a.espncdn.com/nyy.png",
+                            },
+                            "stats": [
+                                {"name": "wins", "displayValue": "80"},
+                                {"name": "losses", "displayValue": "50"},
+                                {"name": "winPercent", "displayValue": ".615"},
+                                {"name": "gamesBehind", "displayValue": "-"},
+                                {"name": "pointDifferential", "displayValue": "+110"},
+                                {"name": "streak", "displayValue": "W3"},
+                                {"name": "Last Ten Games", "displayValue": "7-3"},
+                            ],
+                        }],
+                    },
+                }],
+            },
+        },
+    }
+    parsed = parse_espn_standings("mlb", raw_groups)
+    assert parsed["available"] is True
+    assert len(parsed["divisions"]) == 1
+    assert parsed["divisions"][0]["name"] == "AL East"
+    team = parsed["divisions"][0]["teams"][0]
+    assert team["abbreviation"] == "NYY"
+    assert team["wins"] == "80"
+    assert team["losses"] == "50"
+    assert team["pct"] == ".615"
+    assert team["gb"] == "-"
+    assert team["diff"] == "+110"
+    assert team["streak"] == "W3"
+    assert team["logo"] == "https://a.espncdn.com/nyy.png"
+
+    # Test children structure (NHL v2 API style)
+    raw_children = {
+        "children": [{
+            "name": "Eastern Conference",
+            "standings": {
+                "entries": [{
+                    "team": {
+                        "id": "1", "name": "Bruins", "displayName": "Boston Bruins",
+                        "abbreviation": "BOS",
+                        "logos": [{"href": "https://a.espncdn.com/bos.png"}],
+                    },
+                    "stats": [
+                        {"name": "wins", "displayValue": "45"},
+                        {"name": "losses", "displayValue": "20"},
+                        {"name": "OTLosses", "displayValue": "7"},
+                        {"name": "points", "displayValue": "97"},
+                    ],
+                }],
+            },
+        }],
+    }
+    parsed_nhl = parse_espn_standings("nhl", raw_children)
+    assert parsed_nhl["available"] is True
+    assert parsed_nhl["divisions"][0]["name"] == "Eastern Conference"
+    nhl_team = parsed_nhl["divisions"][0]["teams"][0]
+    assert nhl_team["abbreviation"] == "BOS"
+    assert nhl_team["ties"] == "7"
+    assert nhl_team["points"] == "97"
+    assert nhl_team["logo"] == "https://a.espncdn.com/bos.png"
+
+
+def test_get_standings_uses_espn_sources(setup_teardown):
+    provider = setup_teardown
+    url = "https://cdn.espn.com/core/mlb/standings"
+    provider.responses[(url, frozenset({"xhr": "1"}.items()))] = {
+        "content": {
+            "standings": {
+                "groups": [{
+                    "name": "AL East",
+                    "standings": {
+                        "entries": [{
+                            "team": {"id": "10", "name": "Yankees", "abbreviation": "NYY"},
+                            "stats": [{"name": "wins", "displayValue": "80"}, {"name": "losses", "displayValue": "50"}],
+                        }],
+                    },
+                }],
+            },
+        },
+    }
+    payload = run(get_standings("mlb"))
+    assert payload.freshness == "fresh"
+    assert payload.data["divisions"][0]["teams"][0]["abbreviation"] == "NYY"
+    with pytest.raises(ValueError):
+        run(get_standings("cfb"))
+
+
+def test_has_standings_leagues():
+    for lg in ["mlb", "nfl", "nba", "nhl", "wnba", "mls", "epl"]:
+        assert has_standings(lg) is True
+    for lg in ["cfb", "mcbb", "wcbb"]:
+        assert has_standings(lg) is False
+

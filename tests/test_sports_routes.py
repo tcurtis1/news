@@ -305,3 +305,169 @@ def test_robots_disallow_game_pages():
     assert response.status_code == 200
     assert "Disallow: /sports/game/" in response.text
     assert "Disallow: /admin/" in response.text
+
+
+def _standings_payload():
+    return SportsPayload(
+        updated_at=datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc),
+        freshness="fresh",
+        provider_label="espn",
+        data={
+            "league": "mlb",
+            "available": True,
+            "divisions": [{
+                "name": "AL East",
+                "teams": [
+                    {
+                        "id": "10",
+                        "name": "New York Yankees",
+                        "abbreviation": "NYY",
+                        "logo": "https://a.espncdn.com/nyy.png",
+                        "wins": "82",
+                        "losses": "52",
+                        "ties": None,
+                        "pct": ".612",
+                        "gb": "-",
+                        "diff": "+115",
+                        "streak": "W4",
+                        "l10": "7-3",
+                        "points": None,
+                        "clinch": "e",
+                        "news_query": "NYY New York Yankees",
+                    },
+                ],
+            }],
+        },
+    )
+
+
+def test_standings_route_and_api(monkeypatch):
+    install_fakes(monkeypatch)
+
+    async def fake_standings(league):
+        assert league == "mlb"
+        return _standings_payload()
+
+    monkeypatch.setattr(main_mod, "get_standings", fake_standings)
+    client = TestClient(main_mod.app)
+
+    # HTML route
+    page = client.get("/sports/mlb/standings")
+    assert page.status_code == 200
+    assert page.headers.get("cache-control") == "no-store"
+    assert "MLB Standings" in page.text or "Major League Baseball" in page.text
+    assert "AL East" in page.text
+    assert "New York Yankees" in page.text
+    assert "NYY" in page.text
+    assert "standings-table" in page.text
+    assert "https://a.espncdn.com/nyy.png" in page.text
+    assert 'data-team-key="mlb:10"' in page.text
+    assert 'class="team-star"' in page.text
+    assert "/sports/mlb" in page.text
+    assert "/sports/mlb/standings" in page.text
+
+    # 404 for league without standings
+    assert client.get("/sports/cfb/standings").status_code == 404
+
+    # API route
+    api = client.get("/api/sports/standings?league=mlb")
+    assert api.status_code == 200
+    body = api.json()
+    assert body["available"] is True
+    assert body["divisions"][0]["name"] == "AL East"
+    assert body["divisions"][0]["teams"][0]["abbreviation"] == "NYY"
+    assert body["divisions"][0]["teams"][0]["logo"] == "https://a.espncdn.com/nyy.png"
+
+    # API 404 for invalid league
+    assert client.get("/api/sports/standings?league=cfb").status_code == 404
+
+
+def test_live_baseball_situation_renders_diamond_and_count(monkeypatch):
+    baseball_game = sample_event(EventState.IN_PROGRESS)
+    baseball_game.league = "mlb"
+    baseball_game.outs = 2
+    baseball_game.balls = 3
+    baseball_game.strikes = 2
+    baseball_game.on_first = True
+    baseball_game.on_second = False
+    baseball_game.on_third = True
+    baseball_game.batter_name = "Aaron Judge"
+    baseball_game.pitcher_name = "Brayan Bello"
+    baseball_game.last_play = "Judge strikes out swinging."
+    install_fakes(monkeypatch, game=baseball_game)
+
+    client = TestClient(main_mod.app)
+    scoreboard = client.get("/sports/mlb")
+    assert scoreboard.status_code == 200
+    assert "base-diamond" in scoreboard.text
+    assert "is-occupied" in scoreboard.text
+    assert "2 Outs" in scoreboard.text
+    assert "Count 3-2" in scoreboard.text
+
+    detail = client.get(f"/sports/game/{baseball_game.id}")
+    assert detail.status_code == 200
+    assert "game-situation-bar" in detail.text
+    assert "base-diamond" in detail.text
+    assert "2 Outs" in detail.text
+    assert "Count 3-2" in detail.text
+    assert "Aaron Judge" in detail.text
+    assert "Brayan Bello" in detail.text
+    assert "Judge strikes out swinging." in detail.text
+
+
+def test_live_football_situation_renders_red_zone_and_down_distance(monkeypatch):
+    football_game = sample_event(EventState.IN_PROGRESS)
+    football_game.league = "nfl"
+    football_game.down_distance = "3rd & 4 at BAL 18"
+    football_game.possession_text = "KC ball"
+    football_game.is_red_zone = True
+    football_game.last_play = "Mahomes pass to Kelce for 6 yards."
+    install_fakes(monkeypatch, game=football_game)
+
+    client = TestClient(main_mod.app)
+    scoreboard = client.get("/sports/nfl")
+    assert scoreboard.status_code == 200
+    assert "Red Zone" in scoreboard.text
+    assert "3rd &amp; 4 at BAL 18" in scoreboard.text
+    assert "KC ball" in scoreboard.text
+
+    detail = client.get(f"/sports/game/{football_game.id}")
+    assert detail.status_code == 200
+    assert "game-situation-bar" in detail.text
+    assert "Red Zone" in detail.text
+    assert "3rd &amp; 4 at BAL 18" in detail.text
+    assert "KC ball" in detail.text
+    assert "Mahomes pass to Kelce" in detail.text
+
+
+def test_team_logos_render_in_scoreboard_and_game(monkeypatch):
+    game_with_logos = sample_event()
+    game_with_logos.away_team.logo = "https://a.espncdn.com/away.png"
+    game_with_logos.home_team.logo = "https://a.espncdn.com/home.png"
+    install_fakes(monkeypatch, game=game_with_logos)
+
+    client = TestClient(main_mod.app)
+    scoreboard = client.get("/sports/nfl")
+    assert scoreboard.status_code == 200
+    assert 'class="team-logo"' in scoreboard.text
+    assert "https://a.espncdn.com/away.png" in scoreboard.text
+    assert "https://a.espncdn.com/home.png" in scoreboard.text
+
+    detail = client.get(f"/sports/game/{game_with_logos.id}")
+    assert detail.status_code == 200
+    assert 'class="team-logo-lg"' in detail.text
+    assert "https://a.espncdn.com/away.png" in detail.text
+    assert "https://a.espncdn.com/home.png" in detail.text
+
+
+@pytest.mark.anyio
+async def test_sitemap_includes_standings_routes():
+    from app.seo import collect_sitemap_urls
+    urls = await collect_sitemap_urls()
+    locs = {u["loc"] for u in urls}
+    assert "https://news.yoyosup.com/sports/mlb/standings" in locs
+    assert "https://news.yoyosup.com/sports/nfl/standings" in locs
+    assert "https://news.yoyosup.com/sports/nba/standings" in locs
+    assert "https://news.yoyosup.com/sports/nhl/standings" in locs
+    assert "https://news.yoyosup.com/sports/epl/standings" in locs
+

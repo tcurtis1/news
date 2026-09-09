@@ -9,4 +9,9 @@
   <a href="/sports/{{ active_league }}"{% if rankings_view != "top25" %} aria-current="page"{% endif %}>Scores</a>
   <a href="/sports/{{ active_league }}/top25"{% if rankings_view == "top25" %} aria-current="page"{% endif %}>Top 25</a>
 </nav>
+{% elif has_standings and active_league %}
+<nav class="sports-view-nav" aria-label="Scores or Standings">
+  <a href="/sports/{{ active_league }}"{% if standings_view != "standings" %} aria-current="page"{% endif %}>Scores</a>
+  <a href="/sports/{{ active_league }}/standings"{% if standings_view == "standings" %} aria-current="page"{% endif %}>Standings</a>
+</nav>
 {% endif %}

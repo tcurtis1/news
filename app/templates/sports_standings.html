@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow">Standings</p>
+      <h1>{{ heading }}</h1>
+      <p class="muted">Division and conference records from ESPN’s public standings feed.{% if news_query %} Headlines below are from Google News.{% endif %}</p>
+    </div>
+    <a class="sports-scores-link" href="/sports/{{ active_league }}">Scores</a>
+  </header>
+
+  {% include "_sports_nav.html" %}
+
+  {% if standings.stale %}
+    <p class="sports-notice" role="status">Standings may be delayed. Showing the latest information we have.</p>
+  {% elif not standings.available %}
+    <p class="sports-notice" role="status">Couldn’t load {{ heading }} standings. Please try again in a moment.</p>
+  {% endif %}
+
+  {% if standings.available %}
+    {% for division in standings.divisions %}
+    <section class="sports-section" aria-labelledby="div-{{ loop.index }}">
+      <div class="sports-section-heading">
+        <h2 id="div-{{ loop.index }}">{{ division.name }}</h2>
+      </div>
+      <div class="standings-table-wrap">
+        <table class="standings-table">
+          <thead>
+            <tr>
+              <th class="th-team" scope="col">Team</th>
+              <th class="th-stat" scope="col">W</th>
+              <th class="th-stat" scope="col">L</th>
+              {% if division.has_ties %}<th class="th-stat" scope="col">{% if active_league == "nhl" %}OTL{% elif active_league in ["mls", "epl"] %}D{% else %}T{% endif %}</th>{% endif %}
+              {% if division.has_pts %}<th class="th-stat" scope="col">PTS</th>{% endif %}
+              {% if division.has_pct %}<th class="th-stat" scope="col">PCT</th>{% endif %}
+              {% if division.has_gb %}<th class="th-stat" scope="col">GB</th>{% endif %}
+              {% if division.has_diff %}<th class="th-stat" scope="col">DIFF</th>{% endif %}
+              {% if division.has_strk %}<th class="th-stat" scope="col">STRK</th>{% endif %}
+              {% if division.has_l10 %}<th class="th-stat" scope="col">L10</th>{% endif %}
+              <th class="th-actions" scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for team in division.teams %}
+            <tr>
+              <th class="td-team" scope="row">
+                <div class="team-cell">
+                  {% if team.logo %}
+                    <img class="team-logo" src="{{ team.logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                  {% endif %}
+                  <span class="team-cell-names">
+                    <b>{{ team.abbreviation }}</b>
+                    <span class="team-full-name">{{ team.name }}</span>
+                    {% if team.clinch %}<span class="clinch-badge">{{ team.clinch }}</span>{% endif %}
+                  </span>
+                </div>
+              </th>
+              <td class="td-stat">{{ team.wins }}</td>
+              <td class="td-stat">{{ team.losses }}</td>
+              {% if division.has_ties %}<td class="td-stat">{{ team.ties if team.ties is not none else "0" }}</td>{% endif %}
+              {% if division.has_pts %}<td class="td-stat td-bold">{{ team.points or "—" }}</td>{% endif %}
+              {% if division.has_pct %}<td class="td-stat">{{ team.pct or "—" }}</td>{% endif %}
+              {% if division.has_gb %}<td class="td-stat">{{ team.gb or "—" }}</td>{% endif %}
+              {% if division.has_diff %}<td class="td-stat{% if team.diff and team.diff.startswith('+') %} is-up{% elif team.diff and team.diff.startswith('-') %} is-down{% endif %}">{{ team.diff or "—" }}</td>{% endif %}
+              {% if division.has_strk %}<td class="td-stat">{{ team.streak or "—" }}</td>{% endif %}
+              {% if division.has_l10 %}<td class="td-stat">{{ team.l10 or "—" }}</td>{% endif %}
+              <td class="td-actions">
+                <div class="standings-actions">
+                  <button type="button" class="team-star" data-team-key="{{ active_league }}:{{ team.id }}" data-team-id="{{ team.id }}" data-team-name="{{ team.name }}" data-team-abbr="{{ team.abbreviation }}" data-league="{{ active_league }}" aria-pressed="false">Star {{ team.abbreviation }}</button>
+                  {% if team.news_query %}<a class="rank-news" href="/search?q={{ team.news_query | urlencode }}">News</a>{% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endfor %}
+  {% endif %}
+
+  {% if news_query %}
+  <section class="sports-news" data-sports-news data-news-league="{{ active_league }}" data-news-more="/search?q={{ news_query | urlencode }}">
+    <div class="sports-section-heading">
+      <h2>News</h2>
+      <a href="/search?q={{ news_query | urlencode }}">More {{ news_query }} news</a>
+    </div>
+    <ul class="sports-headlines" hidden></ul>
+  </section>
+  {% endif %}
+
+  <footer class="sports-source">
+    {% if standings.source_label %}Data: {{ standings.source_label }}. {% endif %}
+    Official league records published by ESPN.
+  </footer>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/sports.js?v={{ app_version }}" defer></script>
+{% endblock %}
