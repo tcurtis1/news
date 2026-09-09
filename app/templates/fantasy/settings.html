@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow"><a href="/sports/fantasy/league/{{ league.id }}">{{ league.name }}</a> › Constitution</p>
+      <h1>Rules & Settings</h1>
+      <p class="muted">
+        {% if is_commissioner %}You are the commissioner and can modify league configuration.{% else %}Official constitution for {{ league.name }}.{% endif %}
+      </p>
+    </div>
+    <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}">← League Hub</a>
+  </header>
+
+  <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
+    <a href="/sports/fantasy/league/{{ league.id }}">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/settings" aria-current="page">Rules & Settings</a>
+    <a href="/sports/fantasy/players">Player Directory</a>
+  </nav>
+
+  {% if is_commissioner %}
+  <section class="fantasy-form-panel">
+    <form method="POST" action="/sports/fantasy/league/{{ league.id }}/settings" class="fantasy-form">
+      <div class="form-group">
+        <label for="name">League Name</label>
+        <input type="text" id="name" name="name" value="{{ league.name }}" required maxlength="50">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="scoring_format">Scoring Format</label>
+          <select id="scoring_format" name="scoring_format">
+            <option value="half_ppr"{% if league.settings.scoring_format == "half_ppr" %} selected{% endif %}>0.5 PPR (Half point per reception)</option>
+            <option value="full_ppr"{% if league.settings.scoring_format == "full_ppr" %} selected{% endif %}>Full PPR (1 point per reception)</option>
+            <option value="standard"{% if league.settings.scoring_format == "standard" %} selected{% endif %}>Standard (0 points per reception)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="max_teams">Maximum Teams</label>
+          <select id="max_teams" name="max_teams">
+            {% for n in [8, 10, 12, 14] %}
+            <option value="{{ n }}"{% if league.settings.max_teams == n %} selected{% endif %}>{{ n }} Teams</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="waiver_type">Waiver System</label>
+          <select id="waiver_type" name="waiver_type">
+            <option value="faab"{% if league.settings.waiver_type == "faab" %} selected{% endif %}>FAAB (Free Agent Acquisition Budget)</option>
+            <option value="rolling"{% if league.settings.waiver_type == "rolling" %} selected{% endif %}>Rolling Priority</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="faab_budget">FAAB Starting Budget ($)</label>
+          <input type="number" id="faab_budget" name="faab_budget" value="{{ league.settings.faab_budget }}" min="0" max="1000">
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Save League Settings</button>
+      </div>
+    </form>
+  </section>
+  {% else %}
+  <section class="sports-panel">
+    <h2>League Configuration</h2>
+    <div class="game-stats">
+      <div><span>Scoring Preset</span><b>{{ league.settings.scoring_format | replace('_', ' ') | upper }}</b><span>Default</span></div>
+      <div><span>Total Team Slots</span><b>{{ league.settings.max_teams }} Teams</b><span>Locked</span></div>
+      <div><span>Waiver Wire</span><b>{{ league.settings.waiver_type | upper }}</b><span>${{ league.settings.faab_budget }} starting</span></div>
+      <div><span>Trade Review</span><b>{{ league.settings.trade_review_hours }} Hours</b><span>Commissioner review</span></div>
+    </div>
+  </section>
+  {% endif %}
+</main>
+{% endblock %}

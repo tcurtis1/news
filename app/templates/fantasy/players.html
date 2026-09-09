@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow"><a href="/sports/fantasy">Fantasy NFL</a> › Research</p>
+      <h1>NFL Player Directory</h1>
+      <p class="muted">2026 fantasy projections, draft rankings (ADP), bye weeks, and depth chart value.</p>
+    </div>
+    <a class="sports-scores-link" href="/sports/fantasy">Fantasy Home</a>
+  </header>
+
+  <nav class="sports-view-nav fantasy-pos-nav" aria-label="Position filter">
+    {% for pos in positions %}
+      <a href="/sports/fantasy/players?pos={{ pos }}{% if query %}&q={{ query | urlencode }}{% endif %}"{% if active_pos == pos %} aria-current="page"{% endif %}>{{ pos }}</a>
+    {% endfor %}
+  </nav>
+
+  <form method="GET" action="/sports/fantasy/players" class="fantasy-search-bar">
+    <input type="hidden" name="pos" value="{{ active_pos }}">
+    <input type="search" name="q" value="{{ query }}" placeholder="Search player by name (e.g. Justin Jefferson, Mahomes)..." aria-label="Search players">
+    <button type="submit" class="btn-primary">Search</button>
+    {% if query %}
+      <a href="/sports/fantasy/players?pos={{ active_pos }}" class="btn-secondary">Clear</a>
+    {% endif %}
+  </form>
+
+  <section class="sports-section" aria-labelledby="players-list-heading">
+    <div class="sports-section-heading">
+      <h2 id="players-list-heading">{% if active_pos != "ALL" %}{{ active_pos }} {% endif %}Players</h2>
+      <span>{{ players|length }} players listed</span>
+    </div>
+
+    <div class="standings-table-wrap">
+      <table class="standings-table fantasy-players-table">
+        <thead>
+          <tr>
+            <th class="th-team" scope="col">Player</th>
+            <th class="th-stat" scope="col">Pos</th>
+            <th class="th-stat" scope="col">Team</th>
+            <th class="th-stat" scope="col">Bye</th>
+            <th class="th-stat" scope="col">ADP</th>
+            <th class="th-stat" scope="col">Proj Pts</th>
+            <th class="th-actions" scope="col">News</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in players %}
+          <tr>
+            <th class="td-team" scope="row">
+              <div class="player-cell">
+                {% if p.headshot_url %}
+                  <img class="player-headshot" src="{{ p.headshot_url }}" alt="" width="32" height="24" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                {% endif %}
+                <span class="player-cell-names">
+                  <b>{{ p.name }}</b>
+                  {% if p.status != 'ACT' %}<span class="injury-badge">{{ p.status }}</span>{% endif %}
+                </span>
+              </div>
+            </th>
+            <td class="td-stat"><span class="pos-tag pos-{{ p.position }}">{{ p.position }}</span></td>
+            <td class="td-stat"><b>{{ p.nfl_team }}</b></td>
+            <td class="td-stat">{{ p.bye_week }}</td>
+            <td class="td-stat">#{{ p.adp }}</td>
+            <td class="td-stat td-bold">{{ p.projected_points }}</td>
+            <td class="td-actions">
+              <a class="rank-news" href="/search?q={{ p.name | urlencode }}">News</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+{% endblock %}

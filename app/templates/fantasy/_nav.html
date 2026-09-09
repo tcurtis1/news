@@ -1,0 +1,6 @@
+<nav class="sports-view-nav fantasy-nav" aria-label="Fantasy Football navigation">
+  <a href="/sports/fantasy"{% if active_nav == "fantasy" and not league %} aria-current="page"{% endif %}>Fantasy Home</a>
+  <a href="/sports/fantasy/create"{% if active_nav == "create" %} aria-current="page"{% endif %}>+ New League</a>
+  <a href="/sports/fantasy/players"{% if active_nav == "players" %} aria-current="page"{% endif %}>Players</a>
+  <a href="/sports/nfl">NFL Scores</a>
+</nav>

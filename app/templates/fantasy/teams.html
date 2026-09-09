@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow"><a href="/sports/fantasy/league/{{ league.id }}">{{ league.name }}</a> › Rosters</p>
+      <h1>Teams & Rosters</h1>
+      <p class="muted">All {{ league.teams|length }} franchises registered in {{ league.name }}.</p>
+    </div>
+    <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}">← League Hub</a>
+  </header>
+
+  <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
+    <a href="/sports/fantasy/league/{{ league.id }}">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/teams" aria-current="page">Teams & Rosters</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/settings">Rules & Settings</a>
+    <a href="/sports/fantasy/players">Player Directory</a>
+  </nav>
+
+  <section class="sports-section" aria-labelledby="all-teams-heading">
+    <div class="fantasy-grid">
+      {% for t in league.teams %}
+      <article class="fantasy-card{% if my_team and my_team.id == t.id %} fantasy-card-you{% endif %}">
+        <div class="fantasy-card-header">
+          <div>
+            <h3>{{ t.name }}</h3>
+            <p class="muted">Manager: <b>{{ t.manager_name }}</b></p>
+          </div>
+          {% if t.is_commissioner %}
+            <span class="badge-pill">Commissioner</span>
+          {% endif %}
+        </div>
+        <div class="fantasy-team-stats-row">
+          <div><span>Record</span><b>{{ t.wins }}-{{ t.losses }}{% if t.ties %}-{{ t.ties }}{% endif %}</b></div>
+          <div><span>Waiver</span><b>#{{ t.waiver_priority }}</b></div>
+          <div><span>FAAB</span><b>${{ t.faab_balance }}</b></div>
+        </div>
+        <div class="fantasy-card-footer">
+          <span class="muted">Roster size: 16 players (Pre-draft)</span>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+</main>
+{% endblock %}

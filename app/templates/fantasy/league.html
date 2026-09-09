@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow"><a href="/sports/fantasy">Fantasy NFL</a> › {{ league.season }}</p>
+      <h1>{{ league.name }}</h1>
+      <p class="muted">
+        Format: <b>{{ league.settings.scoring_format | replace('_', ' ') | upper }}</b> · 
+        Status: <span class="badge-pill">{{ league.status | replace('_', ' ') | title }}</span>
+        {% if is_commissioner %} · <span class="badge-pill badge-commish">You are Commissioner</span>{% endif %}
+      </p>
+    </div>
+    <div class="fantasy-hero-actions">
+      <a class="sports-scores-link" href="/sports/fantasy">All Leagues</a>
+    </div>
+  </header>
+
+  <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
+    <a href="/sports/fantasy/league/{{ league.id }}" aria-current="page">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/settings">Rules & Settings</a>
+    <a href="/sports/fantasy/players">Player Directory</a>
+  </nav>
+
+  {% if spots_left > 0 %}
+  <section class="fantasy-invite-box">
+    <div class="invite-header">
+      <div>
+        <h3>Invite Managers</h3>
+        <p class="muted">{{ league.teams|length }} of {{ league.settings.max_teams }} teams filled. <b>{{ spots_left }} spots remaining.</b></p>
+      </div>
+      <div class="invite-input-group">
+        <input type="text" id="invite-link" value="{{ invite_url }}" readonly aria-label="Invite link">
+        <button type="button" class="btn-primary" id="copy-invite-btn" onclick="copyInviteLink()">Copy Link</button>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="sports-section" aria-labelledby="teams-heading">
+    <div class="sports-section-heading">
+      <h2 id="teams-heading">League Teams</h2>
+      <span>{{ league.teams|length }} Teams</span>
+    </div>
+    <div class="standings-table-wrap">
+      <table class="standings-table">
+        <thead>
+          <tr>
+            <th class="th-team" scope="col">Team</th>
+            <th class="th-stat" scope="col">Manager</th>
+            <th class="th-stat" scope="col">Waiver Priority</th>
+            <th class="th-stat" scope="col">FAAB</th>
+            <th class="th-actions" scope="col">Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in league.teams %}
+          <tr{% if my_team and my_team.id == t.id %} class="row-highlight"{% endif %}>
+            <th class="td-team" scope="row">
+              <div class="team-cell">
+                <span class="team-initials">{{ t.name[:2] | upper }}</span>
+                <span class="team-cell-names">
+                  <b>{{ t.name }}</b>
+                  {% if my_team and my_team.id == t.id %}<small class="you-badge">(Your Team)</small>{% endif %}
+                </span>
+              </div>
+            </th>
+            <td class="td-stat">{{ t.manager_name }}</td>
+            <td class="td-stat">#{{ t.waiver_priority }}</td>
+            <td class="td-stat">${{ t.faab_balance }}</td>
+            <td class="td-actions">
+              {% if t.is_commissioner %}
+                <span class="badge-pill">Commissioner</span>
+              {% else %}
+                <span class="muted">Manager</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="fantasy-columns">
+    <section class="sports-panel" aria-labelledby="roster-rules-heading">
+      <h2 id="roster-rules-heading">Roster Construction</h2>
+      <ul class="fantasy-rule-list">
+        {% for slot, count in league.settings.roster_slots.items() %}
+        <li>
+          <span><b>{{ slot }}</b>{% if slot == "FLEX" %} <small class="muted">(RB/WR/TE)</small>{% endif %}</span>
+          <strong class="tabular-stat">{{ count }}</strong>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section class="sports-panel" aria-labelledby="activity-heading">
+      <h2 id="activity-heading">League Activity</h2>
+      {% if audit_log %}
+      <ol class="game-events fantasy-audit-events">
+        {% for entry in audit_log %}
+        <li>
+          <span>{{ entry.description }}</span>
+          <small class="muted">{{ entry.created_at[:10] }}</small>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+        <p class="muted">No recent activity.</p>
+      {% endif %}
+    </section>
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyInviteLink() {
+  var input = document.getElementById("invite-link");
+  if (!input) return;
+  input.select();
+  input.setSelectionRange(0, 99999);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(input.value).then(function() {
+      var btn = document.getElementById("copy-invite-btn");
+      if (btn) {
+        var prev = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(function() { btn.textContent = prev; }, 1800);
+      }
+    });
+  } else {
+    document.execCommand("copy");
+    var btn = document.getElementById("copy-invite-btn");
+    if (btn) btn.textContent = "Copied!";
+  }
+}
+</script>
+{% endblock %}

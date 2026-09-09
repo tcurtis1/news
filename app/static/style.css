@@ -2845,3 +2845,84 @@ li.card.story-card:hover {
   .game-stats > div { grid-template-columns: minmax(0, 1fr) minmax(6rem, auto) minmax(0, 1fr); font-size: 0.85rem; }
   .team-cell-names .team-full-name { display: none; }
 }
+
+/* Fantasy Football — Sprint 1 League Hub & Rosters */
+.btn-primary { display: inline-flex; align-items: center; justify-content: center; padding: 0.45rem 0.95rem; border: none; border-radius: 999px; background: var(--accent); color: #fff !important; font-size: 0.86rem; font-weight: 750; text-decoration: none; cursor: pointer; transition: opacity 0.15s ease; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-secondary { display: inline-flex; align-items: center; justify-content: center; padding: 0.45rem 0.95rem; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--text) !important; font-size: 0.86rem; font-weight: 750; text-decoration: none; cursor: pointer; }
+.btn-sm { padding: 0.25rem 0.65rem; font-size: 0.78rem; }
+.btn-lg { padding: 0.65rem 1.25rem; font-size: 0.95rem; }
+.fantasy-hero-actions { display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; }
+.fantasy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 0.85rem; }
+.fantasy-card { display: flex; flex-direction: column; justify-content: space-between; padding: 1rem; border: 1px solid var(--border); border-radius: 13px; background: var(--card); box-shadow: var(--shadow); }
+.fantasy-card-you { border-color: var(--accent); border-left-width: 4px; }
+.fantasy-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+.fantasy-card-header h3 { margin: 0 0 0.25rem; font-size: 1.05rem; }
+.fantasy-card-header h3 a { color: var(--text); }
+.fantasy-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 0.85rem; padding-top: 0.65rem; border-top: 1px solid var(--border); font-size: 0.82rem; }
+.fantasy-team-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin: 0.75rem 0; padding: 0.5rem; background: var(--panel); border-radius: 8px; text-align: center; }
+.fantasy-team-stats-row span { display: block; color: var(--muted); font-size: 0.72rem; }
+.fantasy-team-stats-row b { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.badge-pill { display: inline-block; padding: 0.12rem 0.5rem; border-radius: 999px; background: color-mix(in srgb, var(--accent) 15%, var(--card)); color: var(--accent); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.02em; }
+.badge-commish { background: color-mix(in srgb, #b45309 15%, var(--card)); color: #b45309; }
+.fantasy-action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 0.85rem; }
+.fantasy-action-card { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; padding: 1.15rem; border: 1px solid var(--border); border-radius: 13px; background: var(--card); }
+.fantasy-action-card h3 { margin-top: 0; }
+.fantasy-action-card .btn-primary, .fantasy-action-card .btn-secondary { margin-top: 0.75rem; }
+.fantasy-features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 0.8rem; }
+.feature-card { padding: 0.95rem; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.feature-card .feature-icon { font-size: 1.4rem; margin-bottom: 0.35rem; }
+.feature-card h4 { margin: 0.2rem 0; font-size: 0.95rem; }
+.feature-card p { margin: 0; font-size: 0.82rem; line-height: 1.4; }
+.fantasy-form-panel { max-width: 580px; margin: 0.5rem auto 1.5rem; padding: 1.35rem; border: 1px solid var(--border); border-radius: 14px; background: var(--card); box-shadow: var(--shadow); }
+.fantasy-form { display: grid; gap: 1.15rem; }
+.fantasy-form .form-group { display: grid; gap: 0.35rem; }
+.fantasy-form label { font-weight: 750; font-size: 0.85rem; }
+.fantasy-form input[type="text"], .fantasy-form input[type="number"], .fantasy-form input[type="search"], .fantasy-form select { padding: 0.55rem 0.75rem; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text); font-size: 0.9rem; }
+.fantasy-form .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.segmented-control { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.segmented-option { display: flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.75rem; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); cursor: pointer; font-size: 0.84rem; font-weight: 700; }
+.segmented-option:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--accent); }
+.format-cards { display: grid; gap: 0.6rem; }
+.format-card { display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.75rem; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); cursor: pointer; }
+.format-card:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
+.format-card-content { display: grid; gap: 0.15rem; }
+.fantasy-invite-box { padding: 0.95rem 1.15rem; border: 1px dashed var(--accent); border-radius: 12px; background: color-mix(in srgb, var(--accent) 6%, var(--card)); margin-bottom: 0.75rem; }
+.invite-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.8rem; }
+.invite-header h3 { margin: 0 0 0.2rem; font-size: 1.05rem; }
+.invite-header p { margin: 0; font-size: 0.82rem; }
+.invite-input-group { display: flex; gap: 0.4rem; max-width: 420px; width: 100%; }
+.invite-input-group input { flex: 1; min-width: 0; padding: 0.45rem 0.65rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.82rem; background: var(--card); color: var(--text); }
+.team-initials { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 20%, var(--panel)); color: var(--accent); font-size: 0.78rem; font-weight: 850; flex-shrink: 0; }
+.you-badge { color: var(--accent); font-weight: 800; font-size: 0.76rem; }
+.row-highlight { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.fantasy-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin-top: 0.8rem; }
+.fantasy-rule-list { display: grid; gap: 0.45rem; margin: 0; padding: 0; list-style: none; font-size: 0.86rem; }
+.fantasy-rule-list li { display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+.fantasy-audit-events { margin: 0; padding-left: 1.15rem; font-size: 0.82rem; }
+.fantasy-audit-events li { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.fantasy-search-bar { display: flex; gap: 0.5rem; max-width: 550px; margin: 0.5rem 0 1rem; }
+.fantasy-search-bar input { flex: 1; padding: 0.5rem 0.85rem; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--text); font-size: 0.88rem; }
+.player-cell { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+.player-headshot { width: 32px; height: 24px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
+.player-cell-names { display: flex; align-items: baseline; gap: 0.35rem; }
+.pos-tag { display: inline-block; padding: 0.08rem 0.38rem; border-radius: 4px; font-size: 0.72rem; font-weight: 850; text-transform: uppercase; }
+.pos-QB { background: #dbeafe; color: #1e40af; }
+.pos-RB { background: #dcfce7; color: #166534; }
+.pos-WR { background: #fef3c7; color: #92400e; }
+.pos-TE { background: #f3e8ff; color: #6b21a8; }
+.pos-K { background: #e0e7ff; color: #3730a3; }
+.pos-DST { background: #fee2e2; color: #991b1b; }
+.injury-badge { display: inline-block; padding: 0.05rem 0.25rem; border-radius: 3px; background: #fee2e2; color: #991b1b; font-size: 0.65rem; font-weight: 850; }
+.fantasy-join-summary { margin-bottom: 1.25rem; padding: 0.95rem 1.15rem; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.join-meta-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.join-meta-row > div { display: grid; gap: 0.15rem; }
+.meta-label { color: var(--muted); font-size: 0.74rem; text-transform: uppercase; font-weight: 750; letter-spacing: 0.04em; }
+.highlight-stat { color: var(--accent); }
+
+@media (max-width: 620px) {
+  .fantasy-columns { grid-template-columns: 1fr; }
+  .fantasy-form .form-row { grid-template-columns: 1fr; }
+  .invite-header { flex-direction: column; align-items: stretch; }
+  .invite-input-group { max-width: 100%; }
+}

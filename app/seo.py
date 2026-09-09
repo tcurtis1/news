@@ -88,6 +88,9 @@ async def collect_sitemap_urls() -> list[dict[str, Any]]:
         {"loc": f"{PUBLIC_BASE}/sports/wnba/standings", "changefreq": "daily", "priority": "0.7", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/sports/epl/standings", "changefreq": "daily", "priority": "0.75", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/sports/mls/standings", "changefreq": "daily", "priority": "0.75", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/fantasy", "changefreq": "daily", "priority": "0.85", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/fantasy/create", "changefreq": "monthly", "priority": "0.8", "lastmod": day},
+        {"loc": f"{PUBLIC_BASE}/sports/fantasy/players", "changefreq": "daily", "priority": "0.8", "lastmod": day},
         {"loc": f"{PUBLIC_BASE}/safety", "changefreq": "monthly", "priority": "0.4", "lastmod": day},
     ]
 

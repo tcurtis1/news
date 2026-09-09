@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow">Fantasy NFL</p>
+      <h1>Fantasy Football</h1>
+      <p class="muted">Calm, lightning-fast NFL fantasy leagues. Ad-free, no gambling spam, zero bloat.</p>
+    </div>
+    <div class="fantasy-hero-actions">
+      <a class="btn-primary" href="/sports/fantasy/create">+ Create League</a>
+      <a class="sports-scores-link" href="/sports/nfl">NFL Scores</a>
+    </div>
+  </header>
+
+  {% include "fantasy/_nav.html" %}
+
+  {% if my_teams %}
+  <section class="sports-section" aria-labelledby="your-leagues-heading">
+    <div class="sports-section-heading">
+      <h2 id="your-leagues-heading">Your Leagues</h2>
+      <span>Saved on this device</span>
+    </div>
+    <div class="fantasy-grid">
+      {% for item in my_teams %}
+      <article class="fantasy-card">
+        <div class="fantasy-card-header">
+          <div>
+            <h3><a href="/sports/fantasy/league/{{ item.league_id }}">{{ item.league_name }}</a></h3>
+            <p class="muted">Team: <b>{{ item.team_name }}</b> ({{ item.manager_name }})</p>
+          </div>
+          {% if item.is_commissioner %}
+            <span class="badge-pill">Commissioner</span>
+          {% endif %}
+        </div>
+        <div class="fantasy-card-footer">
+          <span>Status: <b>{{ item.league_status | replace('_', ' ') | title }}</b></span>
+          <a class="btn-sm" href="/sports/fantasy/league/{{ item.league_id }}">Open Hub →</a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="sports-section" aria-labelledby="get-started-heading">
+    <div class="sports-section-heading">
+      <h2 id="get-started-heading">Get Started</h2>
+    </div>
+    <div class="fantasy-action-grid">
+      <div class="fantasy-action-card">
+        <h3>Create a New League</h3>
+        <p class="muted">Start a 8, 10, 12, or 14-team league in seconds. Pick your scoring rules and send an instant invite link to your friends.</p>
+        <a class="btn-primary" href="/sports/fantasy/create">Create a League →</a>
+      </div>
+      <div class="fantasy-action-card">
+        <h3>NFL Player Directory</h3>
+        <p class="muted">Explore top 2026 fantasy prospects, average draft positions (ADP), projected points, and bye weeks.</p>
+        <a class="btn-secondary" href="/sports/fantasy/players">Browse Players →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="sports-section" aria-labelledby="why-yoyo-heading">
+    <div class="sports-section-heading">
+      <h2 id="why-yoyo-heading">The Yoyo Fantasy Advantage</h2>
+    </div>
+    <div class="fantasy-features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h4>The Sunday Cockpit</h4>
+        <p class="muted">Real-time play-by-play scoring deltas explain every fraction of a point. Know who’s on the field, what just scored, and your live win probability.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⏱️</div>
+        <h4>Lightning Draft Room</h4>
+        <p class="muted">Fast 200ms pick latency, drag-and-drop queues, and resilient sequence reconnects that work even on spotty mobile cell signals.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <h4>Zero Ads & Betting Spam</h4>
+        <p class="muted">No popups, zero sportsbook affiliate traps, and no paywalled projections. Completely clean and calm pairing with Yoyo News.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚖️</div>
+        <h4>Commissioner Peace of Mind</h4>
+        <p class="muted">One-click reversible trades, transparent audit logs, and a "preview impact" screen before tweaking any scoring or roster rules.</p>
+      </div>
+    </div>
+  </section>
+</main>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow"><a href="/sports/fantasy">Fantasy NFL</a> › Invite</p>
+      <h1>Join {{ league.name }}</h1>
+      <p class="muted">You’ve been invited to join this 2026 NFL fantasy league.</p>
+    </div>
+  </header>
+
+  <div class="fantasy-join-summary">
+    <div class="join-meta-row">
+      <div>
+        <span class="meta-label">Format</span>
+        <b>{{ league.settings.scoring_format | replace('_', ' ') | upper }}</b>
+      </div>
+      <div>
+        <span class="meta-label">Teams</span>
+        <b>{{ league.teams|length }} of {{ league.settings.max_teams }} filled</b>
+      </div>
+      <div>
+        <span class="meta-label">Open Spots</span>
+        <b class="highlight-stat">{{ spots_left }} remaining</b>
+      </div>
+    </div>
+  </div>
+
+  {% if is_full %}
+    <div class="sports-notice" role="status">
+      <h3>League is Full</h3>
+      <p>All {{ league.settings.max_teams }} team slots for {{ league.name }} have been claimed.</p>
+      <a class="btn-secondary" href="/sports/fantasy">Return to Fantasy Home</a>
+    </div>
+  {% else %}
+    {% if error %}
+      <p class="sports-notice notice-error" role="alert">{{ error }}</p>
+    {% endif %}
+
+    <section class="fantasy-form-panel">
+      <form method="POST" action="/sports/fantasy/join/{{ invite_token }}" class="fantasy-form">
+        <div class="form-group">
+          <label for="manager_name">Your Name</label>
+          <input type="text" id="manager_name" name="manager_name" required placeholder="e.g. Alesia" maxlength="40" autofocus>
+        </div>
+
+        <div class="form-group">
+          <label for="team_name">Your Team Name</label>
+          <input type="text" id="team_name" name="team_name" required placeholder="e.g. Desert Vipers" maxlength="50">
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn-primary btn-lg">Join League →</button>
+        </div>
+      </form>
+    </section>
+  {% endif %}
+</main>
+{% endblock %}

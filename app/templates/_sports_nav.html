@@ -1,8 +1,9 @@
 <nav class="sports-leagues" aria-label="Sports leagues">
-  <a href="/sports"{% if not active_league %} aria-current="page"{% endif %}>Top</a>
+  <a href="/sports"{% if not active_league and active_nav != "fantasy" %} aria-current="page"{% endif %}>Top</a>
   {% for league in leagues %}
     <a href="/sports/{{ league.slug }}"{% if active_league == league.slug %} aria-current="page"{% endif %}>{{ league.short_name }}</a>
   {% endfor %}
+  <a href="/sports/fantasy"{% if active_league == "fantasy" or active_nav == "fantasy" %} aria-current="page"{% endif %}>Fantasy</a>
 </nav>
 {% if has_rankings and active_league %}
 <nav class="sports-view-nav" aria-label="College scores or Top 25">

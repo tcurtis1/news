@@ -5,5 +5,9 @@ __pycache__/
 venv/
 data/*.json
 !data/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
 .DS_Store
 data/comments/

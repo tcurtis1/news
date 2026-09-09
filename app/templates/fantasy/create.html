@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow"><a href="/sports/fantasy">Fantasy NFL</a> › Setup</p>
+      <h1>Create a Fantasy League</h1>
+      <p class="muted">Set up your 2026 NFL league in 30 seconds. You’ll get an instant invite link for your managers.</p>
+    </div>
+    <a class="sports-scores-link" href="/sports/fantasy">← Cancel</a>
+  </header>
+
+  <section class="fantasy-form-panel">
+    <form method="POST" action="/sports/fantasy/create" class="fantasy-form">
+      <div class="form-group">
+        <label for="league_name">League Name</label>
+        <input type="text" id="league_name" name="league_name" required placeholder="e.g. Basement Bowl 2026" maxlength="50" autofocus>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="manager_name">Your Name (Commissioner)</label>
+          <input type="text" id="manager_name" name="manager_name" required placeholder="e.g. Tony" maxlength="40">
+        </div>
+        <div class="form-group">
+          <label for="team_name">Your Team Name</label>
+          <input type="text" id="team_name" name="team_name" required placeholder="e.g. Iron Curtain" maxlength="50">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Number of Teams</label>
+        <div class="segmented-control">
+          {% for count in team_counts %}
+          <label class="segmented-option">
+            <input type="radio" name="max_teams" value="{{ count }}"{% if count == 10 %} checked{% endif %}>
+            <span>{{ count }} Teams</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Scoring Format</label>
+        <div class="format-cards">
+          {% for fmt_id, fmt_name, fmt_desc in scoring_formats %}
+          <label class="format-card">
+            <input type="radio" name="scoring_format" value="{{ fmt_id }}"{% if fmt_id == "half_ppr" %} checked{% endif %}>
+            <div class="format-card-content">
+              <b>{{ fmt_name }}</b>
+              <small class="muted">{{ fmt_desc }}</small>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Waiver Wire System</label>
+        <div class="segmented-control">
+          <label class="segmented-option">
+            <input type="radio" name="waiver_type" value="faab" checked>
+            <span>FAAB Budget ($100 blind bidding)</span>
+          </label>
+          <label class="segmented-option">
+            <input type="radio" name="waiver_type" value="rolling">
+            <span>Rolling Priority (Classic waiver order)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-primary btn-lg">Create League & Open Hub →</button>
+      </div>
+    </form>
+  </section>
+</main>
+{% endblock %}

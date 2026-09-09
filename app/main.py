@@ -95,6 +95,13 @@ templates.env.globals["slugify"] = slugify
 templates.env.globals["comment_count"] = comment_count
 templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["country_label"] = country_label
+app.state.templates = templates
+
+from app.fantasy.db import init_db
+from app.fantasy.routes import router as fantasy_router
+
+init_db()
+app.include_router(fantasy_router)
 
 
 @app.middleware("http")
