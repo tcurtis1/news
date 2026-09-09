@@ -17,6 +17,7 @@
 
   <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
     <a href="/sports/fantasy/league/{{ league.id }}">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/draft" style="color: var(--accent); font-weight: 850;">⚡ Draft Room</a>
     <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
     <a href="/sports/fantasy/league/{{ league.id }}/settings" aria-current="page">Rules & Settings</a>
     <a href="/sports/fantasy/players">Player Directory</a>
@@ -62,6 +63,19 @@
         <div class="form-group">
           <label for="faab_budget">FAAB Starting Budget ($)</label>
           <input type="number" id="faab_budget" name="faab_budget" value="{{ league.settings.faab_budget }}" min="0" max="1000">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pick_timer_seconds">Draft Clock (Seconds per Pick)</label>
+          <select id="pick_timer_seconds" name="pick_timer_seconds">
+            <option value="30"{% if league.settings.pick_timer_seconds == 30 %} selected{% endif %}>30 Seconds (Fast)</option>
+            <option value="60"{% if league.settings.pick_timer_seconds == 60 %} selected{% endif %}>60 Seconds (Standard)</option>
+            <option value="90"{% if league.settings.pick_timer_seconds == 90 %} selected{% endif %}>90 Seconds (Relaxed)</option>
+            <option value="120"{% if league.settings.pick_timer_seconds == 120 %} selected{% endif %}>120 Seconds (Deliberate)</option>
+            <option value="0"{% if league.settings.pick_timer_seconds == 0 %} selected{% endif %}>No Timer (Untimed)</option>
+          </select>
         </div>
       </div>
 

@@ -226,6 +226,13 @@ def update_league_settings(
                     curr_settings.faab_budget = max(0, min(1000, int(new_settings["faab_budget"])))
                 except Exception:
                     pass
+            if "pick_timer_seconds" in new_settings:
+                try:
+                    pts = int(new_settings["pick_timer_seconds"])
+                    if pts in (0, 15, 30, 45, 60, 90, 120, 180):
+                        curr_settings.pick_timer_seconds = pts
+                except Exception:
+                    pass
 
             settings_json = json.dumps(curr_settings.to_dict())
             league_name = (new_settings.get("name") or lr["name"]).strip()

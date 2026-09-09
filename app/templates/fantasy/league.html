@@ -21,10 +21,43 @@
 
   <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
     <a href="/sports/fantasy/league/{{ league.id }}" aria-current="page">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/draft" style="color: var(--accent); font-weight: 850;">⚡ Draft Room</a>
     <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
     <a href="/sports/fantasy/league/{{ league.id }}/settings">Rules & Settings</a>
     <a href="/sports/fantasy/players">Player Directory</a>
   </nav>
+
+  {% if league.status == 'drafting' %}
+  <section class="fantasy-invite-box" style="border-color: #10b981; background: color-mix(in srgb, #10b981 10%, var(--card));">
+    <div class="invite-header">
+      <div>
+        <h3 style="color: #10b981;">⚡ Live Draft In Progress</h3>
+        <p class="muted">Round {{ league.current_overall_pick // (league.teams|length or 1) + 1 }} · Overall Pick #{{ league.current_overall_pick }} on the clock.</p>
+      </div>
+      <a href="/sports/fantasy/league/{{ league.id }}/draft" class="btn-primary" style="background: #10b981;">Enter Draft Room →</a>
+    </div>
+  </section>
+  {% elif league.status == 'pre_draft' %}
+  <section class="fantasy-invite-box">
+    <div class="invite-header">
+      <div>
+        <h3>Draft Room</h3>
+        <p class="muted">Status: <b>Pre-Draft</b> · Snake draft with 60s pick timer & player queue.</p>
+      </div>
+      <a href="/sports/fantasy/league/{{ league.id }}/draft" class="btn-primary">Open Draft Room →</a>
+    </div>
+  </section>
+  {% elif league.status == 'draft_paused' %}
+  <section class="fantasy-invite-box" style="border-color: #b45309; background: color-mix(in srgb, #b45309 10%, var(--card));">
+    <div class="invite-header">
+      <div>
+        <h3 style="color: #b45309;">⏸ Draft Clock Paused</h3>
+        <p class="muted">Commissioner paused the draft clock.</p>
+      </div>
+      <a href="/sports/fantasy/league/{{ league.id }}/draft" class="btn-primary" style="background: #b45309;">Enter Draft Room →</a>
+    </div>
+  </section>
+  {% endif %}
 
   {% if spots_left > 0 %}
   <section class="fantasy-invite-box">

@@ -18,6 +18,7 @@ class ScoringFormat(str, Enum):
 class LeagueStatus(str, Enum):
     PRE_DRAFT = "pre_draft"
     DRAFTING = "drafting"
+    DRAFT_PAUSED = "draft_paused"
     IN_SEASON = "in_season"
     PLAYOFFS = "playoffs"
     COMPLETE = "complete"
@@ -130,6 +131,9 @@ class LeagueSettings:
     waiver_type: str = "faab"       # "faab" or "rolling"
     faab_budget: int = 100
     trade_review_hours: int = 24
+    draft_type: str = "snake"       # "snake"
+    pick_timer_seconds: int = 60    # 60s per pick; 0 for untimed
+    total_rounds: int = 15          # 15 rounds = 9 starters + 6 bench
     roster_slots: Dict[str, int] = field(default_factory=lambda: dict(DEFAULT_ROSTER_SLOTS))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -139,6 +143,9 @@ class LeagueSettings:
             "waiver_type": self.waiver_type,
             "faab_budget": self.faab_budget,
             "trade_review_hours": self.trade_review_hours,
+            "draft_type": self.draft_type,
+            "pick_timer_seconds": self.pick_timer_seconds,
+            "total_rounds": self.total_rounds,
             "roster_slots": dict(self.roster_slots),
         }
 
@@ -153,6 +160,9 @@ class LeagueSettings:
             waiver_type=str(data.get("waiver_type") or "faab"),
             faab_budget=int(data.get("faab_budget") or 100),
             trade_review_hours=int(data.get("trade_review_hours") or 24),
+            draft_type=str(data.get("draft_type") or "snake"),
+            pick_timer_seconds=int(data.get("pick_timer_seconds") if data.get("pick_timer_seconds") is not None else 60),
+            total_rounds=int(data.get("total_rounds") or 15),
             roster_slots=slots,
         )
 
@@ -230,6 +240,10 @@ class League:
     settings: LeagueSettings = field(default_factory=LeagueSettings)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     teams: List[FantasyTeam] = field(default_factory=list)
+    draft_order: List[str] = field(default_factory=list)
+    current_overall_pick: int = 1
+    current_pick_deadline: Optional[str] = None
+    draft_paused_seconds: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -242,6 +256,84 @@ class League:
             "settings": self.settings.to_dict(),
             "created_at": self.created_at,
             "teams": [t.to_dict() for t in self.teams],
+            "draft_order": list(self.draft_order),
+            "current_overall_pick": self.current_overall_pick,
+            "current_pick_deadline": self.current_pick_deadline,
+            "draft_paused_seconds": self.draft_paused_seconds,
+        }
+
+
+@dataclass
+class DraftPick:
+    id: str
+    league_id: str
+    round: int
+    pick_number: int        # pick within round (1..N)
+    overall_pick: int       # 1..total_picks
+    team_id: str
+    player_id: str
+    selected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    is_auto_pick: bool = False
+    player: Optional[Player] = None
+    team_name: Optional[str] = None
+    manager_name: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "league_id": self.league_id,
+            "round": self.round,
+            "pick_number": self.pick_number,
+            "overall_pick": self.overall_pick,
+            "team_id": self.team_id,
+            "player_id": self.player_id,
+            "selected_at": self.selected_at,
+            "is_auto_pick": bool(self.is_auto_pick),
+            "player": self.player.to_dict() if self.player else None,
+            "team_name": self.team_name,
+            "manager_name": self.manager_name,
+        }
+
+
+@dataclass
+class RosterPlayer:
+    id: str
+    team_id: str
+    player_id: str
+    slot: str               # "QB", "RB1", "RB2", "WR1", "WR2", "TE", "FLEX", "K", "DST", "BENCH"
+    acquired_type: str = "draft"
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    player: Optional[Player] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "team_id": self.team_id,
+            "player_id": self.player_id,
+            "slot": self.slot,
+            "acquired_type": self.acquired_type,
+            "created_at": self.created_at,
+            "player": self.player.to_dict() if self.player else None,
+        }
+
+
+@dataclass
+class DraftQueueItem:
+    id: str
+    team_id: str
+    player_id: str
+    priority: int = 1
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    player: Optional[Player] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "team_id": self.team_id,
+            "player_id": self.player_id,
+            "priority": self.priority,
+            "created_at": self.created_at,
+            "player": self.player.to_dict() if self.player else None,
         }
 
 

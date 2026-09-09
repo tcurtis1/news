@@ -21,6 +21,20 @@ from app.fantasy.service import (
     join_league,
     update_league_settings,
 )
+from app.fantasy.draft import (
+    auto_pick_if_timed_out,
+    get_draft_board,
+    get_draft_status,
+    get_team_roster,
+    make_draft_pick,
+    manage_draft_queue,
+    pause_draft,
+    reset_draft,
+    resume_draft,
+    set_draft_order,
+    start_draft,
+    undo_last_pick,
+)
 
 router = APIRouter(prefix="/sports/fantasy", tags=["fantasy"])
 
@@ -232,6 +246,7 @@ async def fantasy_league_settings_post(
     max_teams: int = Form(...),
     waiver_type: str = Form("faab"),
     faab_budget: int = Form(100),
+    pick_timer_seconds: int = Form(60),
 ):
     templates: Jinja2Templates = request.app.state.templates
     league = get_league(league_id)
@@ -254,6 +269,7 @@ async def fantasy_league_settings_post(
             "max_teams": max_teams,
             "waiver_type": waiver_type,
             "faab_budget": faab_budget,
+            "pick_timer_seconds": pick_timer_seconds,
         },
         actor_name=my_team.manager_name if my_team else "Commissioner",
     )
@@ -276,6 +292,171 @@ async def fantasy_players_view(request: Request, q: str = "", pos: str = "ALL"):
         "active_pos": pos.upper(),
         "positions": positions,
     })
+
+
+@router.get("/league/{league_id}/draft", response_class=HTMLResponse)
+async def fantasy_draft_room_view(request: Request, league_id: str):
+    templates: Jinja2Templates = request.app.state.templates
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="Fantasy league not found.")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (my_team and my_team.manager_token == league.commissioner_token)
+    draft_status = get_draft_status(league_id) or {}
+    players = get_players(limit=250)
+    my_roster = get_team_roster(my_team.id) if my_team else []
+    my_queue = manage_draft_queue(my_team.id, "list", "") if my_team else []
+    board = get_draft_board(league_id)
+
+    return templates.TemplateResponse(request, "fantasy/draft.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"{league.name} — Draft Room",
+        "league": league,
+        "my_team": my_team,
+        "is_commissioner": is_commish,
+        "draft_status": draft_status,
+        "players": players,
+        "my_roster": my_roster,
+        "my_queue": my_queue,
+        "board": board,
+        "active_tab": "draft",
+    })
+
+
+@router.get("/api/league/{league_id}/draft-state")
+async def api_draft_state(request: Request, league_id: str, board: int = 0):
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (my_team and my_team.manager_token == league.commissioner_token)
+
+    status = get_draft_status(league_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Draft status unavailable")
+
+    status["my_team_id"] = my_team.id if my_team else None
+    status["is_your_turn"] = bool(my_team and status.get("on_the_clock") and status["on_the_clock"]["id"] == my_team.id)
+    status["is_commissioner"] = is_commish
+    status["my_roster"] = get_team_roster(my_team.id) if my_team else []
+    status["my_queue"] = manage_draft_queue(my_team.id, "list", "") if my_team else []
+    if board:
+        status["draft_board"] = get_draft_board(league_id)
+
+    return JSONResponse(status)
+
+
+@router.post("/api/league/{league_id}/draft/pick")
+async def api_draft_pick(request: Request, league_id: str):
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    player_id = (data.get("player_id") or "").strip()
+    if not player_id:
+        return JSONResponse({"error": "Player ID is required."}, status_code=400)
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    commish_token = league.commissioner_token if (my_team and my_team.is_commissioner) or (my_team and my_team.manager_token == league.commissioner_token) else None
+
+    pick, err = make_draft_pick(
+        league_id=league_id,
+        player_id=player_id,
+        manager_token=my_team.manager_token if my_team else None,
+        commissioner_token=commish_token,
+    )
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+
+    return JSONResponse({
+        "success": True,
+        "pick": pick.to_dict() if pick else None,
+        "state": get_draft_status(league_id),
+    })
+
+
+@router.post("/api/league/{league_id}/draft/queue")
+async def api_draft_queue(request: Request, league_id: str):
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    action = data.get("action", "list")
+    player_id = (data.get("player_id") or "").strip()
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    if not my_team:
+        return JSONResponse({"error": "No active team on this device."}, status_code=403)
+
+    queue = manage_draft_queue(my_team.id, action, player_id)
+    return JSONResponse({"queue": queue})
+
+
+@router.post("/api/league/{league_id}/draft/control")
+async def api_draft_control(request: Request, league_id: str):
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (my_team and my_team.manager_token == league.commissioner_token)
+
+    if not is_commish:
+        return JSONResponse({"error": "Only the commissioner can control the draft."}, status_code=403)
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    action = (data.get("action") or "").strip()
+    err: Optional[str] = None
+
+    if action == "start":
+        _, err = start_draft(league_id, league.commissioner_token)
+    elif action == "pause":
+        _, err = pause_draft(league_id, league.commissioner_token)
+    elif action == "resume":
+        _, err = resume_draft(league_id, league.commissioner_token)
+    elif action == "undo":
+        _, err = undo_last_pick(league_id, league.commissioner_token)
+    elif action == "randomize_order":
+        _, err = set_draft_order(league_id, league.commissioner_token, randomize=True)
+    elif action == "reset":
+        _, err = reset_draft(league_id, league.commissioner_token)
+    else:
+        err = f"Unknown action: '{action}'."
+
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+
+    return JSONResponse({
+        "success": True,
+        "state": get_draft_status(league_id),
+    })
+
+
+@router.get("/api/league/{league_id}/draft-board")
+async def api_draft_board(league_id: str):
+    board = get_draft_board(league_id)
+    return JSONResponse(board)
 
 
 @router.get("/api/league/{league_id}")

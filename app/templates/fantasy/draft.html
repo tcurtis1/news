@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page draft-room-page" id="draft-app" data-league-id="{{ league.id }}">
+  <!-- Draft Header & HUD -->
+  <header class="draft-hud-header">
+    <div class="hud-top-bar">
+      <div>
+        <p class="eyebrow"><a href="/sports/fantasy/league/{{ league.id }}">{{ league.name }}</a> › Draft Room</p>
+        <h1 class="draft-title">{{ league.name }} <span class="draft-year">2026 Draft</span></h1>
+      </div>
+      <div class="hud-right-actions">
+        <button type="button" class="btn-sound-toggle" id="sound-toggle-btn" title="Toggle draft sounds" aria-label="Toggle sound">
+          <span id="sound-icon">🔔</span>
+        </button>
+        <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}">← League Hub</a>
+      </div>
+    </div>
+
+    <!-- Live Status Banner & Timer HUD -->
+    <div class="draft-clock-hud" id="draft-clock-hud">
+      <div class="hud-pick-info">
+        <div class="hud-round-label" id="hud-round-label">
+          ROUND <span id="hud-round-num">{{ draft_status.round or 1 }}</span> · PICK <span id="hud-pick-num">{{ draft_status.pick_in_round or 1 }}</span>
+          <span class="muted">({{ draft_status.overall_pick or 1 }} of {{ draft_status.total_picks or 0 }} Overall)</span>
+        </div>
+        <div class="hud-on-the-clock" id="hud-on-the-clock">
+          <span class="clock-prefix">On the Clock:</span>
+          <strong class="clock-team-name" id="clock-team-name">
+            {{ draft_status.on_the_clock.name if draft_status.on_the_clock else 'Waiting to begin' }}
+          </strong>
+          <span class="badge-your-turn" id="badge-your-turn" style="display: none;">IT’S YOUR TURN!</span>
+        </div>
+      </div>
+
+      <div class="hud-timer-wrap">
+        <div class="hud-timer-display" id="hud-timer-display">
+          <span class="timer-digits" id="timer-digits">00:{{ "%02d" % (draft_status.remaining_seconds if draft_status.remaining_seconds is not none else draft_status.pick_timer_seconds) }}</span>
+          <span class="timer-status-tag" id="timer-status-tag">{{ draft_status.status | replace('_', ' ') | upper }}</span>
+        </div>
+        <div class="timer-progress-bar">
+          <div class="timer-progress-fill" id="timer-progress-fill" style="width: 100%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Commissioner Controls Toolbar -->
+    {% if is_commissioner %}
+    <div class="commish-draft-bar" id="commish-draft-bar">
+      <span class="commish-label">👑 Commish Tools:</span>
+      <div class="commish-buttons">
+        <button type="button" class="btn-sm btn-action" id="btn-draft-start" onclick="sendDraftControl('start')">▶ Start Draft</button>
+        <button type="button" class="btn-sm btn-action" id="btn-draft-pause" onclick="sendDraftControl('pause')">⏸ Pause Clock</button>
+        <button type="button" class="btn-sm btn-action" id="btn-draft-resume" onclick="sendDraftControl('resume')" style="display: none;">▶ Resume Clock</button>
+        <button type="button" class="btn-sm btn-quiet" id="btn-draft-undo" onclick="sendDraftControl('undo')">↩ Undo Pick</button>
+        {% if draft_status.status == 'pre_draft' %}
+        <button type="button" class="btn-sm btn-quiet" id="btn-draft-randomize" onclick="sendDraftControl('randomize_order')">🎲 Randomize Order</button>
+        {% endif %}
+        <button type="button" class="btn-sm btn-danger" id="btn-draft-reset" onclick="confirmResetDraft()">⚠️ Reset Draft</button>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Error/Alert Banner -->
+    <div id="draft-alert-box" class="draft-alert" style="display: none;" role="alert"></div>
+  </header>
+
+  <!-- Navigation View Tabs -->
+  <nav class="sports-view-nav draft-view-nav" aria-label="Draft room views">
+    <button type="button" class="tab-btn active" data-tab="players" onclick="switchDraftTab('players')">📋 Available Players</button>
+    <button type="button" class="tab-btn" data-tab="board" onclick="switchDraftTab('board')">📊 Draft Board</button>
+    <button type="button" class="tab-btn" data-tab="roster" onclick="switchDraftTab('roster')">🛡️ Your Roster (<span id="tab-roster-count">{{ my_roster|length }}</span>)</button>
+    <button type="button" class="tab-btn" data-tab="feed" onclick="switchDraftTab('feed')">⏱️ Queue & Ticker</button>
+  </nav>
+
+  <!-- TAB 1: AVAILABLE PLAYERS POOL -->
+  <section class="draft-tab-panel active" id="panel-players">
+    <div class="draft-filter-bar">
+      <div class="pos-pills" role="radiogroup" aria-label="Filter by position">
+        <button type="button" class="pos-pill active" data-pos="ALL" onclick="filterPosition('ALL')">ALL</button>
+        <button type="button" class="pos-pill" data-pos="QB" onclick="filterPosition('QB')">QB</button>
+        <button type="button" class="pos-pill" data-pos="RB" onclick="filterPosition('RB')">RB</button>
+        <button type="button" class="pos-pill" data-pos="WR" onclick="filterPosition('WR')">WR</button>
+        <button type="button" class="pos-pill" data-pos="TE" onclick="filterPosition('TE')">TE</button>
+        <button type="button" class="pos-pill" data-pos="K" onclick="filterPosition('K')">K</button>
+        <button type="button" class="pos-pill" data-pos="DST" onclick="filterPosition('DST')">DST</button>
+      </div>
+      <div class="draft-search-box">
+        <input type="search" id="player-search-input" placeholder="Search by player or NFL team…" oninput="filterPlayersSearch(this.value)" aria-label="Search players">
+      </div>
+    </div>
+
+    <div class="standings-table-wrap draft-table-wrap">
+      <table class="standings-table draft-players-table" id="draft-players-table">
+        <thead>
+          <tr>
+            <th class="th-stat" scope="col">Rank</th>
+            <th class="th-team" scope="col">Player</th>
+            <th class="th-stat" scope="col">Pos</th>
+            <th class="th-stat" scope="col">Team</th>
+            <th class="th-stat" scope="col">Bye</th>
+            <th class="th-stat" scope="col">Proj Pts</th>
+            <th class="th-actions" scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="player-rows-container">
+          {% for p in players %}
+          <tr class="player-draft-row{% if p.id in draft_status.drafted_player_ids %} player-drafted-row{% endif %}" data-player-id="{{ p.id }}" data-pos="{{ p.position }}" data-name="{{ p.name | lower }}" data-team="{{ p.nfl_team | lower }}">
+            <td class="td-stat">{{ loop.index }}</td>
+            <td class="td-team">
+              <div class="player-cell">
+                {% if p.headshot_url %}
+                <img class="player-headshot" src="{{ p.headshot_url }}" alt="" loading="lazy">
+                {% else %}
+                <span class="team-initials">{{ p.position }}</span>
+                {% endif %}
+                <div class="player-cell-info">
+                  <strong class="player-name">{{ p.name }}</strong>
+                  <span class="muted text-xs">{{ p.nfl_team }} · Bye {{ p.bye_week }}</span>
+                </div>
+              </div>
+            </td>
+            <td class="td-stat"><span class="pos-tag pos-{{ p.position }}">{{ p.position }}</span></td>
+            <td class="td-stat"><b>{{ p.nfl_team }}</b></td>
+            <td class="td-stat">{{ p.bye_week }}</td>
+            <td class="td-stat highlight-stat">{{ p.projected_points }}</td>
+            <td class="td-actions">
+              <div class="btn-group-row">
+                <button type="button" class="btn-xs btn-draft-action" onclick="handleDraftPick('{{ p.id }}')" data-btn-player="{{ p.id }}" {% if p.id in draft_status.drafted_player_ids %}disabled{% endif %}>
+                  {% if p.id in draft_status.drafted_player_ids %}Drafted{% else %}Draft{% endif %}
+                </button>
+                <button type="button" class="btn-xs btn-queue-action" onclick="togglePlayerQueue('{{ p.id }}')" data-queue-player="{{ p.id }}" title="Add to target queue">
+                  {% if my_queue and p.id in my_queue|map(attribute='player_id')|list %}★ Queued{% else %}+ Queue{% endif %}
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- TAB 2: DRAFT BOARD MATRIX -->
+  <section class="draft-tab-panel" id="panel-board" style="display: none;">
+    <div class="draft-board-container" id="draft-board-container">
+      <div class="draft-board-scroll">
+        <table class="draft-board-table" id="draft-board-table">
+          <thead>
+            <tr>
+              <th class="th-round-header">Rnd</th>
+              {% for t in board.teams %}
+              <th class="th-team-header">
+                <span class="board-col-num">#{{ loop.index }}</span>
+                <strong class="board-col-team">{{ t.name }}</strong>
+                <span class="board-col-mgr">{{ t.manager_name }}</span>
+              </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody id="draft-board-body">
+            {% for r in board.rounds %}
+            <tr>
+              <td class="td-round-num"><b>R{{ r.round_number }}</b></td>
+              {% for p in r.picks %}
+              <td class="board-cell{% if p.overall_pick == draft_status.overall_pick and draft_status.status == 'drafting' %} board-cell-active{% endif %}" data-overall="{{ p.overall_pick }}" id="board-cell-{{ p.overall_pick }}">
+                <span class="cell-pick-num">{{ p.overall_pick }}</span>
+                {% if p.player_name %}
+                <div class="cell-player">
+                  <span class="pos-tag pos-{{ p.player_pos }} text-2xs">{{ p.player_pos }}</span>
+                  <strong class="cell-name">{{ p.player_name }}</strong>
+                  <span class="cell-team-meta">{{ p.nfl_team }}</span>
+                </div>
+                {% else %}
+                <span class="cell-empty">—</span>
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 3: YOUR ROSTER -->
+  <section class="draft-tab-panel" id="panel-roster" style="display: none;">
+    <div class="fantasy-columns">
+      <div class="fantasy-column">
+        <div class="sports-section-heading">
+          <h2>Starters Lineup</h2>
+          <span class="muted">9 Starting Positions</span>
+        </div>
+        <div class="roster-slot-list" id="roster-starters-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <div class="fantasy-column">
+        <div class="sports-section-heading">
+          <h2>Bench</h2>
+          <span class="muted">6 Reserve Slots</span>
+        </div>
+        <div class="roster-slot-list" id="roster-bench-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 4: QUEUE & RECENT PICKS TICKER -->
+  <section class="draft-tab-panel" id="panel-feed" style="display: none;">
+    <div class="fantasy-columns">
+      <div class="fantasy-column">
+        <div class="sports-section-heading">
+          <h2>Your Target Queue</h2>
+          <span class="muted">Auto-picks draft from here first</span>
+        </div>
+        <div class="draft-queue-box" id="draft-queue-container">
+          <!-- Dynamically populated -->
+          <p class="muted p-4" id="empty-queue-msg">Your queue is empty. Click <b>+ Queue</b> next to any player in the pool to pin targets here.</p>
+        </div>
+      </div>
+
+      <div class="fantasy-column">
+        <div class="sports-section-heading">
+          <h2>Recent Pick Ticker</h2>
+          <span class="muted">Latest picks in order</span>
+        </div>
+        <ol class="draft-feed-list" id="draft-feed-list">
+          {% for rp in draft_status.recent_picks %}
+          <li class="feed-item">
+            <span class="feed-pick-badge">#{{ rp.overall_pick }}</span>
+            <div class="feed-details">
+              <strong>{{ rp.player_name }}</strong>
+              <span class="pos-tag pos-{{ rp.player_pos }} text-2xs">{{ rp.player_pos }}</span>
+              <span class="muted">→ {{ rp.team_name }} ({{ rp.manager_name }})</span>
+            </div>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+// ==========================================
+// Yoyo News Fantasy Football Draft Room JS
+// ==========================================
+const LEAGUE_ID = "{{ league.id }}";
+let draftState = {{ draft_status | tojson }};
+let myTeamId = "{{ my_team.id if my_team else '' }}";
+let myRoster = {{ my_roster | tojson }};
+let myQueue = {{ my_queue | tojson }};
+let isCommish = {{ 'true' if is_commissioner else 'false' }};
+let soundEnabled = true;
+let localRemainingSeconds = {{ draft_status.remaining_seconds if draft_status.remaining_seconds is not none else 60 }};
+let clockInterval = null;
+let pollInterval = null;
+
+// Audio Context Synthesizer (Zero file downloads)
+let audioCtx = null;
+function playChime(freq, type, duration) {
+  if (!soundEnabled) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq || 440, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (duration || 0.25));
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + (duration || 0.25));
+  } catch(e) {}
+}
+
+function playPickSound() {
+  playChime(587.33, 'sine', 0.15); // D5
+  setTimeout(() => playChime(880, 'triangle', 0.25), 100); // A5
+}
+
+function playYourTurnSound() {
+  playChime(523.25, 'triangle', 0.2); // C5
+  setTimeout(() => playChime(659.25, 'triangle', 0.2), 150); // E5
+  setTimeout(() => playChime(783.99, 'sine', 0.35), 300); // G5
+}
+
+// Sound toggle
+document.getElementById('sound-toggle-btn').addEventListener('click', function() {
+  soundEnabled = !soundEnabled;
+  document.getElementById('sound-icon').textContent = soundEnabled ? '🔔' : '🔕';
+  if (soundEnabled) playPickSound();
+});
+
+// Tab Switcher
+function switchDraftTab(tabId) {
+  document.querySelectorAll('.draft-view-nav .tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
+  });
+  document.querySelectorAll('.draft-tab-panel').forEach(panel => {
+    panel.style.display = (panel.id === 'panel-' + tabId) ? 'block' : 'none';
+  });
+  if (tabId === 'roster') renderRosterView();
+  if (tabId === 'feed') renderQueueView();
+}
+
+// Filter Players by Position
+function filterPosition(pos) {
+  document.querySelectorAll('.pos-pills .pos-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-pos') === pos);
+  });
+  filterTable();
+}
+
+function filterPlayersSearch(q) {
+  filterTable();
+}
+
+function filterTable() {
+  const activePos = document.querySelector('.pos-pills .pos-pill.active')?.getAttribute('data-pos') || 'ALL';
+  const query = (document.getElementById('player-search-input')?.value || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#player-rows-container tr');
+
+  rows.forEach(row => {
+    const pos = row.getAttribute('data-pos');
+    const name = row.getAttribute('data-name');
+    const team = row.getAttribute('data-team');
+
+    const matchesPos = (activePos === 'ALL' || pos === activePos);
+    const matchesSearch = (!query || name.includes(query) || team.includes(query));
+
+    row.style.display = (matchesPos && matchesSearch) ? '' : 'none';
+  });
+}
+
+// Clock & Countdown Timer
+function startClock() {
+  clearInterval(clockInterval);
+  clockInterval = setInterval(() => {
+    if (draftState.status === 'drafting' && localRemainingSeconds > 0) {
+      localRemainingSeconds--;
+      updateClockDisplay();
+      if (localRemainingSeconds === 10) {
+        playChime(440, 'sine', 0.1);
+      }
+    }
+  }, 1000);
+}
+
+function updateClockDisplay() {
+  const digitsEl = document.getElementById('timer-digits');
+  const fillEl = document.getElementById('timer-progress-fill');
+  if (!digitsEl || !fillEl) return;
+
+  const m = Math.floor(localRemainingSeconds / 60);
+  const s = localRemainingSeconds % 60;
+  digitsEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+  const total = draftState.pick_timer_seconds || 60;
+  const pct = Math.max(0, Math.min(100, (localRemainingSeconds / total) * 100));
+  fillEl.style.width = pct + '%';
+  fillEl.style.backgroundColor = (localRemainingSeconds <= 10) ? '#ef4444' : 'var(--accent)';
+}
+
+// Render Roster View
+function renderRosterView() {
+  const startersEl = document.getElementById('roster-starters-list');
+  const benchEl = document.getElementById('roster-bench-list');
+  if (!startersEl || !benchEl) return;
+
+  const starterSlots = ['QB', 'RB1', 'RB2', 'WR1', 'WR2', 'TE', 'FLEX', 'K', 'DST'];
+  const benchSlots = ['BENCH 1', 'BENCH 2', 'BENCH 3', 'BENCH 4', 'BENCH 5', 'BENCH 6'];
+
+  const rosterBySlot = {};
+  const benchPlayers = [];
+  myRoster.forEach(p => {
+    if (p.slot === 'BENCH') {
+      benchPlayers.push(p);
+    } else {
+      rosterBySlot[p.slot] = p;
+    }
+  });
+
+  startersEl.innerHTML = starterSlots.map(slot => {
+    const p = rosterBySlot[slot];
+    return `
+      <div class="roster-slot-card ${p ? 'filled' : 'empty'}">
+        <span class="slot-badge">${slot}</span>
+        <div class="slot-player-info">
+          ${p ? `
+            <div class="slot-player-main">
+              <strong>${p.player_name}</strong>
+              <span class="muted text-xs">${p.nfl_team} · Bye ${p.bye_week}</span>
+            </div>
+            <span class="slot-pts">${p.projected_points} pts</span>
+          ` : `<span class="muted text-sm">— Empty Slot —</span>`}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  benchEl.innerHTML = benchSlots.map((slot, idx) => {
+    const p = benchPlayers[idx];
+    return `
+      <div class="roster-slot-card ${p ? 'filled' : 'empty'}">
+        <span class="slot-badge">BN</span>
+        <div class="slot-player-info">
+          ${p ? `
+            <div class="slot-player-main">
+              <strong>${p.player_name}</strong>
+              <span class="muted text-xs">${p.position} · ${p.nfl_team} · Bye ${p.bye_week}</span>
+            </div>
+            <span class="slot-pts">${p.projected_points} pts</span>
+          ` : `<span class="muted text-sm">— Empty Bench —</span>`}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('tab-roster-count').textContent = myRoster.length;
+}
+
+// Render Queue View
+function renderQueueView() {
+  const container = document.getElementById('draft-queue-container');
+  if (!container) return;
+
+  if (!myQueue || myQueue.length === 0) {
+    container.innerHTML = '<p class="muted p-4">Your queue is empty. Click <b>+ Queue</b> next to any player in the pool to pin targets here.</p>';
+    return;
+  }
+
+  container.innerHTML = myQueue.map((item, idx) => `
+    <div class="queue-item-card">
+      <span class="queue-priority">#${idx + 1}</span>
+      <div class="queue-player-info">
+        <strong>${item.name}</strong>
+        <span class="muted text-xs">${item.position} · ${item.nfl_team} · Bye ${item.bye_week}</span>
+      </div>
+      <div class="queue-actions">
+        <button type="button" class="btn-xs btn-draft-action" onclick="handleDraftPick('${item.player_id}')">Draft</button>
+        <button type="button" class="btn-xs btn-quiet" onclick="togglePlayerQueue('${item.player_id}')">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Execute Draft Pick
+async function handleDraftPick(playerId) {
+  const alertBox = document.getElementById('draft-alert-box');
+  alertBox.style.display = 'none';
+
+  // Instant optimistic feedback
+  const btn = document.querySelector(`[data-btn-player="${playerId}"]`);
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Drafting…';
+  }
+
+  try {
+    const resp = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/draft/pick`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({player_id: playerId}),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok || data.error) {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Draft';
+      }
+      alertBox.textContent = data.error || 'Failed to execute draft pick.';
+      alertBox.style.display = 'block';
+      return;
+    }
+
+    playPickSound();
+    await fetchDraftState();
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Draft';
+    }
+    alertBox.textContent = 'Network error while drafting player.';
+    alertBox.style.display = 'block';
+  }
+}
+
+// Toggle Queue
+async function togglePlayerQueue(playerId) {
+  const isQueued = myQueue && myQueue.some(q => q.player_id === playerId);
+  const action = isQueued ? 'remove' : 'add';
+
+  try {
+    const resp = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/draft/queue`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action, player_id: playerId}),
+    });
+    const data = await resp.json();
+    if (data.queue) {
+      myQueue = data.queue;
+      // Update queue buttons
+      const btn = document.querySelector(`[data-queue-player="${playerId}"]`);
+      if (btn) {
+        btn.textContent = (action === 'add') ? '★ Queued' : '+ Queue';
+      }
+      renderQueueView();
+    }
+  } catch(e) {}
+}
+
+// Commissioner Controls
+async function sendDraftControl(action) {
+  const alertBox = document.getElementById('draft-alert-box');
+  alertBox.style.display = 'none';
+
+  try {
+    const resp = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/draft/control`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action}),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      alertBox.textContent = data.error || 'Control action failed.';
+      alertBox.style.display = 'block';
+      return;
+    }
+    await fetchDraftState();
+  } catch (e) {
+    alertBox.textContent = 'Network error while executing action.';
+    alertBox.style.display = 'block';
+  }
+}
+
+function confirmResetDraft() {
+  if (confirm('Are you sure you want to reset the draft? All existing picks and rosters will be cleared back to pre-draft.')) {
+    sendDraftControl('reset');
+  }
+}
+
+// Polling & State Synchronizer
+async function fetchDraftState() {
+  try {
+    const resp = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/draft-state?board=1`);
+    if (!resp.ok) return;
+    const newState = await resp.json();
+
+    const pickChanged = (newState.overall_pick !== draftState.overall_pick);
+    const prevTurn = draftState.is_your_turn;
+
+    draftState = newState;
+    if (newState.remaining_seconds !== undefined && newState.remaining_seconds !== null) {
+      localRemainingSeconds = newState.remaining_seconds;
+    }
+    if (newState.my_roster) myRoster = newState.my_roster;
+    if (newState.my_queue) myQueue = newState.my_queue;
+
+    // Sounds
+    if (pickChanged) {
+      playPickSound();
+    }
+    if (!prevTurn && newState.is_your_turn) {
+      playYourTurnSound();
+    }
+
+    // Update HUD
+    document.getElementById('hud-round-num').textContent = newState.round || 1;
+    document.getElementById('hud-pick-num').textContent = newState.pick_in_round || 1;
+    document.getElementById('clock-team-name').textContent = newState.on_the_clock ? newState.on_the_clock.name : 'Completed';
+    document.getElementById('timer-status-tag').textContent = (newState.status || '').replace('_', ' ').toUpperCase();
+
+    const turnBadge = document.getElementById('badge-your-turn');
+    if (turnBadge) turnBadge.style.display = newState.is_your_turn ? 'inline-block' : 'none';
+
+    // Update commish pause/resume buttons
+    const pauseBtn = document.getElementById('btn-draft-pause');
+    const resumeBtn = document.getElementById('btn-draft-resume');
+    if (pauseBtn && resumeBtn) {
+      if (newState.status === 'draft_paused') {
+        pauseBtn.style.display = 'none';
+        resumeBtn.style.display = 'inline-block';
+      } else if (newState.status === 'drafting') {
+        pauseBtn.style.display = 'inline-block';
+        resumeBtn.style.display = 'none';
+      }
+    }
+
+    // Update drafted player rows
+    if (newState.drafted_player_ids) {
+      const draftedSet = new Set(newState.drafted_player_ids);
+      document.querySelectorAll('#player-rows-container tr').forEach(row => {
+        const pid = row.getAttribute('data-player-id');
+        if (draftedSet.has(pid)) {
+          row.classList.add('player-drafted-row');
+          const dBtn = row.querySelector('.btn-draft-action');
+          if (dBtn) {
+            dBtn.disabled = true;
+            dBtn.textContent = 'Drafted';
+          }
+        }
+      });
+    }
+
+    // Update ticker
+    if (newState.recent_picks) {
+      const feedList = document.getElementById('draft-feed-list');
+      if (feedList) {
+        feedList.innerHTML = newState.recent_picks.map(rp => `
+          <li class="feed-item">
+            <span class="feed-pick-badge">#${rp.overall_pick}</span>
+            <div class="feed-details">
+              <strong>${rp.player_name}</strong>
+              <span class="pos-tag pos-${rp.player_pos} text-2xs">${rp.player_pos}</span>
+              <span class="muted">→ ${rp.team_name} (${rp.manager_name})</span>
+            </div>
+          </li>
+        `).join('');
+      }
+    }
+
+    // Update Draft Board active cell
+    document.querySelectorAll('.board-cell-active').forEach(c => c.classList.remove('board-cell-active'));
+    const activeCell = document.getElementById(`board-cell-${newState.overall_pick}`);
+    if (activeCell && newState.status === 'drafting') {
+      activeCell.classList.add('board-cell-active');
+    }
+
+    updateClockDisplay();
+  } catch (err) {}
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+  startClock();
+  pollInterval = setInterval(fetchDraftState, 2000);
+});
+</script>
+{% endblock %}

@@ -98,15 +98,66 @@ def init_db(conn: Optional[sqlite3.Connection] = None) -> None:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_league ON audit_log(league_id);")
 
-            # Seed players if empty
-            count = conn.execute("SELECT COUNT(*) FROM players;").fetchone()[0]
-            if count == 0:
-                players = load_seed_players()
-                for p in players:
-                    conn.execute("""
-                    INSERT OR REPLACE INTO players (id, name, position, nfl_team, bye_week, adp, projected_points, status, headshot_url)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                    """, (p.id, p.name, p.position, p.nfl_team, p.bye_week, p.adp, p.projected_points, p.status, p.headshot_url))
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS draft_picks (
+                id TEXT PRIMARY KEY,
+                league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+                round INTEGER NOT NULL,
+                pick_number INTEGER NOT NULL,
+                overall_pick INTEGER NOT NULL,
+                team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                is_auto_pick INTEGER NOT NULL DEFAULT 0,
+                selected_at TEXT NOT NULL
+            );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_draft_picks_league ON draft_picks(league_id, overall_pick);")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_draft_picks_unique_player ON draft_picks(league_id, player_id);")
+
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS roster_players (
+                id TEXT PRIMARY KEY,
+                team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                slot TEXT NOT NULL,
+                acquired_type TEXT NOT NULL DEFAULT 'draft',
+                created_at TEXT NOT NULL
+            );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_roster_players_team ON roster_players(team_id);")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_roster_player_unique ON roster_players(team_id, player_id);")
+
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS draft_queue (
+                id TEXT PRIMARY KEY,
+                team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                priority INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_draft_queue_team ON draft_queue(team_id, priority);")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_draft_queue_unique ON draft_queue(team_id, player_id);")
+
+            # Column migrations for leagues table
+            for col, ctype in [
+                ("draft_order_json", "TEXT DEFAULT '[]'"),
+                ("current_overall_pick", "INTEGER NOT NULL DEFAULT 1"),
+                ("current_pick_deadline", "TEXT"),
+                ("draft_paused_seconds", "INTEGER"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE leagues ADD COLUMN {col} {ctype};")
+                except sqlite3.OperationalError:
+                    pass
+
+            # Seed or expand player catalog
+            players = load_seed_players()
+            for p in players:
+                conn.execute("""
+                INSERT OR REPLACE INTO players (id, name, position, nfl_team, bye_week, adp, projected_points, status, headshot_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """, (p.id, p.name, p.position, p.nfl_team, p.bye_week, p.adp, p.projected_points, p.status, p.headshot_url))
 
     if close_at_end:
         conn.close()
@@ -136,6 +187,14 @@ def row_to_league(r: sqlite3.Row, teams: Optional[List[FantasyTeam]] = None) -> 
         settings_dict = json.loads(r["settings_json"])
     except Exception:
         settings_dict = {}
+
+    draft_order = []
+    if "draft_order_json" in r.keys() and r["draft_order_json"]:
+        try:
+            draft_order = json.loads(r["draft_order_json"])
+        except Exception:
+            draft_order = []
+
     return League(
         id=r["id"],
         name=r["name"],
@@ -146,6 +205,10 @@ def row_to_league(r: sqlite3.Row, teams: Optional[List[FantasyTeam]] = None) -> 
         settings=LeagueSettings.from_dict(settings_dict),
         created_at=r["created_at"],
         teams=teams or [],
+        draft_order=draft_order,
+        current_overall_pick=r["current_overall_pick"] if "current_overall_pick" in r.keys() else 1,
+        current_pick_deadline=r["current_pick_deadline"] if "current_pick_deadline" in r.keys() else None,
+        draft_paused_seconds=r["draft_paused_seconds"] if "draft_paused_seconds" in r.keys() else None,
     )
 
 
@@ -160,4 +223,33 @@ def row_to_player(r: sqlite3.Row) -> Player:
         projected_points=r["projected_points"],
         status=r["status"],
         headshot_url=r["headshot_url"],
+    )
+
+
+def row_to_draft_pick(r: sqlite3.Row, player: Optional[Player] = None) -> DraftPick:
+    return DraftPick(
+        id=r["id"],
+        league_id=r["league_id"],
+        round=r["round"],
+        pick_number=r["pick_number"],
+        overall_pick=r["overall_pick"],
+        team_id=r["team_id"],
+        player_id=r["player_id"],
+        selected_at=r["selected_at"],
+        is_auto_pick=bool(r["is_auto_pick"]),
+        player=player,
+        team_name=r["team_name"] if "team_name" in r.keys() else None,
+        manager_name=r["manager_name"] if "manager_name" in r.keys() else None,
+    )
+
+
+def row_to_roster_player(r: sqlite3.Row, player: Optional[Player] = None) -> RosterPlayer:
+    return RosterPlayer(
+        id=r["id"],
+        team_id=r["team_id"],
+        player_id=r["player_id"],
+        slot=r["slot"],
+        acquired_type=r["acquired_type"],
+        created_at=r["created_at"],
+        player=player,
     )

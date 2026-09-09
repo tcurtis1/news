@@ -221,3 +221,97 @@ def test_fantasy_api_endpoints(client):
     pdata = resp_players.json()
     assert "players" in pdata
     assert any("Lamar Jackson" in p["name"] for p in pdata["players"])
+
+
+def test_draft_room_view(client):
+    from app.fantasy.service import join_league
+    league, commish = create_league("Draft City", "Tony", "Iron Men", max_teams=2)
+    join_league(league.invite_token, "Bob", "Steelers")
+
+    # Spectator view
+    resp = client.get(f"/sports/fantasy/league/{league.id}/draft")
+    assert resp.status_code == 200
+    assert "Draft Room" in resp.text
+    assert "Available Players" in resp.text
+    assert "Draft Board" in resp.text
+
+    # Commissioner view (has tools bar)
+    client.cookies.set("yoyo_fantasy_tokens", json.dumps([commish.manager_token]))
+    resp_commish = client.get(f"/sports/fantasy/league/{league.id}/draft")
+    assert resp_commish.status_code == 200
+    assert "Commish Tools" in resp_commish.text
+    assert "Start Draft" in resp_commish.text
+
+
+def test_draft_api_lifecycle(client):
+    from app.fantasy.service import join_league
+    league, commish = create_league("Delta League", "Tony", "Team Tony", max_teams=2)
+    _, team2, _ = join_league(league.invite_token, "Bob", "Team Bob")
+
+    # 1. State endpoint in pre_draft
+    st_resp = client.get(f"/sports/fantasy/api/league/{league.id}/draft-state")
+    assert st_resp.status_code == 200
+    assert st_resp.json()["status"] == "pre_draft"
+
+    # 2. Non-commissioner control rejected
+    unauth = client.post(
+        f"/sports/fantasy/api/league/{league.id}/draft/control",
+        json={"action": "start"},
+    )
+    assert unauth.status_code == 403
+
+    # 3. Commissioner starts draft
+    client.cookies.set("yoyo_fantasy_tokens", json.dumps([commish.manager_token]))
+    start_resp = client.post(
+        f"/sports/fantasy/api/league/{league.id}/draft/control",
+        json={"action": "start"},
+    )
+    assert start_resp.status_code == 200
+    assert start_resp.json()["state"]["status"] == "drafting"
+
+    # 4. Queue management
+    q_add = client.post(
+        f"/sports/fantasy/api/league/{league.id}/draft/queue",
+        json={"action": "add", "player_id": "nfl-3918298"},
+    )
+    assert q_add.status_code == 200
+    assert len(q_add.json()["queue"]) >= 1
+
+    # 5. Make draft pick
+    pick_resp = client.post(
+        f"/sports/fantasy/api/league/{league.id}/draft/pick",
+        json={"player_id": "nfl-3117251"},
+    )
+    assert pick_resp.status_code == 200
+    assert pick_resp.json()["success"] is True
+    assert pick_resp.json()["pick"]["overall_pick"] == 1
+
+    # 6. Draft board API
+    board_resp = client.get(f"/sports/fantasy/api/league/{league.id}/draft-board")
+    assert board_resp.status_code == 200
+    bdata = board_resp.json()
+    assert len(bdata["teams"]) == 2
+    assert len(bdata["rounds"]) == 15
+
+    # 7. Pause and resume control
+    pause_resp = client.post(
+        f"/sports/fantasy/api/league/{league.id}/draft/control",
+        json={"action": "pause"},
+    )
+    assert pause_resp.status_code == 200
+    assert pause_resp.json()["state"]["status"] == "draft_paused"
+
+    resume_resp = client.post(
+        f"/sports/fantasy/api/league/{league.id}/draft/control",
+        json={"action": "resume"},
+    )
+    assert resume_resp.status_code == 200
+    assert resume_resp.json()["state"]["status"] == "drafting"
+
+    # 8. Undo pick
+    undo_resp = client.post(
+        f"/sports/fantasy/api/league/{league.id}/draft/control",
+        json={"action": "undo"},
+    )
+    assert undo_resp.status_code == 200
+    assert undo_resp.json()["state"]["overall_pick"] == 1
