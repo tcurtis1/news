@@ -2730,9 +2730,11 @@ li.card.story-card:hover {
 .rank-row { display: grid; grid-template-columns: 2.1rem minmax(0, 1fr) 2.8rem; gap: 0.35rem 0.5rem; align-items: center; padding: 0.55rem 0.75rem; border-top: 1px solid var(--border); }
 .rank-row:first-child { border-top: 0; }
 .rank-num { color: var(--accent); font-weight: 850; font-variant-numeric: tabular-nums; }
-.rank-team { display: grid; min-width: 0; }
-.rank-team b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rank-team small { overflow: hidden; color: var(--muted); font-size: 0.76rem; text-overflow: ellipsis; white-space: nowrap; }
+.rank-team { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+.rank-team-info { display: grid; min-width: 0; }
+.rank-team-info b, .rank-team b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-team-info small, .rank-team small { overflow: hidden; color: var(--muted); font-size: 0.76rem; text-overflow: ellipsis; white-space: nowrap; }
+.rank-team-logo { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; }
 .rank-trend { color: var(--muted); font-size: 0.76rem; font-weight: 750; text-align: right; font-variant-numeric: tabular-nums; }
 .rank-trend.is-up { color: var(--accent); }
 .rank-trend.is-down { color: #b45309; }
@@ -2809,6 +2811,8 @@ li.card.story-card:hover {
 
 .team-identity { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 .team-names { display: grid; min-width: 0; }
+.team-rank { display: inline-block; font-size: 0.78rem; font-weight: 850; color: var(--accent); margin-right: 0.22rem; font-variant-numeric: tabular-nums; }
+.game-team .team-rank { font-size: 0.88rem; font-weight: 850; }
 .team-logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; display: inline-block; vertical-align: middle; }
 .team-logo-lg { width: 38px; height: 38px; object-fit: contain; margin-bottom: 0.25rem; }
 .score-situation { display: flex; align-items: center; gap: 0.5rem; padding: 0.42rem 0.75rem; background: color-mix(in srgb, var(--accent) 5%, var(--card)); border-top: 1px dashed var(--border); font-size: 0.76rem; color: var(--text); }

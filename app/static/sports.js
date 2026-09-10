@@ -275,6 +275,8 @@
     if (!game) return "";
     var away = (game.away_team && game.away_team.abbreviation) || "AWAY";
     var home = (game.home_team && game.home_team.abbreviation) || "HOME";
+    if (game.away_team && game.away_team.rank) away = "#" + game.away_team.rank + " " + away;
+    if (game.home_team && game.home_team.rank) home = "#" + game.home_team.rank + " " + home;
     var started = Boolean(game.is_live || game.is_final);
     var as = game.away_score_display;
     var hs = game.home_score_display;

@@ -40,8 +40,13 @@
         <div class="rank-row">
           <span class="rank-num">{{ team.current }}</span>
           <span class="rank-team">
-            <b>{{ team.name }}</b>
-            <small>{{ team.abbreviation }}{% if team.record %} · {{ team.record }}{% endif %}</small>
+            {% if team.logo %}
+              <img class="team-logo rank-team-logo" src="{{ team.logo }}" alt="" width="24" height="24" loading="lazy" decoding="async" onerror="this.style.display='none'">
+            {% endif %}
+            <span class="rank-team-info">
+              <b>{{ team.name }}</b>
+              <small>{{ team.abbreviation }}{% if team.record %} · {{ team.record }}{% endif %}</small>
+            </span>
           </span>
           <span class="rank-trend{% if team.trend.startswith('+') %} is-up{% elif team.trend.startswith('-') %} is-down{% endif %}">{{ team.trend }}</span>
           <span class="rank-actions">

@@ -20,7 +20,7 @@
         {% if game.away_team.logo %}
           <img class="team-logo-lg" src="{{ game.away_team.logo }}" alt="" width="38" height="38" loading="lazy" decoding="async" onerror="this.style.display='none'">
         {% endif %}
-        <b>{{ game.away_team.abbreviation }}</b>
+        <b>{% if game.away_team.rank %}<span class="team-rank">#{{ game.away_team.rank }}</span>{% endif %}{{ game.away_team.abbreviation }}</b>
         <span>{{ game.away_team.name }}</span>
         <strong data-game-away-score>{{ game.away_score_display }}</strong>
       </div>
@@ -29,7 +29,7 @@
         {% if game.home_team.logo %}
           <img class="team-logo-lg" src="{{ game.home_team.logo }}" alt="" width="38" height="38" loading="lazy" decoding="async" onerror="this.style.display='none'">
         {% endif %}
-        <b>{{ game.home_team.abbreviation }}</b>
+        <b>{% if game.home_team.rank %}<span class="team-rank">#{{ game.home_team.rank }}</span>{% endif %}{{ game.home_team.abbreviation }}</b>
         <span>{{ game.home_team.name }}</span>
         <strong data-game-home-score>{{ game.home_score_display }}</strong>
       </div>

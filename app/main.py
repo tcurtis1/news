@@ -431,6 +431,8 @@ def _sports_event_view(event: Event) -> dict:
             home_score=score(event.home_team),
             status=status_text,
             started=is_started,
+            away_rank=event.away_team.rank,
+            home_rank=event.home_team.rank,
         ),
     }
 

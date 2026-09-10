@@ -203,6 +203,8 @@ def test_compact_score_line():
     assert compact_score_line("SF", "PIT", away_score="12", home_score="12", status="Bot 8th", started=True) == "SF 12 @ PIT 12, Bot 8th"
     assert compact_score_line("AWY", "HOM", status="Scheduled", started=False) == "AWY @ HOM, Scheduled"
     assert compact_score_line("NYY", "BOS", away_score="—", home_score="—", status="Pregame", started=False) == "NYY @ BOS, Pregame"
+    assert compact_score_line("OSU", "PSU", away_score="24", home_score="14", status="Final", started=True, away_rank=5, home_rank=12) == "#5 OSU 24 @ #12 PSU 14, Final"
+    assert compact_score_line("ALA", "VANDY", status="7:30 PM", started=False, away_rank=1) == "#1 ALA @ VANDY, 7:30 PM"
 
 
 def test_timezone_day_boundary():
@@ -566,6 +568,108 @@ def test_team_logos_parsed():
     assert ev.away_team.logo == "https://a.espncdn.com/i/teamlogos/mlb/500/awy.png"
 
 
+def test_team_ranks_and_logo_fallbacks():
+    ev_data = {
+        "id": "3001",
+        "name": "Ohio State at Penn State",
+        "date": "2026-09-09T01:00Z",
+        "status": {"type": {"name": "STATUS_IN_PROGRESS", "state": "in"}},
+        "competitions": [{
+            "competitors": [
+                {
+                    "homeAway": "home",
+                    "curatedRank": {"current": 12},
+                    "team": {
+                        "id": "213",
+                        "displayName": "Penn State Nittany Lions",
+                        "abbreviation": "PSU",
+                    },
+                },
+                {
+                    "homeAway": "away",
+                    "curatedRank": {"current": 5},
+                    "team": {
+                        "id": "194",
+                        "displayName": "Ohio State Buckeyes",
+                        "abbreviation": "OSU",
+                        "logo": "https://a.espncdn.com/custom_osu.png",
+                    },
+                },
+            ]
+        }],
+    }
+    ev = parse_espn_event("cfb", ev_data)
+    assert ev.home_team.rank == 12
+    assert ev.away_team.rank == 5
+    # Away team has explicit logo
+    assert ev.away_team.logo == "https://a.espncdn.com/custom_osu.png"
+    # Home team should fall back to NCAA CDN URL
+    assert ev.home_team.logo == "https://a.espncdn.com/i/teamlogos/ncaa/500/213.png"
+
+    # Unranked team with rank 99
+    ev_unranked = {
+        "id": "3002",
+        "competitions": [{
+            "competitors": [
+                {
+                    "homeAway": "home",
+                    "curatedRank": {"current": 99},
+                    "team": {"id": "100", "abbreviation": "UNR1"},
+                },
+                {
+                    "homeAway": "away",
+                    "team": {"id": "101", "abbreviation": "UNR2"},
+                },
+            ]
+        }],
+    }
+    ev2 = parse_espn_event("cfb", ev_unranked)
+    assert ev2.home_team.rank is None
+    assert ev2.away_team.rank is None
+
+
+def test_parse_espn_rankings_includes_logo():
+    raw = {
+        "rankings": [{
+            "type": "ap",
+            "name": "AP Top 25",
+            "ranks": [
+                {
+                    "current": 1,
+                    "previous": 2,
+                    "trend": "+1",
+                    "recordSummary": "2-0",
+                    "team": {
+                        "id": "77",
+                        "nickname": "Georgia Bulldogs",
+                        "abbreviation": "UGA",
+                        "logo": "https://a.espncdn.com/uga.png",
+                    },
+                },
+                {
+                    "current": 2,
+                    "previous": 1,
+                    "trend": "-1",
+                    "recordSummary": "2-0",
+                    "team": {
+                        "id": "194",
+                        "nickname": "Ohio State Buckeyes",
+                        "abbreviation": "OSU",
+                    },
+                },
+            ],
+        }]
+    }
+    parsed = parse_espn_rankings("cfb", raw)
+    assert parsed["available"] is True
+    assert len(parsed["teams"]) == 2
+    assert parsed["teams"][0]["current"] == 1
+    assert parsed["teams"][0]["logo"] == "https://a.espncdn.com/uga.png"
+    assert parsed["teams"][1]["current"] == 2
+    assert parsed["teams"][1]["logo"] == "https://a.espncdn.com/i/teamlogos/ncaa/500/194.png"
+
+
+
 def test_baseball_situation_parsed():
     ev_data = {
         "id": "2002",
@@ -647,8 +751,8 @@ def test_overlay_preserves_situation_and_logos():
         start_time=datetime(2026, 9, 9, 0, 0, tzinfo=timezone.utc),
         state=EventState.IN_PROGRESS, clock="", period=5, league="mlb", status_detail="Mid 5th",
         venue="", situation="1-2, 1 out",
-        away_team=Team(id="1", name="Away", abbreviation="AWY", is_home=False, logo="https://awy.png"),
-        home_team=Team(id="2", name="Home", abbreviation="HOM", is_home=True, logo="https://hom.png"),
+        away_team=Team(id="1", name="Away", abbreviation="AWY", is_home=False, logo="https://awy.png", rank=7),
+        home_team=Team(id="2", name="Home", abbreviation="HOM", is_home=True, logo="https://hom.png", rank=14),
         outs=1, balls=1, strikes=2, on_first=True, on_second=False, on_third=True,
         batter_name="Batter", pitcher_name="Pitcher",
     )
@@ -661,6 +765,8 @@ def test_overlay_preserves_situation_and_logos():
     assert overlaid.batter_name == "Batter"
     assert overlaid.away_team.logo == "https://awy.png"
     assert overlaid.home_team.logo == "https://hom.png"
+    assert overlaid.away_team.rank == 7
+    assert overlaid.home_team.rank == 14
 
 
 def test_parse_espn_standings_groups_and_children():

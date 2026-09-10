@@ -64,7 +64,7 @@
                       {% if game.away_team.logo %}
                         <img class="team-logo" src="{{ game.away_team.logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" onerror="this.style.display='none'">
                       {% endif %}
-                      <span class="team-names"><b>{{ game.away_team.abbreviation }}</b><small>{{ game.away_team.name }}</small></span>
+                      <span class="team-names"><b>{% if game.away_team.rank %}<span class="team-rank">#{{ game.away_team.rank }}</span>{% endif %}{{ game.away_team.abbreviation }}</b><small>{{ game.away_team.name }}</small></span>
                     </span>
                     <strong data-game-away-score{% if game.away_score_display == '—' %} class="score-empty"{% endif %}>{{ game.away_score_display }}</strong>
                   </span>
@@ -73,7 +73,7 @@
                       {% if game.home_team.logo %}
                         <img class="team-logo" src="{{ game.home_team.logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" onerror="this.style.display='none'">
                       {% endif %}
-                      <span class="team-names"><b>{{ game.home_team.abbreviation }}</b><small>{{ game.home_team.name }}</small></span>
+                      <span class="team-names"><b>{% if game.home_team.rank %}<span class="team-rank">#{{ game.home_team.rank }}</span>{% endif %}{{ game.home_team.abbreviation }}</b><small>{{ game.home_team.name }}</small></span>
                     </span>
                     <strong data-game-home-score{% if game.home_score_display == '—' %} class="score-empty"{% endif %}>{{ game.home_score_display }}</strong>
                   </span>

@@ -28,6 +28,7 @@ class Team(BaseModel):
     is_home: bool
     winner: Optional[bool] = None
     logo: Optional[str] = None
+    rank: Optional[int] = None
 
 class Event(BaseModel):
     id: str
@@ -77,10 +78,16 @@ def compact_score_line(
     home_score: str = "—",
     status: str = "",
     started: bool = False,
+    away_rank: Optional[int] = None,
+    home_rank: Optional[int] = None,
 ) -> str:
-    """One-line score for SMS / Web Share: ``SF 12 @ PIT 12, Bot 8th``."""
+    """One-line score for SMS / Web Share: ``#5 OSU 24 @ #12 PSU 14, Final``."""
     away = (away_abbr or "AWAY").strip() or "AWAY"
     home = (home_abbr or "HOME").strip() or "HOME"
+    if away_rank and 1 <= away_rank <= 25:
+        away = f"#{away_rank} {away}"
+    if home_rank and 1 <= home_rank <= 25:
+        home = f"#{home_rank} {home}"
     status = " ".join((status or "").split())
     blank = {"", "—", "-"}
     scored = started and away_score not in blank and home_score not in blank
@@ -475,15 +482,55 @@ def _overall_record(comp: Dict[str, Any]) -> str:
     return ""
 
 
+def _team_logo(league_key: str, t_data: Dict[str, Any]) -> Optional[str]:
+    if not isinstance(t_data, dict):
+        return None
+    logo = t_data.get("logo")
+    if not logo and isinstance(t_data.get("logos"), list) and t_data["logos"]:
+        first = t_data["logos"][0]
+        if isinstance(first, dict):
+            logo = first.get("href")
+    if logo:
+        return str(logo).strip()
+    team_id = str(t_data.get("id") or "").strip()
+    if not team_id or team_id in ("0", "1", "unknown"):
+        return None
+    if league_key in ("cfb", "mcbb", "wcbb"):
+        return f"https://a.espncdn.com/i/teamlogos/ncaa/500/{team_id}.png"
+    elif league_key in ("nfl", "mlb", "nba", "nhl", "wnba"):
+        return f"https://a.espncdn.com/i/teamlogos/{league_key}/500/{team_id}.png"
+    elif league_key in ("mls", "epl"):
+        return f"https://a.espncdn.com/i/teamlogos/soccer/500/{team_id}.png"
+    return None
+
+
 def _team_rank(comp: Dict[str, Any]) -> Optional[int]:
-    rank = (comp.get("curatedRank") or (comp.get("team") or {}).get("curatedRank") or {}).get("current")
-    try:
-        value = int(rank)
-    except (TypeError, ValueError):
+    if not isinstance(comp, dict):
         return None
-    if value <= 0 or value >= 99:
-        return None
-    return value
+    candidates = []
+    cr = comp.get("curatedRank")
+    if isinstance(cr, dict):
+        candidates.append(cr.get("current"))
+    elif cr is not None:
+        candidates.append(cr)
+    t = comp.get("team")
+    if isinstance(t, dict):
+        t_cr = t.get("curatedRank")
+        if isinstance(t_cr, dict):
+            candidates.append(t_cr.get("current"))
+        elif t_cr is not None:
+            candidates.append(t_cr)
+        candidates.append(t.get("rank"))
+    candidates.append(comp.get("rank"))
+
+    for cand in candidates:
+        try:
+            value = int(cand)
+            if 1 <= value <= 25:
+                return value
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 def _context_line(ev: Dict[str, Any], package: Dict[str, Any], competition: Dict[str, Any], home: Team, away: Team, home_comp: Dict[str, Any], away_comp: Dict[str, Any]) -> str:
@@ -605,7 +652,8 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
         t_data = comp.get("team", {})
         score_str = comp.get("score")
         score = int(score_str) if score_str and str(score_str).isdigit() else None
-        logo = t_data.get("logo") or (t_data.get("logos", [{}])[0].get("href") if t_data.get("logos") else None)
+        logo = _team_logo(league_key, t_data)
+        rank = _team_rank(comp)
 
         team = Team(
             id=str(t_data.get("id", "0")),
@@ -615,6 +663,7 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
             is_home=(comp.get("homeAway") == "home"),
             winner=comp.get("winner"),
             logo=logo,
+            rank=rank,
         )
         extra = {"hits": comp.get("hits"), "errors": comp.get("errors")}
         if team.is_home:
@@ -856,6 +905,10 @@ def parse_espn_rankings(league: str, raw: Dict[str, Any], poll: Optional[str] = 
             team_id = str(team.get("id") or "").strip() or _id_from_team_url(str(row.get("team_url") or ""))
             if not name or not team_id:
                 continue
+            team_dict = dict(team)
+            if "id" not in team_dict and team_id:
+                team_dict["id"] = team_id
+            logo = _team_logo(league, team_dict) or (f"https://a.espncdn.com/i/teamlogos/ncaa/500/{team_id}.png" if league in ("cfb", "mcbb", "wcbb") and team_id else None)
             previous = row.get("previous") if row.get("previous") is not None else row.get("previous_rank")
             record = str(row.get("recordSummary") or row.get("formatted_record") or "").strip()
             previous_label, trend = _rank_trend(current, previous, row.get("trend"))
@@ -868,6 +921,7 @@ def parse_espn_rankings(league: str, raw: Dict[str, Any], poll: Optional[str] = 
                 "team_id": team_id,
                 "name": name,
                 "abbreviation": abbr,
+                "logo": logo,
                 "news_query": query,
             })
     return {
@@ -935,7 +989,7 @@ def parse_espn_standings(league: str, raw: Dict[str, Any]) -> Dict[str, Any]:
             if not isinstance(entry, dict):
                 continue
             t = entry.get("team", {})
-            logo = t.get("logo") or (t.get("logos", [{}])[0].get("href") if t.get("logos") else None)
+            logo = _team_logo(league, t)
             stats = {
                 s.get("name"): s.get("displayValue")
                 for s in entry.get("stats", [])
@@ -1102,6 +1156,10 @@ def overlay_scoreboard_event(detail: Event, board: Event) -> Event:
         detail.home_team.logo = board.home_team.logo
     if board.away_team.logo and not detail.away_team.logo:
         detail.away_team.logo = board.away_team.logo
+    if board.home_team.rank and not detail.home_team.rank:
+        detail.home_team.rank = board.home_team.rank
+    if board.away_team.rank and not detail.away_team.rank:
+        detail.away_team.rank = board.away_team.rank
     return detail
 
 
