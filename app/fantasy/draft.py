@@ -443,7 +443,9 @@ def make_draft_pick(
             conn.execute("DELETE FROM draft_queue WHERE team_id = ? AND player_id = ?;", (clock_team_id, player_id))
 
             # Advance pick
+            draft_completed = False
             if overall >= total_picks:
+                draft_completed = True
                 new_status = LeagueStatus.IN_SEASON.value
                 deadline = None
                 conn.execute("""
@@ -480,7 +482,13 @@ def make_draft_pick(
                 team_name=clock_team.name,
                 manager_name=clock_team.manager_name,
             )
-            return draft_pick, None
+
+        if draft_completed:
+            from app.fantasy.matchups import generate_league_schedule, ensure_lineups_for_week
+            generate_league_schedule(league_id)
+            ensure_lineups_for_week(league_id, 1)
+
+        return draft_pick, None
     finally:
         conn.close()
 

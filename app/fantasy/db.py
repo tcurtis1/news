@@ -9,7 +9,19 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from app.fantasy.models import AuditLogEntry, FantasyTeam, League, LeagueSettings, Player
+from app.fantasy.models import (
+    AuditLogEntry,
+    DraftPick,
+    DraftQueueItem,
+    FantasyTeam,
+    League,
+    LeagueSettings,
+    LineupSlot,
+    Matchup,
+    Player,
+    PlayerGameStats,
+    RosterPlayer,
+)
 from app.fantasy.players import load_seed_players
 
 _DEFAULT_DB_DIR = Path(os.environ.get("CACHE_DIR", str(Path(__file__).resolve().parent.parent.parent / "data")))
@@ -139,12 +151,80 @@ def init_db(conn: Optional[sqlite3.Connection] = None) -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_draft_queue_team ON draft_queue(team_id, priority);")
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_draft_queue_unique ON draft_queue(team_id, player_id);")
 
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS matchups (
+                id TEXT PRIMARY KEY,
+                league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+                week INTEGER NOT NULL,
+                home_team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                away_team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                home_score REAL NOT NULL DEFAULT 0.0,
+                away_score REAL NOT NULL DEFAULT 0.0,
+                home_projected REAL NOT NULL DEFAULT 0.0,
+                away_projected REAL NOT NULL DEFAULT 0.0,
+                is_final INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_matchups_league_week ON matchups(league_id, week);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_matchups_home ON matchups(home_team_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_matchups_away ON matchups(away_team_id);")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_matchups_unique_match ON matchups(league_id, week, home_team_id);")
+
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS lineup_slots (
+                id TEXT PRIMARY KEY,
+                league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+                team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                week INTEGER NOT NULL,
+                player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                slot TEXT NOT NULL,
+                is_starter INTEGER NOT NULL DEFAULT 1,
+                is_locked INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_lineup_team_week ON lineup_slots(league_id, team_id, week);")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_lineup_slot_unique ON lineup_slots(league_id, team_id, week, player_id);")
+
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS player_game_stats (
+                id TEXT PRIMARY KEY,
+                player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                season INTEGER NOT NULL,
+                week INTEGER NOT NULL,
+                pass_yd INTEGER NOT NULL DEFAULT 0,
+                pass_td INTEGER NOT NULL DEFAULT 0,
+                pass_int INTEGER NOT NULL DEFAULT 0,
+                rush_yd INTEGER NOT NULL DEFAULT 0,
+                rush_td INTEGER NOT NULL DEFAULT 0,
+                rec INTEGER NOT NULL DEFAULT 0,
+                rec_yd INTEGER NOT NULL DEFAULT 0,
+                rec_td INTEGER NOT NULL DEFAULT 0,
+                fumble_lost INTEGER NOT NULL DEFAULT 0,
+                two_pt INTEGER NOT NULL DEFAULT 0,
+                fg_made INTEGER NOT NULL DEFAULT 0,
+                pat_made INTEGER NOT NULL DEFAULT 0,
+                dst_sack INTEGER NOT NULL DEFAULT 0,
+                dst_int INTEGER NOT NULL DEFAULT 0,
+                dst_fumble_rec INTEGER NOT NULL DEFAULT 0,
+                dst_safety INTEGER NOT NULL DEFAULT 0,
+                dst_td INTEGER NOT NULL DEFAULT 0,
+                dst_points_allowed INTEGER NOT NULL DEFAULT 0,
+                raw_stats_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL
+            );
+            """)
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_player_stats_uniq ON player_game_stats(player_id, season, week);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_player_stats_lookup ON player_game_stats(season, week);")
+
             # Column migrations for leagues table
             for col, ctype in [
                 ("draft_order_json", "TEXT DEFAULT '[]'"),
                 ("current_overall_pick", "INTEGER NOT NULL DEFAULT 1"),
                 ("current_pick_deadline", "TEXT"),
                 ("draft_paused_seconds", "INTEGER"),
+                ("current_week", "INTEGER NOT NULL DEFAULT 1"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE leagues ADD COLUMN {col} {ctype};")
@@ -209,6 +289,7 @@ def row_to_league(r: sqlite3.Row, teams: Optional[List[FantasyTeam]] = None) -> 
         current_overall_pick=r["current_overall_pick"] if "current_overall_pick" in r.keys() else 1,
         current_pick_deadline=r["current_pick_deadline"] if "current_pick_deadline" in r.keys() else None,
         draft_paused_seconds=r["draft_paused_seconds"] if "draft_paused_seconds" in r.keys() else None,
+        current_week=r["current_week"] if "current_week" in r.keys() else 1,
     )
 
 
@@ -252,4 +333,70 @@ def row_to_roster_player(r: sqlite3.Row, player: Optional[Player] = None) -> Ros
         acquired_type=r["acquired_type"],
         created_at=r["created_at"],
         player=player,
+    )
+
+
+def row_to_matchup(
+    r: sqlite3.Row,
+    home_team: Optional[FantasyTeam] = None,
+    away_team: Optional[FantasyTeam] = None,
+) -> Matchup:
+    return Matchup(
+        id=r["id"],
+        league_id=r["league_id"],
+        week=r["week"],
+        home_team_id=r["home_team_id"],
+        away_team_id=r["away_team_id"],
+        home_score=float(r["home_score"]),
+        away_score=float(r["away_score"]),
+        home_projected=float(r["home_projected"]) if "home_projected" in r.keys() else 0.0,
+        away_projected=float(r["away_projected"]) if "away_projected" in r.keys() else 0.0,
+        is_final=bool(r["is_final"]),
+        created_at=r["created_at"],
+        home_team=home_team,
+        away_team=away_team,
+    )
+
+
+def row_to_lineup_slot(r: sqlite3.Row, player: Optional[Player] = None) -> LineupSlot:
+    return LineupSlot(
+        id=r["id"],
+        league_id=r["league_id"],
+        team_id=r["team_id"],
+        week=r["week"],
+        player_id=r["player_id"],
+        slot=r["slot"],
+        is_starter=bool(r["is_starter"]),
+        is_locked=bool(r["is_locked"]) if "is_locked" in r.keys() else False,
+        created_at=r["created_at"],
+        player=player,
+    )
+
+
+def row_to_player_game_stats(r: sqlite3.Row) -> PlayerGameStats:
+    return PlayerGameStats(
+        id=r["id"],
+        player_id=r["player_id"],
+        season=r["season"],
+        week=r["week"],
+        pass_yd=r["pass_yd"],
+        pass_td=r["pass_td"],
+        pass_int=r["pass_int"],
+        rush_yd=r["rush_yd"],
+        rush_td=r["rush_td"],
+        rec=r["rec"],
+        rec_yd=r["rec_yd"],
+        rec_td=r["rec_td"],
+        fumble_lost=r["fumble_lost"],
+        two_pt=r["two_pt"],
+        fg_made=r["fg_made"],
+        pat_made=r["pat_made"],
+        dst_sack=r["dst_sack"],
+        dst_int=r["dst_int"],
+        dst_fumble_rec=r["dst_fumble_rec"],
+        dst_safety=r["dst_safety"],
+        dst_td=r["dst_td"],
+        dst_points_allowed=r["dst_points_allowed"],
+        raw_stats_json=r["raw_stats_json"] if "raw_stats_json" in r.keys() else "{}",
+        updated_at=r["updated_at"],
     )

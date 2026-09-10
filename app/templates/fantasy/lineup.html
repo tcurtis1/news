@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page lineup-page">
+  <header class="sports-hero lineup-hero">
+    <div>
+      <p class="eyebrow">
+        <a href="/sports/fantasy">Fantasy NFL</a> › 
+        <a href="/sports/fantasy/league/{{ league.id }}">{{ league.name }}</a> › 
+        Lineup
+      </p>
+      <h1>{{ team.name }}</h1>
+      <p class="muted">
+        Manager: <b>{{ team.manager_name }}</b> · 
+        Record: <b>{{ team.wins }}-{{ team.losses }}{% if team.ties %}-{{ team.ties }}{% endif %}</b> · 
+        Projected: <b>{{ lineup.projected_points|round(1) }} pts</b>
+      </p>
+    </div>
+    <div class="fantasy-hero-actions">
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/matchup">View Matchup ⚔️</a>
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/schedule">Scoreboard 📅</a>
+    </div>
+  </header>
+
+  <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
+    <a href="/sports/fantasy/league/{{ league.id }}">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/matchup">⚔️ Matchup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/lineup" aria-current="page">📋 Lineup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/schedule">📅 Schedule</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/settings">Settings</a>
+  </nav>
+
+  <!-- Week Selector & Header Controls -->
+  <div class="lineup-top-toolbar">
+    <div class="week-nav-arrows">
+      {% if week > 1 %}
+        <a href="/sports/fantasy/league/{{ league.id }}/lineup?week={{ week - 1 }}&team_id={{ team.id }}" class="btn-quiet">‹ Week {{ week - 1 }}</a>
+      {% else %}
+        <span class="btn-quiet disabled">‹ Week 1</span>
+      {% endif %}
+      <span class="matchup-week-current">Week {{ week }}</span>
+      {% if week < 14 %}
+        <a href="/sports/fantasy/league/{{ league.id }}/lineup?week={{ week + 1 }}&team_id={{ team.id }}" class="btn-quiet">Week {{ week + 1 }} ›</a>
+      {% else %}
+        <span class="btn-quiet disabled">Week 14 ›</span>
+      {% endif %}
+    </div>
+
+    <!-- Team Switcher Dropdown if commissioner or viewing other teams -->
+    {% if league.teams|length > 1 %}
+    <div class="team-switcher-wrap">
+      <label for="team-select" class="muted">Team:</label>
+      <select id="team-select" onchange="window.location.href='/sports/fantasy/league/{{ league.id }}/lineup?week={{ week }}&team_id=' + this.value">
+        {% for t in league.teams %}
+          <option value="{{ t.id }}"{% if t.id == team.id %} selected{% endif %}>
+            {{ t.name }} ({{ t.manager_name }})
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Active Swap Banner (dynamically revealed when tapping a slot) -->
+  <div id="swap-banner" class="swap-action-banner" style="display: none;">
+    <div class="swap-banner-text">
+      <span>Swapping <strong id="swap-source-name">Player</strong> (<span id="swap-source-pos">POS</span>). Tap an eligible highlighted slot below to swap.</span>
+    </div>
+    <button type="button" class="btn-quiet" onclick="cancelSwap()">Cancel</button>
+  </div>
+
+  <div id="swap-feedback" class="swap-feedback-msg"></div>
+
+  <!-- Starting Lineup -->
+  <section class="sports-section" aria-labelledby="starters-heading">
+    <div class="sports-section-heading">
+      <h2 id="starters-heading">Starting Lineup</h2>
+      <span class="lineup-totals">
+        {% if lineup.total_points > 0 %}
+          <strong>{{ lineup.total_points|round(2) }} pts</strong> · 
+        {% endif %}
+        Proj: <strong>{{ lineup.projected_points|round(1) }}</strong>
+      </span>
+    </div>
+
+    <div class="lineup-slots-list">
+      {% for s in lineup.starters %}
+      <div class="lineup-card starter-card" id="slot-{{ s.id }}" data-slot-id="{{ s.id }}" data-slot="{{ s.slot }}" data-pos="{{ s.player.position if s.player else '' }}" data-locked="{{ 'true' if s.is_locked else 'false' }}">
+        <div class="slot-tag-col">
+          <span class="slot-badge badge-{{ s.slot | lower }}">{{ s.slot }}</span>
+        </div>
+
+        <div class="slot-player-col">
+          {% if s.player %}
+            <div class="p-headline">
+              <span class="p-pos-tag">{{ s.player.position }}</span>
+              <b class="p-name">{{ s.player.name }}</b>
+              <span class="p-nfl-info">{{ s.player.nfl_team }} · Bye {{ s.player.bye_week }}</span>
+            </div>
+            <div class="p-statline">{{ s.stats_summary }}</div>
+          {% else %}
+            <div class="p-headline"><span class="muted">Empty {{ s.slot }} Slot</span></div>
+          {% endif %}
+        </div>
+
+        <div class="slot-score-col">
+          <span class="p-score">{{ s.points|round(2) }}</span>
+          <small class="muted">Proj {{ s.projected_points|round(1) }}</small>
+        </div>
+
+        {% if can_edit %}
+        <div class="slot-action-col">
+          {% if s.is_locked %}
+            <span class="badge-pill badge-locked" title="Game started">🔒 Locked</span>
+          {% else %}
+            <button type="button" class="btn-swap" onclick="handleSlotClick('{{ s.id }}', '{{ s.slot }}', '{{ s.player.position if s.player else '' }}', '{{ s.player.name if s.player else '' }}')">
+              Swap
+            </button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Bench -->
+  <section class="sports-section" aria-labelledby="bench-heading">
+    <div class="sports-section-heading">
+      <h2 id="bench-heading">Bench</h2>
+      <span class="lineup-totals">
+        {% if lineup.bench_points > 0 %}
+          <strong>{{ lineup.bench_points|round(2) }} pts</strong>
+        {% endif %}
+      </span>
+    </div>
+
+    <div class="lineup-slots-list">
+      {% for b in lineup.bench %}
+      <div class="lineup-card bench-card" id="slot-{{ b.id }}" data-slot-id="{{ b.id }}" data-slot="BENCH" data-pos="{{ b.player.position if b.player else '' }}" data-locked="{{ 'true' if b.is_locked else 'false' }}">
+        <div class="slot-tag-col">
+          <span class="slot-badge badge-bench">BN</span>
+        </div>
+
+        <div class="slot-player-col">
+          {% if b.player %}
+            <div class="p-headline">
+              <span class="p-pos-tag">{{ b.player.position }}</span>
+              <b class="p-name">{{ b.player.name }}</b>
+              <span class="p-nfl-info">{{ b.player.nfl_team }} · Bye {{ b.player.bye_week }}</span>
+            </div>
+            <div class="p-statline">{{ b.stats_summary }}</div>
+          {% else %}
+            <div class="p-headline"><span class="muted">Empty Bench Slot</span></div>
+          {% endif %}
+        </div>
+
+        <div class="slot-score-col">
+          <span class="p-score">{{ b.points|round(2) }}</span>
+          <small class="muted">Proj {{ b.projected_points|round(1) }}</small>
+        </div>
+
+        {% if can_edit %}
+        <div class="slot-action-col">
+          {% if b.is_locked %}
+            <span class="badge-pill badge-locked" title="Game started">🔒 Locked</span>
+          {% else %}
+            <button type="button" class="btn-swap" onclick="handleSlotClick('{{ b.id }}', 'BENCH', '{{ b.player.position if b.player else '' }}', '{{ b.player.name if b.player else '' }}')">
+              Swap
+            </button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</main>
+
+<script>
+  const LEAGUE_ID = "{{ league.id }}";
+  const TEAM_ID = "{{ team.id }}";
+  const WEEK = {{ week }};
+  const CAN_EDIT = {{ 'true' if can_edit else 'false' }};
+
+  let activeSource = null; // { id, slot, pos, name }
+
+  function isEligible(pos, slot) {
+    const p = (pos || "").toUpperCase();
+    const s = (slot || "").toUpperCase();
+    if (s === "BENCH") return true;
+    if (s === "QB") return p === "QB";
+    if (s === "RB1" || s === "RB2" || s === "RB") return p === "RB";
+    if (s === "WR1" || s === "WR2" || s === "WR") return p === "WR";
+    if (s === "TE") return p === "TE";
+    if (s === "FLEX") return p === "RB" || p === "WR" || p === "TE";
+    if (s === "K") return p === "K";
+    if (s === "DST") return p === "DST";
+    return false;
+  }
+
+  function handleSlotClick(slotId, slotName, playerPos, playerName) {
+    if (!CAN_EDIT) return;
+
+    // If no active source, start swap mode
+    if (!activeSource) {
+      activeSource = { id: slotId, slot: slotName, pos: playerPos, name: playerName };
+      document.getElementById("swap-source-name").textContent = playerName || slotName;
+      document.getElementById("swap-source-pos").textContent = playerPos || slotName;
+      document.getElementById("swap-banner").style.display = "flex";
+
+      highlightEligibleSlots();
+      return;
+    }
+
+    // If clicked the same slot, cancel swap mode
+    if (activeSource.id === slotId) {
+      cancelSwap();
+      return;
+    }
+
+    // Attempt swap between activeSource and clicked slot
+    const targetSlot = slotName;
+    const targetPos = playerPos;
+
+    // Validate eligibility in both directions
+    const srcCanGoToTarget = isEligible(activeSource.pos, targetSlot);
+    const targetCanGoToSrc = isEligible(targetPos, activeSource.slot);
+
+    if (!srcCanGoToTarget || !targetCanGoToSrc) {
+      showFeedback(`Position mismatch: ${activeSource.name} (${activeSource.pos}) cannot swap with ${playerName} (${targetPos}) for slot ${targetSlot}`, true);
+      return;
+    }
+
+    executeSwap(activeSource.id, slotId);
+  }
+
+  function highlightEligibleSlots() {
+    const cards = document.querySelectorAll(".lineup-card");
+    cards.forEach(card => {
+      const cardId = card.getAttribute("data-slot-id");
+      const cardSlot = card.getAttribute("data-slot");
+      const cardPos = card.getAttribute("data-pos");
+      const isLocked = card.getAttribute("data-locked") === "true";
+
+      if (cardId === activeSource.id) {
+        card.classList.add("slot-source-active");
+      } else if (!isLocked && isEligible(activeSource.pos, cardSlot) && isEligible(cardPos, activeSource.slot)) {
+        card.classList.add("slot-eligible-target");
+        const btn = card.querySelector(".btn-swap");
+        if (btn) btn.textContent = "⇄ Tap to Swap";
+      } else {
+        card.classList.add("slot-dimmed");
+      }
+    });
+  }
+
+  function cancelSwap() {
+    activeSource = null;
+    document.getElementById("swap-banner").style.display = "none";
+    const cards = document.querySelectorAll(".lineup-card");
+    cards.forEach(card => {
+      card.classList.remove("slot-source-active", "slot-eligible-target", "slot-dimmed");
+      const btn = card.querySelector(".btn-swap");
+      if (btn) btn.textContent = "Swap";
+    });
+  }
+
+  async function executeSwap(slot1, slot2) {
+    showFeedback("Updating lineup...", false);
+    try {
+      const res = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/lineup/swap`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          team_id: TEAM_ID,
+          week: WEEK,
+          slot_id_1: slot1,
+          slot_id_2: slot2,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showFeedback("✓ Lineup updated successfully!", false);
+        setTimeout(() => window.location.reload(), 400);
+      } else {
+        showFeedback(data.error || "Failed to swap players", true);
+        cancelSwap();
+      }
+    } catch (e) {
+      showFeedback("Network error updating lineup", true);
+      cancelSwap();
+    }
+  }
+
+  function showFeedback(text, isError) {
+    const el = document.getElementById("swap-feedback");
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = isError ? "var(--danger)" : "var(--accent)";
+    el.style.display = "block";
+    setTimeout(() => {
+      if (!isError) el.style.display = "none";
+    }, 4000);
+  }
+</script>
+{% endblock %}

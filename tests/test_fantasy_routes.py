@@ -315,3 +315,53 @@ def test_draft_api_lifecycle(client):
     )
     assert undo_resp.status_code == 200
     assert undo_resp.json()["state"]["overall_pick"] == 1
+
+
+def test_matchup_and_schedule_routes(client):
+    from app.fantasy.service import join_league
+    from app.fantasy.matchups import generate_league_schedule, ensure_lineups_for_week
+
+    league, commish_team = create_league("Gridiron Kings", "Tony", "Iron Men", max_teams=2)
+    _, t2, _ = join_league(league.invite_token, "Alesia", "Wildcats")
+
+    # Generate schedule
+    generate_league_schedule(league.id, total_weeks=14)
+    ensure_lineups_for_week(league.id, 1)
+
+    client.cookies.set("yoyo_fantasy_tokens", json.dumps([commish_team.manager_token]))
+
+    # 1. Schedule / Scoreboard view
+    sched_resp = client.get(f"/sports/fantasy/league/{league.id}/matchups/1")
+    assert sched_resp.status_code == 200
+    assert "Week 1 Scoreboard" in sched_resp.text
+    assert "Iron Men" in sched_resp.text
+    assert "Wildcats" in sched_resp.text
+
+    # 2. Matchup redirect and detail view
+    matchup_resp = client.get(f"/sports/fantasy/league/{league.id}/matchup", follow_redirects=True)
+    assert matchup_resp.status_code == 200
+    assert "Head-to-Head Matchup" in matchup_resp.text
+    assert "Starters Comparison" in matchup_resp.text
+
+    # 3. Lineup editor view
+    lineup_resp = client.get(f"/sports/fantasy/league/{league.id}/lineup")
+    assert lineup_resp.status_code == 200
+    assert "Starting Lineup" in lineup_resp.text
+    assert "Bench" in lineup_resp.text
+
+    # 4. Simulate stats API
+    sim_resp = client.post(
+        f"/sports/fantasy/api/league/{league.id}/matchups/simulate-week",
+        json={"week": 1},
+    )
+    assert sim_resp.status_code == 200
+    assert sim_resp.json()["success"] is True
+
+    # 5. Finalize week API
+    fin_resp = client.post(
+        f"/sports/fantasy/api/league/{league.id}/matchups/finalize",
+        json={"week": 1},
+    )
+    assert fin_resp.status_code == 200
+    assert fin_resp.json()["success"] is True
+

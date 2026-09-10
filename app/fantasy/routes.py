@@ -35,6 +35,17 @@ from app.fantasy.draft import (
     start_draft,
     undo_last_pick,
 )
+from app.fantasy.matchups import (
+    ensure_lineups_for_week,
+    finalize_week,
+    generate_league_schedule,
+    get_league_matchups_for_week,
+    get_matchup_details,
+    get_team_lineup,
+    get_team_matchup_for_week,
+    simulate_week_stats,
+    swap_lineup_slots,
+)
 
 router = APIRouter(prefix="/sports/fantasy", tags=["fantasy"])
 
@@ -476,3 +487,236 @@ async def api_fantasy_league(league_id: str):
 async def api_fantasy_players(q: str = "", pos: str = "ALL", limit: int = 50):
     players = get_players(query=q, position=pos, limit=limit)
     return JSONResponse({"players": [p.to_dict() for p in players]})
+
+
+# ---------------------------------------------------------------------------
+# SPRINT 3: WEEKLY SCHEDULE, HEAD-TO-HEAD MATCHUPS & LINEUPS
+# ---------------------------------------------------------------------------
+
+@router.get("/league/{league_id}/matchup", response_class=HTMLResponse)
+async def fantasy_current_matchup(request: Request, league_id: str):
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    week = league.current_week or 1
+
+    # Ensure schedule is generated if league has teams
+    generate_league_schedule(league_id)
+
+    matchup_id: Optional[str] = None
+    if my_team:
+        matchup_id = get_team_matchup_for_week(league_id, my_team.id, week)
+
+    if not matchup_id:
+        week_matchups = get_league_matchups_for_week(league_id, week)
+        if week_matchups:
+            matchup_id = week_matchups[0]["id"]
+
+    if not matchup_id:
+        return RedirectResponse(f"/sports/fantasy/league/{league_id}/matchups/{week}", status_code=303)
+
+    return RedirectResponse(f"/sports/fantasy/league/{league_id}/matchup/{matchup_id}", status_code=303)
+
+
+@router.get("/league/{league_id}/matchup/{matchup_id}", response_class=HTMLResponse)
+async def fantasy_matchup_view(request: Request, league_id: str, matchup_id: str):
+    templates: Jinja2Templates = request.app.state.templates
+    details = get_matchup_details(matchup_id)
+    if not details:
+        raise HTTPException(status_code=404, detail="Matchup not found")
+
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
+
+    return templates.TemplateResponse(request, "fantasy/matchup.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"{details['home']['team']['name']} vs {details['away']['team']['name']} · Week {details['matchup']['week']}",
+        "league": league,
+        "matchup": details["matchup"],
+        "home": details["home"],
+        "away": details["away"],
+        "comparison_starters": details["comparison_starters"],
+        "home_prob": details["home_prob"],
+        "away_prob": details["away_prob"],
+        "week_matchups": details["week_matchups"],
+        "my_team": my_team,
+        "is_commissioner": is_commish,
+        "active_nav": "matchup",
+    })
+
+
+@router.get("/league/{league_id}/schedule", response_class=HTMLResponse)
+async def fantasy_schedule_redirect(request: Request, league_id: str):
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+    week = league.current_week or 1
+    return RedirectResponse(f"/sports/fantasy/league/{league_id}/matchups/{week}", status_code=303)
+
+
+@router.get("/league/{league_id}/matchups/{week}", response_class=HTMLResponse)
+async def fantasy_schedule_view(request: Request, league_id: str, week: int):
+    templates: Jinja2Templates = request.app.state.templates
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    # Ensure schedule is generated
+    generate_league_schedule(league_id)
+
+    week = max(1, min(14, week))
+    matchups = get_league_matchups_for_week(league_id, week)
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
+
+    return templates.TemplateResponse(request, "fantasy/schedule.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"Week {week} Scoreboard · {league.name}",
+        "league": league,
+        "week": week,
+        "matchups": matchups,
+        "my_team": my_team,
+        "is_commissioner": is_commish,
+        "active_nav": "schedule",
+    })
+
+
+@router.get("/league/{league_id}/lineup", response_class=HTMLResponse)
+async def fantasy_lineup_view(request: Request, league_id: str, week: Optional[int] = None, team_id: Optional[str] = None):
+    templates: Jinja2Templates = request.app.state.templates
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
+
+    view_week = week if week is not None and 1 <= week <= 14 else (league.current_week or 1)
+
+    target_team = None
+    if team_id:
+        target_team = next((t for t in league.teams if t.id == team_id), None)
+    if not target_team:
+        target_team = my_team or (league.teams[0] if league.teams else None)
+
+    if not target_team:
+        raise HTTPException(status_code=404, detail="No teams in league")
+
+    lineup_data = get_team_lineup(league_id, target_team.id, view_week)
+    can_edit = bool(my_team and my_team.id == target_team.id) or is_commish
+
+    return templates.TemplateResponse(request, "fantasy/lineup.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"{target_team.name} Lineup · Week {view_week}",
+        "league": league,
+        "team": target_team,
+        "week": view_week,
+        "lineup": lineup_data,
+        "can_edit": can_edit,
+        "my_team": my_team,
+        "is_commissioner": is_commish,
+        "active_nav": "lineup",
+    })
+
+
+@router.post("/api/league/{league_id}/lineup/swap")
+async def api_swap_lineup(request: Request, league_id: str):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    team_id = data.get("team_id")
+    week = int(data.get("week", 1))
+    slot_id_1 = data.get("slot_id_1")
+    slot_id_2 = data.get("slot_id_2")
+
+    tokens = get_tokens_from_cookie(request)
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found"}, status_code=404)
+
+    # Actor token: check if user is manager of this team or commish
+    my_team = next((t for t in league.teams if t.manager_token in tokens and (t.id == team_id or t.is_commissioner)), None)
+    if not my_team:
+        commish_token_match = next((tok for tok in tokens if tok == league.commissioner_token), None)
+        if not commish_token_match:
+            return JSONResponse({"error": "Unauthorized to modify this team's lineup"}, status_code=403)
+        actor_token = commish_token_match
+    else:
+        actor_token = my_team.manager_token
+
+    ok, msg = swap_lineup_slots(league_id, team_id, week, slot_id_1, slot_id_2, actor_token)
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+
+    updated_lineup = get_team_lineup(league_id, team_id, week)
+    return JSONResponse({"success": True, "message": msg, "lineup": updated_lineup})
+
+
+@router.get("/api/league/{league_id}/matchup/{matchup_id}")
+async def api_matchup_details(league_id: str, matchup_id: str):
+    details = get_matchup_details(matchup_id)
+    if not details:
+        return JSONResponse({"error": "Matchup not found"}, status_code=404)
+    return JSONResponse(details)
+
+
+@router.post("/api/league/{league_id}/matchups/finalize")
+async def api_finalize_week(request: Request, league_id: str):
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found"}, status_code=404)
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
+    if not is_commish:
+        return JSONResponse({"error": "Only commissioner can finalize the week"}, status_code=403)
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    week = int(data.get("week", league.current_week))
+    ok, msg = finalize_week(league_id, week, league.commissioner_token)
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+    return JSONResponse({"success": True, "message": msg})
+
+
+@router.post("/api/league/{league_id}/matchups/simulate-week")
+async def api_simulate_week_stats(request: Request, league_id: str):
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found"}, status_code=404)
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
+    if not is_commish:
+        return JSONResponse({"error": "Only commissioner can trigger stat simulations"}, status_code=403)
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    week = int(data.get("week", league.current_week))
+    ok, msg = simulate_week_stats(league_id, week, league.commissioner_token)
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+    return JSONResponse({"success": True, "message": msg})
+

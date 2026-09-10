@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page matchup-page">
+  <header class="sports-hero matchup-hero">
+    <div>
+      <p class="eyebrow">
+        <a href="/sports/fantasy">Fantasy NFL</a> › 
+        <a href="/sports/fantasy/league/{{ league.id }}">{{ league.name }}</a> › 
+        Week {{ matchup.week }}
+      </p>
+      <h1>Head-to-Head Matchup</h1>
+    </div>
+    <div class="fantasy-hero-actions">
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/matchups/{{ matchup.week }}">All Matchups</a>
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/lineup">My Lineup</a>
+    </div>
+  </header>
+
+  <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
+    <a href="/sports/fantasy/league/{{ league.id }}">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/matchup" aria-current="page">⚔️ Matchup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/lineup">📋 Lineup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/schedule">📅 Schedule</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/settings">Settings</a>
+  </nav>
+
+  <!-- Week Selector Navigation -->
+  <div class="matchup-week-bar">
+    <div class="week-nav-arrows">
+      {% if matchup.week > 1 %}
+        <a href="/sports/fantasy/league/{{ league.id }}/matchups/{{ matchup.week - 1 }}" class="btn-quiet">‹ Week {{ matchup.week - 1 }}</a>
+      {% else %}
+        <span class="btn-quiet disabled">‹ Week 1</span>
+      {% endif %}
+      <span class="matchup-week-current">Week {{ matchup.week }} of 14</span>
+      {% if matchup.week < 14 %}
+        <a href="/sports/fantasy/league/{{ league.id }}/matchups/{{ matchup.week + 1 }}" class="btn-quiet">Week {{ matchup.week + 1 }} ›</a>
+      {% else %}
+        <span class="btn-quiet disabled">Week 14 ›</span>
+      {% endif %}
+    </div>
+
+    <!-- League matchup quick-switcher -->
+    {% if week_matchups|length > 1 %}
+    <div class="matchup-switcher-strip">
+      {% for wm in week_matchups %}
+        <a href="/sports/fantasy/league/{{ league.id }}/matchup/{{ wm.id }}" class="matchup-pill{% if wm.id == matchup.id %} active{% endif %}">
+          <span class="mp-names">{{ wm.home_name }} vs {{ wm.away_name }}</span>
+          <span class="mp-scores">{{ wm.home_score|round(1) }} - {{ wm.away_score|round(1) }}</span>
+        </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Scoreboard Banner -->
+  <section class="matchup-scoreboard-card" id="scoreboard-card">
+    <div class="scoreboard-team scoreboard-home">
+      <div class="team-avatar-large">{{ home.team.name[:2] | upper }}</div>
+      <div class="team-meta">
+        <h2 class="team-title">{{ home.team.name }}</h2>
+        <p class="manager-sub">{{ home.team.manager_name }} · ({{ home.team.wins }}-{{ home.team.losses }}{% if home.team.ties %}-{{ home.team.ties }}{% endif %})</p>
+      </div>
+      <div class="score-display">
+        <span class="big-score" id="home-score">{{ home.total_points|round(2) }}</span>
+        <span class="proj-label">Proj: <strong id="home-proj">{{ home.projected_points|round(1) }}</strong></span>
+      </div>
+    </div>
+
+    <div class="scoreboard-middle">
+      <div class="status-badge-wrap">
+        {% if matchup.is_final %}
+          <span class="badge-pill badge-final">FINAL</span>
+        {% else %}
+          <span class="badge-pill badge-live">LIVE</span>
+        {% endif %}
+      </div>
+      
+      <!-- Win Probability Bar -->
+      <div class="win-prob-container">
+        <div class="win-prob-labels">
+          <span id="home-prob-text">{{ home_prob }}%</span>
+          <span class="win-prob-title">WIN PROBABILITY</span>
+          <span id="away-prob-text">{{ away_prob }}%</span>
+        </div>
+        <div class="win-prob-bar">
+          <div class="win-prob-fill home-fill" id="home-prob-bar" style="width: {{ home_prob }}%;"></div>
+          <div class="win-prob-fill away-fill" id="away-prob-bar" style="width: {{ away_prob }}%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="scoreboard-team scoreboard-away">
+      <div class="score-display">
+        <span class="big-score" id="away-score">{{ away.total_points|round(2) }}</span>
+        <span class="proj-label">Proj: <strong id="away-proj">{{ away.projected_points|round(1) }}</strong></span>
+      </div>
+      <div class="team-meta" style="text-align: right;">
+        <h2 class="team-title">{{ away.team.name }}</h2>
+        <p class="manager-sub">({{ away.team.wins }}-{{ away.team.losses }}{% if away.team.ties %}-{{ away.team.ties }}{% endif %}) · {{ away.team.manager_name }}</p>
+      </div>
+      <div class="team-avatar-large">{{ away.team.name[:2] | upper }}</div>
+    </div>
+  </section>
+
+  <!-- Commissioner Action Strip -->
+  {% if is_commissioner %}
+  <section class="commish-action-strip">
+    <span class="commish-label">👑 Commissioner Controls:</span>
+    <button type="button" class="btn-quiet" id="btn-simulate-stats" onclick="simulateStats()">🎲 Simulate / Update Week {{ matchup.week }} Stats</button>
+    {% if not matchup.is_final %}
+      <button type="button" class="btn-primary" id="btn-finalize-week" onclick="finalizeWeek()">✓ Finalize Week {{ matchup.week }}</button>
+    {% else %}
+      <span class="badge-pill">Week Finalized</span>
+    {% endif %}
+    <span id="commish-msg" class="commish-feedback"></span>
+  </section>
+  {% endif %}
+
+  <!-- Starters Dual Comparison Table -->
+  <section class="matchup-rosters-section">
+    <div class="section-title-row">
+      <h3>Starters Comparison</h3>
+      <span class="muted">Position-by-position matchup</span>
+    </div>
+
+    <div class="comparison-table-wrap">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th class="col-home-player" scope="col">{{ home.team.name }}</th>
+            <th class="col-slot-badge" scope="col">POS</th>
+            <th class="col-away-player" scope="col">{{ away.team.name }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in comparison_starters %}
+          <tr class="comparison-row">
+            <!-- Home Starter -->
+            <td class="td-home-player">
+              {% if row.home_slot and row.home_slot.player %}
+                {% set hp = row.home_slot.player %}
+                <div class="player-entry home-entry">
+                  <div class="player-avatar">{{ hp.position }}</div>
+                  <div class="player-info">
+                    <div class="p-name"><b>{{ hp.name }}</b> <span class="p-sub">{{ hp.position }} - {{ hp.nfl_team }}</span></div>
+                    <div class="p-statline">{{ row.home_slot.stats_summary }}</div>
+                  </div>
+                  <div class="player-points-box">
+                    <span class="p-pts">{{ row.home_slot.points|round(2) }}</span>
+                    <span class="p-proj">Proj {{ row.home_slot.projected_points|round(1) }}</span>
+                  </div>
+                </div>
+              {% else %}
+                <div class="player-entry empty-slot"><span class="muted">Empty Slot</span></div>
+              {% endif %}
+            </td>
+
+            <!-- Position Badge -->
+            <td class="td-slot-badge">
+              <span class="slot-badge">{{ row.slot }}</span>
+            </td>
+
+            <!-- Away Starter -->
+            <td class="td-away-player">
+              {% if row.away_slot and row.away_slot.player %}
+                {% set ap = row.away_slot.player %}
+                <div class="player-entry away-entry">
+                  <div class="player-points-box">
+                    <span class="p-pts">{{ row.away_slot.points|round(2) }}</span>
+                    <span class="p-proj">Proj {{ row.away_slot.projected_points|round(1) }}</span>
+                  </div>
+                  <div class="player-info text-right">
+                    <div class="p-name"><b>{{ ap.name }}</b> <span class="p-sub">{{ ap.position }} - {{ ap.nfl_team }}</span></div>
+                    <div class="p-statline">{{ row.away_slot.stats_summary }}</div>
+                  </div>
+                  <div class="player-avatar">{{ ap.position }}</div>
+                </div>
+              {% else %}
+                <div class="player-entry empty-slot text-right"><span class="muted">Empty Slot</span></div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Bench Section -->
+  <section class="matchup-bench-section">
+    <div class="section-title-row">
+      <h3>Bench</h3>
+      <span class="muted">Non-scoring reserves</span>
+    </div>
+
+    <div class="bench-grid">
+      <!-- Home Bench -->
+      <div class="bench-column">
+        <div class="bench-col-header">
+          <h4>{{ home.team.name }} Bench</h4>
+          <span class="bench-total">{{ home.bench_points|round(2) }} pts</span>
+        </div>
+        <div class="bench-list">
+          {% for b in home.bench %}
+            <div class="bench-item">
+              <span class="slot-badge badge-bench">BN</span>
+              <div class="b-info">
+                <b>{{ b.player.name }}</b>
+                <span class="p-sub">{{ b.player.position }} - {{ b.player.nfl_team }}</span>
+                <span class="p-statline">{{ b.stats_summary }}</span>
+              </div>
+              <div class="b-pts">
+                <strong>{{ b.points|round(2) }}</strong>
+                <small class="muted">Proj {{ b.projected_points|round(1) }}</small>
+              </div>
+            </div>
+          {% else %}
+            <p class="muted empty-bench">No bench players</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Away Bench -->
+      <div class="bench-column">
+        <div class="bench-col-header">
+          <h4>{{ away.team.name }} Bench</h4>
+          <span class="bench-total">{{ away.bench_points|round(2) }} pts</span>
+        </div>
+        <div class="bench-list">
+          {% for b in away.bench %}
+            <div class="bench-item">
+              <span class="slot-badge badge-bench">BN</span>
+              <div class="b-info">
+                <b>{{ b.player.name }}</b>
+                <span class="p-sub">{{ b.player.position }} - {{ b.player.nfl_team }}</span>
+                <span class="p-statline">{{ b.stats_summary }}</span>
+              </div>
+              <div class="b-pts">
+                <strong>{{ b.points|round(2) }}</strong>
+                <small class="muted">Proj {{ b.projected_points|round(1) }}</small>
+              </div>
+            </div>
+          {% else %}
+            <p class="muted empty-bench">No bench players</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const LEAGUE_ID = "{{ league.id }}";
+  const MATCHUP_ID = "{{ matchup.id }}";
+  const IS_FINAL = {{ 'true' if matchup.is_final else 'false' }};
+
+  async function simulateStats() {
+    const btn = document.getElementById("btn-simulate-stats");
+    const msg = document.getElementById("commish-msg");
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = "Simulating...";
+    try {
+      const res = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/matchups/simulate-week`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week: {{ matchup.week }} }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        msg.textContent = "✓ Stats simulated!";
+        msg.style.color = "var(--accent)";
+        setTimeout(() => window.location.reload(), 600);
+      } else {
+        msg.textContent = data.error || "Simulation failed";
+        msg.style.color = "var(--danger)";
+        btn.disabled = false;
+        btn.textContent = "🎲 Simulate / Update Stats";
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "🎲 Simulate / Update Stats";
+    }
+  }
+
+  async function finalizeWeek() {
+    if (!confirm("Are you sure you want to finalize Week {{ matchup.week }}? This will lock scores and update official standings.")) {
+      return;
+    }
+    const btn = document.getElementById("btn-finalize-week");
+    const msg = document.getElementById("commish-msg");
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = "Finalizing...";
+    try {
+      const res = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/matchups/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week: {{ matchup.week }} }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        msg.textContent = "✓ Week Finalized! Reloading...";
+        msg.style.color = "var(--accent)";
+        setTimeout(() => window.location.reload(), 700);
+      } else {
+        msg.textContent = data.error || "Finalization failed";
+        msg.style.color = "var(--danger)";
+        btn.disabled = false;
+        btn.textContent = "✓ Finalize Week";
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "✓ Finalize Week";
+    }
+  }
+
+  // Live score polling if game in progress
+  if (!IS_FINAL) {
+    setInterval(async () => {
+      try {
+        const res = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/matchup/${MATCHUP_ID}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.home && data.away) {
+          document.getElementById("home-score").textContent = Number(data.home.total_points).toFixed(2);
+          document.getElementById("away-score").textContent = Number(data.away.total_points).toFixed(2);
+          document.getElementById("home-proj").textContent = Number(data.home.projected_points).toFixed(1);
+          document.getElementById("away-proj").textContent = Number(data.away.projected_points).toFixed(1);
+          document.getElementById("home-prob-text").textContent = data.home_prob + "%";
+          document.getElementById("away-prob-text").textContent = data.away_prob + "%";
+          document.getElementById("home-prob-bar").style.width = data.home_prob + "%";
+          document.getElementById("away-prob-bar").style.width = data.away_prob + "%";
+        }
+      } catch (err) {}
+    }, 15000);
+  }
+</script>
+{% endblock %}

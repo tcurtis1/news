@@ -244,6 +244,7 @@ class League:
     current_overall_pick: int = 1
     current_pick_deadline: Optional[str] = None
     draft_paused_seconds: Optional[int] = None
+    current_week: int = 1
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -260,6 +261,7 @@ class League:
             "current_overall_pick": self.current_overall_pick,
             "current_pick_deadline": self.current_pick_deadline,
             "draft_paused_seconds": self.draft_paused_seconds,
+            "current_week": self.current_week,
         }
 
 
@@ -354,4 +356,127 @@ class AuditLogEntry:
             "action": self.action,
             "description": self.description,
             "created_at": self.created_at,
+        }
+
+
+@dataclass
+class Matchup:
+    id: str
+    league_id: str
+    week: int
+    home_team_id: str
+    away_team_id: str
+    home_score: float = 0.0
+    away_score: float = 0.0
+    home_projected: float = 0.0
+    away_projected: float = 0.0
+    is_final: bool = False
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    home_team: Optional[FantasyTeam] = None
+    away_team: Optional[FantasyTeam] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "league_id": self.league_id,
+            "week": self.week,
+            "home_team_id": self.home_team_id,
+            "away_team_id": self.away_team_id,
+            "home_score": self.home_score,
+            "away_score": self.away_score,
+            "home_projected": self.home_projected,
+            "away_projected": self.away_projected,
+            "is_final": bool(self.is_final),
+            "created_at": self.created_at,
+            "home_team": self.home_team.to_dict() if self.home_team else None,
+            "away_team": self.away_team.to_dict() if self.away_team else None,
+        }
+
+
+@dataclass
+class LineupSlot:
+    id: str
+    league_id: str
+    team_id: str
+    week: int
+    player_id: str
+    slot: str  # "QB", "RB1", "RB2", "WR1", "WR2", "TE", "FLEX", "K", "DST", "BENCH"
+    is_starter: bool = True
+    is_locked: bool = False
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    player: Optional[Player] = None
+    points: float = 0.0
+    projected_points: float = 0.0
+    stats_summary: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "league_id": self.league_id,
+            "team_id": self.team_id,
+            "week": self.week,
+            "player_id": self.player_id,
+            "slot": self.slot,
+            "is_starter": bool(self.is_starter),
+            "is_locked": bool(self.is_locked),
+            "created_at": self.created_at,
+            "player": self.player.to_dict() if self.player else None,
+            "points": self.points,
+            "projected_points": self.projected_points,
+            "stats_summary": self.stats_summary,
+        }
+
+
+@dataclass
+class PlayerGameStats:
+    id: str
+    player_id: str
+    season: int
+    week: int
+    pass_yd: int = 0
+    pass_td: int = 0
+    pass_int: int = 0
+    rush_yd: int = 0
+    rush_td: int = 0
+    rec: int = 0
+    rec_yd: int = 0
+    rec_td: int = 0
+    fumble_lost: int = 0
+    two_pt: int = 0
+    fg_made: int = 0
+    pat_made: int = 0
+    dst_sack: int = 0
+    dst_int: int = 0
+    dst_fumble_rec: int = 0
+    dst_safety: int = 0
+    dst_td: int = 0
+    dst_points_allowed: int = 0
+    raw_stats_json: str = "{}"
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "player_id": self.player_id,
+            "season": self.season,
+            "week": self.week,
+            "pass_yd": self.pass_yd,
+            "pass_td": self.pass_td,
+            "pass_int": self.pass_int,
+            "rush_yd": self.rush_yd,
+            "rush_td": self.rush_td,
+            "rec": self.rec,
+            "rec_yd": self.rec_yd,
+            "rec_td": self.rec_td,
+            "fumble_lost": self.fumble_lost,
+            "two_pt": self.two_pt,
+            "fg_made": self.fg_made,
+            "pat_made": self.pat_made,
+            "dst_sack": self.dst_sack,
+            "dst_int": self.dst_int,
+            "dst_fumble_rec": self.dst_fumble_rec,
+            "dst_safety": self.dst_safety,
+            "dst_td": self.dst_td,
+            "dst_points_allowed": self.dst_points_allowed,
+            "updated_at": self.updated_at,
         }

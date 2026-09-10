@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page schedule-page">
+  <header class="sports-hero schedule-hero">
+    <div>
+      <p class="eyebrow">
+        <a href="/sports/fantasy">Fantasy NFL</a> › 
+        <a href="/sports/fantasy/league/{{ league.id }}">{{ league.name }}</a> › 
+        Scoreboard
+      </p>
+      <h1>Week {{ week }} Scoreboard</h1>
+      <p class="muted">
+        Format: <b>{{ league.settings.scoring_format | replace('_', ' ') | upper }}</b> · 
+        Current Week: <b>Week {{ league.current_week }}</b>
+      </p>
+    </div>
+    <div class="fantasy-hero-actions">
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/matchup">My Matchup ⚔️</a>
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/lineup">My Lineup 📋</a>
+    </div>
+  </header>
+
+  <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
+    <a href="/sports/fantasy/league/{{ league.id }}">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/matchup">⚔️ Matchup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/lineup">📋 Lineup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/schedule" aria-current="page">📅 Schedule</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/settings">Settings</a>
+  </nav>
+
+  <!-- Week tabs 1 through 14 -->
+  <div class="schedule-week-tabs">
+    {% for w in range(1, 15) %}
+      <a href="/sports/fantasy/league/{{ league.id }}/matchups/{{ w }}" class="week-tab{% if w == week %} active{% endif %}{% if w == league.current_week %} is-current{% endif %}">
+        W{{ w }}
+      </a>
+    {% endfor %}
+  </div>
+
+  <!-- Commissioner quick controls -->
+  {% if is_commissioner %}
+  <section class="commish-action-strip">
+    <span class="commish-label">👑 Commissioner Controls:</span>
+    <button type="button" class="btn-quiet" onclick="simulateStats()">🎲 Simulate / Update Week {{ week }} Stats</button>
+    <button type="button" class="btn-primary" onclick="finalizeWeek()">✓ Finalize Week {{ week }}</button>
+    <span id="commish-msg" class="commish-feedback"></span>
+  </section>
+  {% endif %}
+
+  <!-- Matchup Cards Grid -->
+  <section class="sports-section" aria-labelledby="matchups-heading">
+    <div class="sports-section-heading">
+      <h2 id="matchups-heading">Week {{ week }} Matchups</h2>
+      <span>{{ matchups|length }} Games</span>
+    </div>
+
+    {% if matchups %}
+    <div class="schedule-grid">
+      {% for m in matchups %}
+      <a href="/sports/fantasy/league/{{ league.id }}/matchup/{{ m.id }}" class="schedule-card{% if my_team and (my_team.id == m.home_team_id or my_team.id == m.away_team_id) %} my-matchup-card{% endif %}">
+        <div class="card-status-bar">
+          <span class="card-week-label">Week {{ m.week }}</span>
+          {% if m.is_final %}
+            <span class="badge-pill badge-final">FINAL</span>
+          {% else %}
+            <span class="badge-pill badge-live">LIVE</span>
+          {% endif %}
+        </div>
+
+        <div class="card-matchup-teams">
+          <!-- Away Team -->
+          <div class="card-team-row{% if m.is_final and m.away_score > m.home_score %} team-won{% endif %}">
+            <div class="card-team-left">
+              <span class="team-initials-sm">{{ m.away_team_name[:2] | upper }}</span>
+              <div class="card-team-names">
+                <b class="team-name-text">{{ m.away_team_name }}</b>
+                <span class="team-record-sub">{{ m.away_record }} · {{ m.away_manager_name }}</span>
+              </div>
+            </div>
+            <div class="card-team-score">
+              <span class="card-points">{{ m.away_score|round(2) }}</span>
+              <small class="muted">Proj {{ m.away_projected|round(1) }}</small>
+            </div>
+          </div>
+
+          <!-- Home Team -->
+          <div class="card-team-row{% if m.is_final and m.home_score > m.away_score %} team-won{% endif %}">
+            <div class="card-team-left">
+              <span class="team-initials-sm">{{ m.home_team_name[:2] | upper }}</span>
+              <div class="card-team-names">
+                <b class="team-name-text">{{ m.home_team_name }}</b>
+                <span class="team-record-sub">{{ m.home_record }} · {{ m.home_manager_name }}</span>
+              </div>
+            </div>
+            <div class="card-team-score">
+              <span class="card-points">{{ m.home_score|round(2) }}</span>
+              <small class="muted">Proj {{ m.home_projected|round(1) }}</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-footer-action">
+          <span>Game Center ›</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state-box">
+      <h3>No Matchups Scheduled</h3>
+      <p class="muted">The league schedule will be generated once teams are finalized and the draft completes.</p>
+    </div>
+    {% endif %}
+  </section>
+</main>
+
+<script>
+  const LEAGUE_ID = "{{ league.id }}";
+  const WEEK = {{ week }};
+
+  async function simulateStats() {
+    const msg = document.getElementById("commish-msg");
+    try {
+      const res = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/matchups/simulate-week`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week: WEEK }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        msg.textContent = "✓ Stats simulated!";
+        msg.style.color = "var(--accent)";
+        setTimeout(() => window.location.reload(), 600);
+      } else {
+        msg.textContent = data.error || "Simulation failed";
+        msg.style.color = "var(--danger)";
+      }
+    } catch (e) {}
+  }
+
+  async function finalizeWeek() {
+    if (!confirm(`Are you sure you want to finalize Week ${WEEK}? This will record official wins and losses in league standings.`)) {
+      return;
+    }
+    const msg = document.getElementById("commish-msg");
+    try {
+      const res = await fetch(`/sports/fantasy/api/league/${LEAGUE_ID}/matchups/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week: WEEK }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        msg.textContent = "✓ Week Finalized! Reloading...";
+        msg.style.color = "var(--accent)";
+        setTimeout(() => window.location.reload(), 700);
+      } else {
+        msg.textContent = data.error || "Finalization failed";
+        msg.style.color = "var(--danger)";
+      }
+    } catch (e) {}
+  }
+</script>
+{% endblock %}

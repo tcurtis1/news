@@ -21,13 +21,30 @@
 
   <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
     <a href="/sports/fantasy/league/{{ league.id }}" aria-current="page">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/matchup">⚔️ Matchup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/lineup">📋 Lineup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/schedule">📅 Schedule</a>
     <a href="/sports/fantasy/league/{{ league.id }}/draft" style="color: var(--accent); font-weight: 850;">⚡ Draft Room</a>
     <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
     <a href="/sports/fantasy/league/{{ league.id }}/settings">Rules & Settings</a>
     <a href="/sports/fantasy/players">Player Directory</a>
   </nav>
 
-  {% if league.status == 'drafting' %}
+  {% if league.status == 'in_season' %}
+  <section class="fantasy-invite-box" style="border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card));">
+    <div class="invite-header">
+      <div>
+        <h3 style="color: var(--accent);">⚔️ Week {{ league.current_week }} Matchups Live</h3>
+        <p class="muted">Check head-to-head live scoring, set your starting lineup, and monitor the scoreboard.</p>
+      </div>
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a href="/sports/fantasy/league/{{ league.id }}/matchup" class="btn-primary">View Matchup ⚔️</a>
+        <a href="/sports/fantasy/league/{{ league.id }}/lineup" class="btn-quiet">Set Lineup 📋</a>
+        <a href="/sports/fantasy/league/{{ league.id }}/schedule" class="btn-quiet">Scoreboard 📅</a>
+      </div>
+    </div>
+  </section>
+  {% elif league.status == 'drafting' %}
   <section class="fantasy-invite-box" style="border-color: #10b981; background: color-mix(in srgb, #10b981 10%, var(--card));">
     <div class="invite-header">
       <div>
@@ -76,7 +93,7 @@
 
   <section class="sports-section" aria-labelledby="teams-heading">
     <div class="sports-section-heading">
-      <h2 id="teams-heading">League Teams</h2>
+      <h2 id="teams-heading">League Standings</h2>
       <span>{{ league.teams|length }} Teams</span>
     </div>
     <div class="standings-table-wrap">
@@ -85,6 +102,9 @@
           <tr>
             <th class="th-team" scope="col">Team</th>
             <th class="th-stat" scope="col">Manager</th>
+            <th class="th-stat" scope="col">Record</th>
+            <th class="th-stat" scope="col">PF</th>
+            <th class="th-stat" scope="col">PA</th>
             <th class="th-stat" scope="col">Waiver Priority</th>
             <th class="th-stat" scope="col">FAAB</th>
             <th class="th-actions" scope="col">Role</th>
@@ -103,6 +123,9 @@
               </div>
             </th>
             <td class="td-stat">{{ t.manager_name }}</td>
+            <td class="td-stat"><b>{{ t.wins }}-{{ t.losses }}{% if t.ties %}-{{ t.ties }}{% endif %}</b></td>
+            <td class="td-stat">{{ t.points_for|round(1) }}</td>
+            <td class="td-stat">{{ t.points_against|round(1) }}</td>
             <td class="td-stat">#{{ t.waiver_priority }}</td>
             <td class="td-stat">${{ t.faab_balance }}</td>
             <td class="td-actions">
