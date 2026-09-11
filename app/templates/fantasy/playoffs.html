@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page playoffs-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow">
+        <a href="/sports/fantasy">Fantasy NFL</a> › 
+        <a href="/sports/fantasy/league/{{ league.id }}">{{ league.name }}</a> › 
+        Playoffs
+      </p>
+      <h1>Playoffs & Championship Bracket</h1>
+      <p class="muted">
+        Format: <b>{{ league.settings.playoff_teams }}-Team Bracket</b> · 
+        Regular Season: <b>{{ league.settings.regular_season_weeks }} Weeks</b> · 
+        Status: 
+        {% if league.status == 'complete' %}
+          <span class="badge-pill badge-final" style="background: #10b981; color: #fff;">COMPLETE 🏆</span>
+        {% elif league.status == 'playoffs' %}
+          <span class="badge-pill badge-live" style="background: var(--accent); color: #000;">PLAYOFFS ACTIVE ⚡</span>
+        {% else %}
+          <span class="badge-pill badge-live">REGULAR SEASON</span>
+        {% endif %}
+      </p>
+    </div>
+    <div class="fantasy-hero-actions">
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/matchup">My Matchup ⚔️</a>
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/schedule">Full Schedule 📅</a>
+    </div>
+  </header>
+
+  <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
+    <a href="/sports/fantasy/league/{{ league.id }}">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/matchup">⚔️ Matchup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/lineup">📋 Lineup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/schedule">📅 Schedule</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/playoffs" aria-current="page">🏆 Playoffs</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/draft">⚡ Draft Room</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/waivers">🏷️ Waivers</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/trades">🤝 Trades</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/activity">📜 Activity</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/settings">Settings</a>
+  </nav>
+
+  <!-- Commissioner Action Strip -->
+  {% if is_commissioner %}
+  <section class="commish-action-strip" style="margin: 1.5rem 0; padding: 0.85rem 1.25rem; background: color-mix(in srgb, var(--accent) 12%, var(--card)); border: 1px solid var(--accent); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+    <div>
+      <span style="font-weight: 800; color: var(--accent);">👑 Commissioner Playoff Controls:</span>
+      <span class="muted" style="font-size: 0.88rem; margin-left: 0.5rem;">
+        {% if playoff_data.is_generated %}
+          Bracket is generated. You can re-seed and regenerate if needed.
+        {% else %}
+          Seed and generate tournament bracket for Week {{ league.settings.regular_season_weeks + 1 }}.
+        {% endif %}
+      </span>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      {% if not playoff_data.is_generated %}
+        <button type="button" class="btn-primary" id="btn-generate-bracket" onclick="triggerPlayoffGeneration(false)">
+          🏆 Generate Playoff Bracket
+        </button>
+      {% else %}
+        <button type="button" class="btn-quiet" id="btn-regen-bracket" onclick="triggerPlayoffGeneration(true)" style="font-size: 0.85rem;">
+          🔄 Reset & Re-Seed Bracket
+        </button>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Champion Podium & Awards (When Season is Complete) -->
+  {% if playoff_data.podium.champion or league.status == 'complete' %}
+  <section class="podium-section" style="margin-bottom: 2.5rem; background: linear-gradient(135deg, color-mix(in srgb, #f59e0b 15%, var(--card)) 0%, color-mix(in srgb, var(--accent) 15%, var(--card)) 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 1.5rem 2rem; text-align: center;">
+    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🏆 🥇 👑</div>
+    <h2 style="margin: 0 0 0.5rem; font-size: 1.8rem; color: #f59e0b;">
+      League Champion: {{ playoff_data.podium.champion.name if playoff_data.podium.champion else "Champion" }}
+    </h2>
+    <p class="muted" style="margin-top: 0; font-size: 1.05rem;">
+      Managed by <b>{{ playoff_data.podium.champion.manager_name if playoff_data.podium.champion else "" }}</b> · Congratulations on winning the title!
+    </p>
+
+    <!-- Podium Standings Grid -->
+    <div class="podium-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
+      <!-- 1st Place -->
+      <div class="podium-card" style="background: var(--card); border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; text-align: center;">
+        <span style="font-size: 1.5rem;">🥇</span>
+        <div style="font-weight: 800; font-size: 0.85rem; color: #f59e0b; text-transform: uppercase; margin-top: 0.25rem;">1st Place (Champion)</div>
+        <div style="font-weight: 700; font-size: 1.1rem; margin-top: 0.35rem;">{{ playoff_data.podium.champion.name if playoff_data.podium.champion else "—" }}</div>
+        <div class="muted" style="font-size: 0.8rem;">{{ playoff_data.podium.champion.manager_name if playoff_data.podium.champion else "" }}</div>
+      </div>
+
+      <!-- 2nd Place -->
+      <div class="podium-card" style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center;">
+        <span style="font-size: 1.5rem;">🥈</span>
+        <div style="font-weight: 800; font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; margin-top: 0.25rem;">2nd Place (Runner-Up)</div>
+        <div style="font-weight: 700; font-size: 1.1rem; margin-top: 0.35rem;">{{ playoff_data.podium.runner_up.name if playoff_data.podium.runner_up else "—" }}</div>
+        <div class="muted" style="font-size: 0.8rem;">{{ playoff_data.podium.runner_up.manager_name if playoff_data.podium.runner_up else "" }}</div>
+      </div>
+
+      <!-- 3rd Place -->
+      {% if playoff_data.podium.third_place %}
+      <div class="podium-card" style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center;">
+        <span style="font-size: 1.5rem;">🥉</span>
+        <div style="font-weight: 800; font-size: 0.85rem; color: #b45309; text-transform: uppercase; margin-top: 0.25rem;">3rd Place</div>
+        <div style="font-weight: 700; font-size: 1.1rem; margin-top: 0.35rem;">{{ playoff_data.podium.third_place.name }}</div>
+        <div class="muted" style="font-size: 0.8rem;">{{ playoff_data.podium.third_place.manager_name }}</div>
+      </div>
+      {% endif %}
+
+      <!-- Sacko / Last Place -->
+      {% if playoff_data.podium.sacko %}
+      <div class="podium-card" style="background: var(--card); border: 1px solid #ef4444; border-radius: 8px; padding: 1rem; text-align: center;">
+        <span style="font-size: 1.5rem;">🧻</span>
+        <div style="font-weight: 800; font-size: 0.85rem; color: #ef4444; text-transform: uppercase; margin-top: 0.25rem;">Last Place (The Sacko)</div>
+        <div style="font-weight: 700; font-size: 1.1rem; margin-top: 0.35rem;">{{ playoff_data.podium.sacko.name }}</div>
+        <div class="muted" style="font-size: 0.8rem;">{{ playoff_data.podium.sacko.manager_name }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Tournament Bracket Tree (If Generated) -->
+  {% if playoff_data.is_generated %}
+  <section class="sports-section" style="margin-bottom: 2.5rem;">
+    <div class="sports-section-heading">
+      <h2>🏆 Championship Tournament Tree</h2>
+      <span>{{ playoff_data.rounds|length }} Playoff Rounds</span>
+    </div>
+
+    <!-- Bracket Flow Container -->
+    <div class="playoff-bracket-container" style="display: flex; gap: 1.5rem; overflow-x: auto; padding-bottom: 1rem;">
+      {% for round in playoff_data.rounds %}
+      <div class="bracket-round-column" style="flex: 1; min-width: 280px; max-width: 380px; display: flex; flex-direction: column; gap: 1.25rem;">
+        <div class="bracket-round-header" style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1rem; text-align: center;">
+          <h3 style="margin: 0; font-size: 1.05rem; color: var(--accent);">{{ round.title }}</h3>
+          <span class="muted" style="font-size: 0.8rem; font-weight: 600;">Week {{ round.week }}</span>
+        </div>
+
+        <div class="bracket-round-matchups" style="display: flex; flex-direction: column; gap: 1rem; justify-content: space-around; flex: 1;">
+          {% for m in round.matchups %}
+          <a href="/sports/fantasy/league/{{ league.id }}/matchup/{{ m.id }}" class="schedule-card playoff-matchup-card" style="text-decoration: none; border-radius: 8px; border: 1px solid var(--border); background: var(--card); overflow: hidden; transition: transform 0.15s ease, border-color 0.15s ease; position: relative;">
+            <div class="card-status-bar" style="padding: 0.45rem 0.75rem; background: color-mix(in srgb, var(--accent) 8%, var(--bg)); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem;">
+              <span style="font-weight: 700; text-transform: uppercase; color: var(--accent);">
+                {% if m.bracket_slot == 'championship' %}
+                  👑 Championship Game
+                {% elif m.bracket_slot == 'third_place' %}
+                  🥉 3rd Place Matchup
+                {% elif m.bracket_slot == 'semi_1' %}
+                  Semifinal 1 (1 vs 4)
+                {% elif m.bracket_slot == 'semi_2' %}
+                  Semifinal 2 (2 vs 3)
+                {% elif m.bracket_slot == 'quarter_1' %}
+                  Quarterfinal 1 (4 vs 5)
+                {% elif m.bracket_slot == 'quarter_2' %}
+                  Quarterfinal 2 (3 vs 6)
+                {% else %}
+                  {{ m.bracket_slot | replace('_', ' ') | upper }}
+                {% endif %}
+              </span>
+              {% if m.is_final %}
+                <span class="badge-pill badge-final" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;">FINAL</span>
+              {% elif m.week == league.current_week %}
+                <span class="badge-pill badge-live" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;">LIVE</span>
+              {% else %}
+                <span class="muted" style="font-size: 0.7rem;">UPCOMING</span>
+              {% endif %}
+            </div>
+
+            <div class="card-team-list" style="padding: 0.6rem 0.75rem; display: flex; flex-direction: column; gap: 0.4rem;">
+              <!-- Higher Seed / Home Team -->
+              <div class="card-team-row{% if m.is_final and m.winner_id == m.home_team_id %} team-won{% endif %}" style="display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.4rem; border-radius: 4px;{% if m.is_final and m.winner_id == m.home_team_id %} background: color-mix(in srgb, var(--accent) 15%, transparent); font-weight: 700;{% endif %}">
+                <div style="display: flex; align-items: center; gap: 0.5rem; overflow: hidden;">
+                  {% if m.home_seed %}
+                    <span style="font-size: 0.75rem; font-weight: 700; background: var(--bg); border: 1px solid var(--border); padding: 0.1rem 0.35rem; border-radius: 4px; color: var(--accent);">#{{ m.home_seed }}</span>
+                  {% endif %}
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.95rem;">
+                    {{ m.home_team_name }}
+                  </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <b style="font-size: 1.05rem;">{{ m.home_score|round(2) }}</b>
+                  {% if m.is_final and m.winner_id == m.home_team_id %}
+                    <span style="color: var(--accent); font-size: 0.85rem;">✓</span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Lower Seed / Away Team -->
+              <div class="card-team-row{% if m.is_final and m.winner_id == m.away_team_id %} team-won{% endif %}" style="display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.4rem; border-radius: 4px;{% if m.is_final and m.winner_id == m.away_team_id %} background: color-mix(in srgb, var(--accent) 15%, transparent); font-weight: 700;{% endif %}">
+                <div style="display: flex; align-items: center; gap: 0.5rem; overflow: hidden;">
+                  {% if m.away_seed %}
+                    <span style="font-size: 0.75rem; font-weight: 700; background: var(--bg); border: 1px solid var(--border); padding: 0.1rem 0.35rem; border-radius: 4px; color: var(--accent);">#{{ m.away_seed }}</span>
+                  {% endif %}
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.95rem;">
+                    {{ m.away_team_name }}
+                  </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <b style="font-size: 1.05rem;">{{ m.away_score|round(2) }}</b>
+                  {% if m.is_final and m.winner_id == m.away_team_id %}
+                    <span style="color: var(--accent); font-size: 0.85rem;">✓</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Consolation Ladder / Toilet Bowl (if any) -->
+  {% if playoff_data.consolation_matchups %}
+  <section class="sports-section" style="margin-bottom: 2.5rem;">
+    <div class="sports-section-heading">
+      <h3>🚽 Consolation Ladder & Toilet Bowl</h3>
+      <span>{{ playoff_data.consolation_matchups|length }} Games</span>
+    </div>
+    <div class="schedule-grid">
+      {% for m in playoff_data.consolation_matchups %}
+      <a href="/sports/fantasy/league/{{ league.id }}/matchup/{{ m.id }}" class="schedule-card">
+        <div class="card-status-bar">
+          <span class="card-week-label">Week {{ m.week }} · Consolation</span>
+          {% if m.is_final %}
+            <span class="badge-pill badge-final">FINAL</span>
+          {% else %}
+            <span class="badge-pill badge-live">LIVE</span>
+          {% endif %}
+        </div>
+        <div class="card-team-list" style="padding: 0.6rem 0.75rem; display: flex; flex-direction: column; gap: 0.4rem;">
+          <div class="card-team-row{% if m.is_final and m.winner_id == m.home_team_id %} team-won{% endif %}" style="display: flex; justify-content: space-between;">
+            <span>{% if m.home_seed %}<small class="muted">#{{ m.home_seed }}</small> {% endif %}<b>{{ m.home_team_name }}</b></span>
+            <b>{{ m.home_score|round(2) }}</b>
+          </div>
+          <div class="card-team-row{% if m.is_final and m.winner_id == m.away_team_id %} team-won{% endif %}" style="display: flex; justify-content: space-between;">
+            <span>{% if m.away_seed %}<small class="muted">#{{ m.away_seed }}</small> {% endif %}<b>{{ m.away_team_name }}</b></span>
+            <b>{{ m.away_score|round(2) }}</b>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% else %}
+  <!-- Bracket NOT yet generated notice -->
+  <section class="sports-section" style="margin-bottom: 2rem;">
+    <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem 1.5rem; text-align: center;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">📅 ⚔️ 🏆</div>
+      <h3 style="margin: 0 0 0.5rem; font-size: 1.3rem;">Playoffs Not Yet Seeded</h3>
+      <p class="muted" style="max-width: 620px; margin: 0 auto 1.5rem; font-size: 0.95rem;">
+        The regular season runs for <b>{{ league.settings.regular_season_weeks }} weeks</b>. 
+        Currently at <b>Week {{ league.current_week }}</b>. Once the regular season wraps up, the top <b>{{ league.settings.playoff_teams }} teams</b> will be seeded into the Championship tournament tree!
+      </p>
+      {% if is_commissioner %}
+      <button type="button" class="btn-primary" onclick="triggerPlayoffGeneration(false)" style="padding: 0.6rem 1.4rem; font-size: 1rem;">
+        🏆 Seed & Generate Playoff Bracket Now
+      </button>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Seedings & Regular Season Standings Table -->
+  <section class="sports-section" style="margin-bottom: 2.5rem;">
+    <div class="sports-section-heading">
+      <h2>📊 Playoff Seedings & Standings</h2>
+      <span>Tiebreaker: Win % › Points For › Head-to-Head</span>
+    </div>
+
+    <div class="table-responsive" style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.92rem;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 8%, var(--card));">
+            <th style="padding: 0.75rem 1rem;">Seed</th>
+            <th style="padding: 0.75rem 1rem;">Team & Manager</th>
+            <th style="padding: 0.75rem 1rem;">Record</th>
+            <th style="padding: 0.75rem 1rem;">Win %</th>
+            <th style="padding: 0.75rem 1rem;">Points For</th>
+            <th style="padding: 0.75rem 1rem;">Points Against</th>
+            <th style="padding: 0.75rem 1rem;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in playoff_data.seedings %}
+          <tr style="border-bottom: 1px solid var(--border);{% if s.seed <= league.settings.playoff_teams %} background: color-mix(in srgb, var(--accent) 5%, transparent);{% endif %}">
+            <td style="padding: 0.75rem 1rem;">
+              <span style="font-weight: 800; padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.8rem; background: {% if s.seed <= league.settings.playoff_teams %}var(--accent){% else %}var(--border){% endif %}; color: {% if s.seed <= league.settings.playoff_teams %}#000{% else %}var(--text){% endif %};">
+                #{{ s.seed }}
+              </span>
+            </td>
+            <td style="padding: 0.75rem 1rem;">
+              <b>{{ s.team_name }}</b>
+              <div class="muted" style="font-size: 0.8rem;">{{ s.manager_name }}</div>
+            </td>
+            <td style="padding: 0.75rem 1rem; font-weight: 600;">{{ s.record }}</td>
+            <td style="padding: 0.75rem 1rem;">{{ "%.3f"|format(s.win_pct) }}</td>
+            <td style="padding: 0.75rem 1rem; font-weight: 700;">{{ s.points_for }}</td>
+            <td style="padding: 0.75rem 1rem;" class="muted">{{ s.points_against }}</td>
+            <td style="padding: 0.75rem 1rem;">
+              {% if s.seed <= league.settings.playoff_teams %}
+                {% if s.seed <= 2 and league.settings.playoff_teams == 6 %}
+                  <span style="color: var(--accent); font-weight: 700; font-size: 0.8rem;">⚡ Playoff Bye</span>
+                {% else %}
+                  <span style="color: var(--accent); font-weight: 700; font-size: 0.8rem;">🏆 Playoff Spot</span>
+                {% endif %}
+              {% else %}
+                <span class="muted" style="font-size: 0.8rem;">Consolation</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+async function triggerPlayoffGeneration(forceRestart) {
+  const confirmMsg = forceRestart 
+    ? "Are you sure you want to reset and regenerate the entire playoff bracket? All existing playoff matchups will be replaced."
+    : "Generate the Playoff Bracket now based on current standings and tiebreakers?";
+    
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await fetch('/sports/fantasy/api/league/{{ league.id }}/playoffs/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force_restart: forceRestart })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      alert("Failed to generate playoffs: " + (data.error || "Unknown error"));
+      return;
+    }
+    alert(data.message || "Playoffs successfully generated!");
+    window.location.reload();
+  } catch (err) {
+    alert("Network error generating playoffs: " + err);
+  }
+}
+</script>
+{% endblock %}

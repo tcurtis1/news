@@ -874,3 +874,38 @@ def test_has_standings_leagues():
     for lg in ["cfb", "mcbb", "wcbb"]:
         assert has_standings(lg) is False
 
+
+def test_parse_espn_event_odds():
+    raw_event = {
+        "id": "401671800",
+        "date": "2026-09-15T00:15:00Z",
+        "competitions": [
+            {
+                "id": "401671800",
+                "competitors": [
+                    {
+                        "homeAway": "home",
+                        "team": {"id": "1", "abbreviation": "KC", "displayName": "Kansas City Chiefs"},
+                    },
+                    {
+                        "homeAway": "away",
+                        "team": {"id": "2", "abbreviation": "CIN", "displayName": "Cincinnati Bengals"},
+                    },
+                ],
+                "odds": [
+                    {
+                        "details": "KC -3.5",
+                        "overUnder": 48.5,
+                        "provider": {"displayName": "DraftKings"},
+                    }
+                ],
+            }
+        ],
+    }
+    event = parse_espn_event("nfl", raw_event)
+    assert event.odds == "KC -3.5"
+    assert event.over_under == 48.5
+    assert event.odds_summary == "KC -3.5 · O/U 48.5"
+    assert event.odds_provider == "DraftKings"
+
+

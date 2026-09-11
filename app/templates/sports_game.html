@@ -65,7 +65,7 @@
       {% endif %}
     </div>
     {% endif %}
-    <p class="game-detail-line">{{ game.status_detail }}{% if game.situation and not (game.has_bases or game.outs is not none or game.down_distance) %} · {{ game.situation }}{% endif %}{% if game.venue %} · {{ game.venue }}{% endif %}{% if game.tv %} · {{ game.tv }}{% endif %}</p>
+    <p class="game-detail-line">{{ game.status_detail }}{% if game.situation and not (game.has_bases or game.outs is not none or game.down_distance) %} · {{ game.situation }}{% endif %}{% if game.venue %} · {{ game.venue }}{% endif %}{% if game.tv %} · {{ game.tv }}{% endif %}{% if game.odds_summary %} · <span style="color: var(--accent); font-weight: 600;">Odds: {{ game.odds_summary }}{% if game.odds_provider %} ({{ game.odds_provider }}){% endif %}</span>{% endif %}</p>
     {% if game.context_line %}<p class="score-context">{{ game.context_line }}</p>{% endif %}
     <div class="score-card-stars">
       <button type="button" class="team-star" data-team-key="{{ game.league_slug }}:{{ game.away_team.id }}" data-team-id="{{ game.away_team.id }}" data-team-name="{{ game.away_team.name }}" data-team-abbr="{{ game.away_team.abbreviation }}" data-league="{{ game.league_slug }}" aria-pressed="false">Star {{ game.away_team.abbreviation }}</button>

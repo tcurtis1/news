@@ -61,6 +61,12 @@ from app.fantasy.trades import (
     propose_trade,
     respond_to_trade,
 )
+from app.fantasy.playoffs import (
+    advance_playoff_round_after_week,
+    generate_playoff_bracket,
+    get_playoff_bracket,
+    get_playoff_seedings,
+)
 
 router = APIRouter(prefix="/sports/fantasy", tags=["fantasy"])
 
@@ -587,7 +593,9 @@ async def fantasy_schedule_view(request: Request, league_id: str, week: int):
     # Ensure schedule is generated
     generate_league_schedule(league_id)
 
-    week = max(1, min(14, week))
+    playoff_extra = 3 if league.settings.playoff_teams == 6 else (2 if league.settings.playoff_teams == 4 else 1)
+    total_season_weeks = league.settings.regular_season_weeks + playoff_extra
+    week = max(1, min(total_season_weeks, week))
     matchups = get_league_matchups_for_week(league_id, week)
 
     tokens = get_tokens_from_cookie(request)
@@ -599,6 +607,8 @@ async def fantasy_schedule_view(request: Request, league_id: str, week: int):
         "page_title": f"Week {week} Scoreboard · {league.name}",
         "league": league,
         "week": week,
+        "total_season_weeks": total_season_weeks,
+        "regular_season_weeks": league.settings.regular_season_weeks,
         "matchups": matchups,
         "my_team": my_team,
         "is_commissioner": is_commish,
@@ -617,7 +627,9 @@ async def fantasy_lineup_view(request: Request, league_id: str, week: Optional[i
     my_team = next((t for t in league.teams if t.manager_token in tokens), None)
     is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
 
-    view_week = week if week is not None and 1 <= week <= 14 else (league.current_week or 1)
+    playoff_extra = 3 if league.settings.playoff_teams == 6 else (2 if league.settings.playoff_teams == 4 else 1)
+    total_season_weeks = league.settings.regular_season_weeks + playoff_extra
+    view_week = week if week is not None and 1 <= week <= total_season_weeks else (league.current_week or 1)
 
     target_team = None
     if team_id:
@@ -1040,5 +1052,61 @@ async def fantasy_activity_view(request: Request, league_id: str, type: Optional
 async def api_league_activity(league_id: str, type: Optional[str] = None, limit: int = 50):
     txs = get_league_transactions(league_id, transaction_type=type, limit=limit)
     return JSONResponse({"transactions": [tx.to_dict() for tx in txs]})
+
+
+# --- PLAYOFFS & CHAMPIONSHIP BRACKET ROUTES ---
+
+@router.get("/league/{league_id}/playoffs", response_class=HTMLResponse)
+async def fantasy_playoffs_view(request: Request, league_id: str):
+    templates: Jinja2Templates = request.app.state.templates
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
+
+    playoff_data = get_playoff_bracket(league_id)
+
+    return templates.TemplateResponse(request, "fantasy/playoffs.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"Playoffs & Championship · {league.name}",
+        "league": league,
+        "my_team": my_team,
+        "is_commissioner": is_commish,
+        "playoff_data": playoff_data,
+        "active_nav": "playoffs",
+    })
+
+
+@router.post("/api/league/{league_id}/playoffs/generate")
+async def api_generate_playoffs(request: Request, league_id: str):
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found."}, status_code=404)
+
+    tokens = get_tokens_from_cookie(request)
+    is_commish = league.commissioner_token in tokens or any(t.is_commissioner and t.manager_token in tokens for t in league.teams)
+    if not is_commish:
+        return JSONResponse({"error": "Only commissioner can generate playoff bracket."}, status_code=403)
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    force_restart = bool(data.get("force_restart", False))
+
+    ok, msg, res_data = generate_playoff_bracket(league_id, league.commissioner_token, force_restart=force_restart)
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+    return JSONResponse({"success": True, "message": msg, "data": res_data})
+
+
+@router.get("/api/league/{league_id}/playoffs")
+async def api_get_playoffs(league_id: str):
+    data = get_playoff_bracket(league_id)
+    return JSONResponse(data)
+
 
 

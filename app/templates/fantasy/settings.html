@@ -20,6 +20,7 @@
     <a href="/sports/fantasy/league/{{ league.id }}/matchup">⚔️ Matchup</a>
     <a href="/sports/fantasy/league/{{ league.id }}/lineup">📋 Lineup</a>
     <a href="/sports/fantasy/league/{{ league.id }}/schedule">📅 Schedule</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/playoffs">🏆 Playoffs</a>
     <a href="/sports/fantasy/league/{{ league.id }}/draft" style="color: var(--accent); font-weight: 850;">⚡ Draft Room</a>
     <a href="/sports/fantasy/league/{{ league.id }}/waivers">🏷️ Waivers</a>
     <a href="/sports/fantasy/league/{{ league.id }}/trades">🤝 Trades</a>
@@ -34,25 +35,45 @@
     <form method="POST" action="/sports/fantasy/league/{{ league.id }}/settings" class="fantasy-form">
       <div class="form-group">
         <label for="name">League Name</label>
-        <input type="text" id="name" name="name" value="{{ league.name }}" required maxlength="50">
+        <input type="text" id="name" name="name" value="{{ league.name }}" required maxlength="40">
       </div>
 
       <div class="form-row">
         <div class="form-group">
           <label for="scoring_format">Scoring Format</label>
           <select id="scoring_format" name="scoring_format">
-            <option value="half_ppr"{% if league.settings.scoring_format == "half_ppr" %} selected{% endif %}>0.5 PPR (Half point per reception)</option>
-            <option value="full_ppr"{% if league.settings.scoring_format == "full_ppr" %} selected{% endif %}>Full PPR (1 point per reception)</option>
-            <option value="standard"{% if league.settings.scoring_format == "standard" %} selected{% endif %}>Standard (0 points per reception)</option>
+            <option value="half_ppr"{% if league.settings.scoring_format == "half_ppr" %} selected{% endif %}>Half PPR (0.5 pts / catch)</option>
+            <option value="ppr"{% if league.settings.scoring_format == "ppr" %} selected{% endif %}>Full PPR (1.0 pt / catch)</option>
+            <option value="standard"{% if league.settings.scoring_format == "standard" %} selected{% endif %}>Standard (0 pts / catch)</option>
           </select>
         </div>
 
         <div class="form-group">
           <label for="max_teams">Maximum Teams</label>
           <select id="max_teams" name="max_teams">
-            {% for n in [8, 10, 12, 14] %}
+            {% for n in [2, 4, 6, 8, 10, 12, 14, 16] %}
             <option value="{{ n }}"{% if league.settings.max_teams == n %} selected{% endif %}>{{ n }} Teams</option>
             {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="regular_season_weeks">Regular Season Duration</label>
+          <select id="regular_season_weeks" name="regular_season_weeks">
+            {% for w in [10, 11, 12, 13, 14, 15] %}
+            <option value="{{ w }}"{% if league.settings.regular_season_weeks == w %} selected{% endif %}>{{ w }} Weeks</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="playoff_teams">Playoff Tournament Teams</label>
+          <select id="playoff_teams" name="playoff_teams">
+            <option value="2"{% if league.settings.playoff_teams == 2 %} selected{% endif %}>2 Teams (Finals only)</option>
+            <option value="4"{% if league.settings.playoff_teams == 4 %} selected{% endif %}>4 Teams (Semis & Finals)</option>
+            <option value="6"{% if league.settings.playoff_teams == 6 %} selected{% endif %}>6 Teams (Top 2 Byes)</option>
           </select>
         </div>
       </div>
@@ -73,6 +94,15 @@
       </div>
 
       <div class="form-row">
+        <div class="form-group">
+          <label for="trade_review_hours">Trade Review Period</label>
+          <select id="trade_review_hours" name="trade_review_hours">
+            <option value="0"{% if league.settings.trade_review_hours == 0 %} selected{% endif %}>Instant Execution (0 hours)</option>
+            <option value="24"{% if league.settings.trade_review_hours == 24 %} selected{% endif %}>24 Hours</option>
+            <option value="48"{% if league.settings.trade_review_hours == 48 %} selected{% endif %}>48 Hours</option>
+          </select>
+        </div>
+
         <div class="form-group">
           <label for="pick_timer_seconds">Draft Clock (Seconds per Pick)</label>
           <select id="pick_timer_seconds" name="pick_timer_seconds">
@@ -96,6 +126,8 @@
     <div class="game-stats">
       <div><span>Scoring Preset</span><b>{{ league.settings.scoring_format | replace('_', ' ') | upper }}</b><span>Default</span></div>
       <div><span>Total Team Slots</span><b>{{ league.settings.max_teams }} Teams</b><span>Locked</span></div>
+      <div><span>Regular Season</span><b>{{ league.settings.regular_season_weeks }} Weeks</b><span>Schedule</span></div>
+      <div><span>Playoffs</span><b>{{ league.settings.playoff_teams }} Teams</b><span>Championship bracket</span></div>
       <div><span>Waiver Wire</span><b>{{ league.settings.waiver_type | upper }}</b><span>${{ league.settings.faab_budget }} starting</span></div>
       <div><span>Trade Review</span><b>{{ league.settings.trade_review_hours }} Hours</b><span>Commissioner review</span></div>
     </div>

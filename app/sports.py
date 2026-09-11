@@ -61,6 +61,10 @@ class Event(BaseModel):
     batter_name: Optional[str] = None
     pitcher_name: Optional[str] = None
     last_play: Optional[str] = None
+    odds: Optional[str] = None
+    over_under: Optional[float] = None
+    odds_summary: Optional[str] = None
+    odds_provider: Optional[str] = None
 
 class SportsPayload(BaseModel):
     updated_at: datetime
@@ -570,6 +574,44 @@ def _context_line(ev: Dict[str, Any], package: Dict[str, Any], competition: Dict
     return " · ".join(bits)[:180]
 
 
+def _extract_odds(pkg: Dict[str, Any], comp0: Dict[str, Any]) -> Tuple[Optional[str], Optional[float], Optional[str], Optional[str]]:
+    """Extract betting odds: spread details (e.g. 'CIN -3.5'), over/under (e.g. 50.5), combined summary, and provider."""
+    odds_list = comp0.get("odds") or pkg.get("odds") or []
+    if not isinstance(odds_list, list) or not odds_list:
+        return None, None, None, None
+
+    for item in odds_list:
+        if not isinstance(item, dict):
+            continue
+        details = item.get("details")
+        ou = item.get("overUnder")
+        provider = item.get("provider") or {}
+        provider_name = None
+        if isinstance(provider, dict):
+            provider_name = provider.get("displayName") or provider.get("name")
+
+        details_str = str(details).strip() if details is not None and str(details).strip() else None
+        ou_val = None
+        if ou is not None:
+            try:
+                ou_val = float(ou)
+            except (ValueError, TypeError):
+                pass
+
+        summary_parts = []
+        if details_str:
+            summary_parts.append(details_str)
+        if ou_val is not None:
+            ou_str = f"{ou_val:g}"
+            summary_parts.append(f"O/U {ou_str}")
+
+        summary = " · ".join(summary_parts) if summary_parts else None
+        if details_str or ou_val is not None or summary:
+            return details_str, ou_val, summary, provider_name
+
+    return None, None, None, None
+
+
 def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
     package = ev
     if isinstance(ev.get("header"), dict):
@@ -691,6 +733,7 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
     leaders = _extract_leaders(pkg)
     situation, situation_fields = _extract_situation(pkg, comp0)
     context_line = _context_line(ev, pkg, comp0, home_team, away_team, home_comp, away_comp)
+    odds, over_under, odds_summary, odds_provider = _extract_odds(pkg, comp0)
 
     return Event(
         id=id_,
@@ -711,6 +754,10 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
         scoring_summary=scoring_summary,
         team_stats=team_stats,
         leaders=leaders,
+        odds=odds,
+        over_under=over_under,
+        odds_summary=odds_summary,
+        odds_provider=odds_provider,
         **situation_fields,
     )
 

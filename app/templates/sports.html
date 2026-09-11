@@ -110,6 +110,11 @@
                   {% endif %}
                   {% if game.show_start_time and game.venue %}<span>{{ game.venue }}</span>{% endif %}
                   {% if game.tv and game.show_start_time %}<span>{{ game.tv }}</span>{% endif %}
+                  {% if game.odds_summary %}
+                    <span class="score-odds-pill" style="font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.78rem;">
+                      {{ game.odds_summary }}
+                    </span>
+                  {% endif %}
                 </div>
                 {% if game.context_line %}<p class="score-context">{{ game.context_line }}</p>{% endif %}
                 <div class="score-card-stars">

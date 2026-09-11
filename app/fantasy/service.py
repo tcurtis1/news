@@ -117,7 +117,11 @@ def get_league(league_id: str) -> Optional[League]:
 
     tr = conn.execute("SELECT * FROM teams WHERE league_id = ? ORDER BY waiver_priority ASC, created_at ASC;", (league_id,)).fetchall()
     teams = [row_to_team(r) for r in tr]
-    league = row_to_league(lr, teams=teams)
+    champ = next((t for t in teams if t.id == lr["champion_team_id"]), None) if "champion_team_id" in lr.keys() and lr["champion_team_id"] else None
+    second = next((t for t in teams if t.id == lr["second_place_team_id"]), None) if "second_place_team_id" in lr.keys() and lr["second_place_team_id"] else None
+    third = next((t for t in teams if t.id == lr["third_place_team_id"]), None) if "third_place_team_id" in lr.keys() and lr["third_place_team_id"] else None
+    sacko = next((t for t in teams if t.id == lr["sacko_team_id"]), None) if "sacko_team_id" in lr.keys() and lr["sacko_team_id"] else None
+    league = row_to_league(lr, teams=teams, champion_team=champ, second_place_team=second, third_place_team=third, sacko_team=sacko)
     conn.close()
     return league
 
@@ -131,7 +135,11 @@ def get_league_by_invite(invite_token: str) -> Optional[League]:
 
     tr = conn.execute("SELECT * FROM teams WHERE league_id = ? ORDER BY waiver_priority ASC, created_at ASC;", (lr["id"],)).fetchall()
     teams = [row_to_team(r) for r in tr]
-    league = row_to_league(lr, teams=teams)
+    champ = next((t for t in teams if t.id == lr["champion_team_id"]), None) if "champion_team_id" in lr.keys() and lr["champion_team_id"] else None
+    second = next((t for t in teams if t.id == lr["second_place_team_id"]), None) if "second_place_team_id" in lr.keys() and lr["second_place_team_id"] else None
+    third = next((t for t in teams if t.id == lr["third_place_team_id"]), None) if "third_place_team_id" in lr.keys() and lr["third_place_team_id"] else None
+    sacko = next((t for t in teams if t.id == lr["sacko_team_id"]), None) if "sacko_team_id" in lr.keys() and lr["sacko_team_id"] else None
+    league = row_to_league(lr, teams=teams, champion_team=champ, second_place_team=second, third_place_team=third, sacko_team=sacko)
     conn.close()
     return league
 
@@ -238,6 +246,22 @@ def update_league_settings(
                     curr_settings.trade_review_hours = max(0, min(168, int(new_settings["trade_review_hours"])))
                 except Exception:
                     pass
+            if "regular_season_weeks" in new_settings:
+                try:
+                    rsw = int(new_settings["regular_season_weeks"])
+                    if 1 <= rsw <= 16:
+                        curr_settings.regular_season_weeks = rsw
+                except Exception:
+                    pass
+            if "playoff_teams" in new_settings:
+                try:
+                    pt = int(new_settings["playoff_teams"])
+                    if pt in (2, 4, 6):
+                        curr_settings.playoff_teams = pt
+                except Exception:
+                    pass
+            if "playoff_consolation" in new_settings:
+                curr_settings.playoff_consolation = bool(new_settings["playoff_consolation"])
 
             settings_json = json.dumps(curr_settings.to_dict())
             league_name = (new_settings.get("name") or lr["name"]).strip()

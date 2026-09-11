@@ -24,6 +24,7 @@
     <a href="/sports/fantasy/league/{{ league.id }}/matchup">⚔️ Matchup</a>
     <a href="/sports/fantasy/league/{{ league.id }}/lineup">📋 Lineup</a>
     <a href="/sports/fantasy/league/{{ league.id }}/schedule">📅 Schedule</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/playoffs">🏆 Playoffs</a>
     <a href="/sports/fantasy/league/{{ league.id }}/draft" style="color: var(--accent); font-weight: 850;">⚡ Draft Room</a>
     <a href="/sports/fantasy/league/{{ league.id }}/waivers">🏷️ Waivers</a>
     <a href="/sports/fantasy/league/{{ league.id }}/trades">🤝 Trades</a>
@@ -33,7 +34,30 @@
     <a href="/sports/fantasy/players">Player Directory</a>
   </nav>
 
-  {% if league.status == 'in_season' %}
+  {% if league.status == 'complete' %}
+  <section class="fantasy-invite-box" style="border-color: #10b981; background: color-mix(in srgb, #10b981 12%, var(--card));">
+    <div class="invite-header">
+      <div>
+        <h3 style="color: #10b981;">🏆 Season Complete — Champion: {{ league.champion_team.name if league.champion_team else "Champion" }}!</h3>
+        <p class="muted">The Fantasy season has concluded! View the final championship podium and awards.</p>
+      </div>
+      <a href="/sports/fantasy/league/{{ league.id }}/playoffs" class="btn-primary" style="background: #10b981; color: #fff;">View Podium & Bracket 🏆</a>
+    </div>
+  </section>
+  {% elif league.status == 'playoffs' %}
+  <section class="fantasy-invite-box" style="border-color: #f59e0b; background: color-mix(in srgb, #f59e0b 12%, var(--card));">
+    <div class="invite-header">
+      <div>
+        <h3 style="color: #f59e0b;">🏆 The Playoffs are Live (Week {{ league.current_week }})</h3>
+        <p class="muted">Championship bracket underway! Check who advances and view tournament matchups.</p>
+      </div>
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a href="/sports/fantasy/league/{{ league.id }}/playoffs" class="btn-primary" style="background: #f59e0b; color: #000;">View Bracket 🏆</a>
+        <a href="/sports/fantasy/league/{{ league.id }}/matchup" class="btn-quiet">My Matchup ⚔️</a>
+      </div>
+    </div>
+  </section>
+  {% elif league.status == 'in_season' %}
   <section class="fantasy-invite-box" style="border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card));">
     <div class="invite-header">
       <div>

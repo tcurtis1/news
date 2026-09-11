@@ -5,7 +5,7 @@ Living product list. Ship small; prefer honest UX over flashy features.
 ## Now / next
 
 ### Sports — make `/sports` a glance, then news
-Scoreboard is live (ESPN public feed). **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md). **S0–S6 shipped** (live-first mix, ticking scores, game pages, MyTeams, headlines + Follow, noindex game URLs, local date nav, compact share, college Top 25).
+Scoreboard is live (ESPN public feed). **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md). **S0–S6 shipped** (live-first mix, ticking scores, game pages, MyTeams, headlines + Follow, noindex game URLs, local date nav, compact share, college Top 25, live game betting odds & over/under).
 
 ### Fantasy NFL Football — `/sports/fantasy`
 Free, zero-friction league platform with cookie manager auth (no forced logins). **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md#fantasy-nfl-football-sprints).
@@ -13,6 +13,8 @@ Free, zero-friction league platform with cookie manager auth (no forced logins).
 - **Sprint 2 (shipped):** Snake draft engine, interactive draft room, countdown clock, auto-draft queue & BPA.
 - **Sprint 3 (shipped):** Weekly round-robin schedule, live scoring (PPR/Half/Standard), lineup bench/starter swap, win probability.
 - **Sprint 4 (shipped):** Free agency instant add/drop, FAAB blind bidding & rolling waivers, multi-player trade machine, transaction wire feed.
+- **Sprint 5 (shipped):** Playoff bracket generator (2/4/6-team with byes), tiebreaker seeding, automated championship advancement, consolation ladder, podium celebration UI.
+
 
 ### 1. Bias / political leaning badge — **shipped v1 (0.9.0)**
 - Per-hit outlet badge + topic/query coverage aggregate.

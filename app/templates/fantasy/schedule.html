@@ -28,6 +28,7 @@
     <a href="/sports/fantasy/league/{{ league.id }}/matchup">⚔️ Matchup</a>
     <a href="/sports/fantasy/league/{{ league.id }}/lineup">📋 Lineup</a>
     <a href="/sports/fantasy/league/{{ league.id }}/schedule" aria-current="page">📅 Schedule</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/playoffs">🏆 Playoffs</a>
     <a href="/sports/fantasy/league/{{ league.id }}/draft">⚡ Draft Room</a>
     <a href="/sports/fantasy/league/{{ league.id }}/waivers">🏷️ Waivers</a>
     <a href="/sports/fantasy/league/{{ league.id }}/trades">🤝 Trades</a>
@@ -36,11 +37,15 @@
     <a href="/sports/fantasy/league/{{ league.id }}/settings">Settings</a>
   </nav>
 
-  <!-- Week tabs 1 through 14 -->
+  <!-- Week tabs dynamically supporting regular season and playoffs -->
   <div class="schedule-week-tabs">
-    {% for w in range(1, 15) %}
+    {% for w in range(1, (total_season_weeks or 14) + 1) %}
       <a href="/sports/fantasy/league/{{ league.id }}/matchups/{{ w }}" class="week-tab{% if w == week %} active{% endif %}{% if w == league.current_week %} is-current{% endif %}">
-        W{{ w }}
+        {% if regular_season_weeks and w > regular_season_weeks %}
+          🏆 W{{ w }}
+        {% else %}
+          W{{ w }}
+        {% endif %}
       </a>
     {% endfor %}
   </div>

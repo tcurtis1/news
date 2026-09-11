@@ -135,6 +135,9 @@ class LeagueSettings:
     pick_timer_seconds: int = 60    # 60s per pick; 0 for untimed
     total_rounds: int = 15          # 15 rounds = 9 starters + 6 bench
     roster_slots: Dict[str, int] = field(default_factory=lambda: dict(DEFAULT_ROSTER_SLOTS))
+    regular_season_weeks: int = 14
+    playoff_teams: int = 4          # 2, 4, or 6
+    playoff_consolation: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -147,6 +150,9 @@ class LeagueSettings:
             "pick_timer_seconds": self.pick_timer_seconds,
             "total_rounds": self.total_rounds,
             "roster_slots": dict(self.roster_slots),
+            "regular_season_weeks": self.regular_season_weeks,
+            "playoff_teams": self.playoff_teams,
+            "playoff_consolation": self.playoff_consolation,
         }
 
     @classmethod
@@ -164,6 +170,9 @@ class LeagueSettings:
             pick_timer_seconds=int(data.get("pick_timer_seconds") if data.get("pick_timer_seconds") is not None else 60),
             total_rounds=int(data.get("total_rounds") or 15),
             roster_slots=slots,
+            regular_season_weeks=int(data.get("regular_season_weeks") or 14),
+            playoff_teams=int(data.get("playoff_teams") or 4),
+            playoff_consolation=bool(data.get("playoff_consolation", True)),
         )
 
 
@@ -208,6 +217,8 @@ class FantasyTeam:
     ties: int = 0
     points_for: float = 0.0
     points_against: float = 0.0
+    playoff_seed: Optional[int] = None
+    final_rank: Optional[int] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
@@ -225,6 +236,8 @@ class FantasyTeam:
             "ties": self.ties,
             "points_for": self.points_for,
             "points_against": self.points_against,
+            "playoff_seed": self.playoff_seed,
+            "final_rank": self.final_rank,
             "created_at": self.created_at,
         }
 
@@ -245,6 +258,14 @@ class League:
     current_pick_deadline: Optional[str] = None
     draft_paused_seconds: Optional[int] = None
     current_week: int = 1
+    champion_team_id: Optional[str] = None
+    second_place_team_id: Optional[str] = None
+    third_place_team_id: Optional[str] = None
+    sacko_team_id: Optional[str] = None
+    champion_team: Optional[FantasyTeam] = None
+    second_place_team: Optional[FantasyTeam] = None
+    third_place_team: Optional[FantasyTeam] = None
+    sacko_team: Optional[FantasyTeam] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -262,6 +283,14 @@ class League:
             "current_pick_deadline": self.current_pick_deadline,
             "draft_paused_seconds": self.draft_paused_seconds,
             "current_week": self.current_week,
+            "champion_team_id": self.champion_team_id,
+            "second_place_team_id": self.second_place_team_id,
+            "third_place_team_id": self.third_place_team_id,
+            "sacko_team_id": self.sacko_team_id,
+            "champion_team": self.champion_team.to_dict() if self.champion_team else None,
+            "second_place_team": self.second_place_team.to_dict() if self.second_place_team else None,
+            "third_place_team": self.third_place_team.to_dict() if self.third_place_team else None,
+            "sacko_team": self.sacko_team.to_dict() if self.sacko_team else None,
         }
 
 
@@ -374,6 +403,13 @@ class Matchup:
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     home_team: Optional[FantasyTeam] = None
     away_team: Optional[FantasyTeam] = None
+    matchup_type: str = "regular"
+    bracket_slot: Optional[str] = None
+    playoff_round: int = 0
+    home_seed: Optional[int] = None
+    away_seed: Optional[int] = None
+    winner_id: Optional[str] = None
+    loser_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -390,6 +426,13 @@ class Matchup:
             "created_at": self.created_at,
             "home_team": self.home_team.to_dict() if self.home_team else None,
             "away_team": self.away_team.to_dict() if self.away_team else None,
+            "matchup_type": self.matchup_type,
+            "bracket_slot": self.bracket_slot,
+            "playoff_round": self.playoff_round,
+            "home_seed": self.home_seed,
+            "away_seed": self.away_seed,
+            "winner_id": self.winner_id,
+            "loser_id": self.loser_id,
         }
 
 

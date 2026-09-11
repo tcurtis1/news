@@ -62,7 +62,7 @@ def is_position_eligible(pos: str, slot: str) -> bool:
     return False
 
 
-def generate_league_schedule(league_id: str, total_weeks: int = 14) -> List[Matchup]:
+def generate_league_schedule(league_id: str, total_weeks: Optional[int] = None) -> List[Matchup]:
     """Generate round-robin regular season schedule for a fantasy league."""
     conn = get_connection()
     try:
@@ -70,6 +70,14 @@ def generate_league_schedule(league_id: str, total_weeks: int = 14) -> List[Matc
         existing = conn.execute("SELECT * FROM matchups WHERE league_id = ? ORDER BY week ASC;", (league_id,)).fetchall()
         if existing:
             return [row_to_matchup(r) for r in existing]
+
+        if total_weeks is None:
+            lr = conn.execute("SELECT settings_json FROM leagues WHERE id = ?;", (league_id,)).fetchone()
+            try:
+                s_dict = json.loads(lr["settings_json"]) if lr and lr["settings_json"] else {}
+                total_weeks = int(s_dict.get("regular_season_weeks", 14))
+            except Exception:
+                total_weeks = 14
 
         teams = conn.execute("SELECT id FROM teams WHERE league_id = ? ORDER BY created_at ASC;", (league_id,)).fetchall()
         team_ids: List[Optional[str]] = [r["id"] for r in teams]
@@ -376,10 +384,20 @@ def get_matchup_details(matchup_id: str) -> Optional[Dict[str, Any]]:
         home_data = get_team_lineup(league_id, mr["home_team_id"], week)
         away_data = get_team_lineup(league_id, mr["away_team_id"], week)
 
-        home_score = home_data.get("total_points", 0.0)
-        away_score = away_data.get("total_points", 0.0)
-        home_proj = home_data.get("projected_points", 0.0)
-        away_proj = away_data.get("projected_points", 0.0)
+        if home_data.get("starters"):
+            home_score = home_data.get("total_points", 0.0)
+            home_proj = home_data.get("projected_points", 0.0)
+        else:
+            home_score = float(mr["home_score"])
+            home_proj = float(mr["home_projected"]) if "home_projected" in mr.keys() else 0.0
+
+        if away_data.get("starters"):
+            away_score = away_data.get("total_points", 0.0)
+            away_proj = away_data.get("projected_points", 0.0)
+        else:
+            away_score = float(mr["away_score"])
+            away_proj = float(mr["away_projected"]) if "away_projected" in mr.keys() else 0.0
+
         is_final = bool(mr["is_final"])
 
         home_prob, away_prob = calculate_win_probability(
@@ -517,17 +535,20 @@ def finalize_week(league_id: str, week: int, commissioner_token: str) -> Tuple[b
 
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        with conn:
-            for mr in matchup_rows:
-                # Recalculate up-to-date starter scores
-                details = get_matchup_details(mr["id"])
-                if details:
-                    h_score = details["matchup"]["home_score"]
-                    a_score = details["matchup"]["away_score"]
-                else:
-                    h_score = float(mr["home_score"])
-                    a_score = float(mr["away_score"])
+        # Recalculate up-to-date starter scores before entering transaction
+        matchup_scores = []
+        for mr in matchup_rows:
+            details = get_matchup_details(mr["id"])
+            if details:
+                h_score = float(details["matchup"]["home_score"])
+                a_score = float(details["matchup"]["away_score"])
+            else:
+                h_score = float(mr["home_score"])
+                a_score = float(mr["away_score"])
+            matchup_scores.append((mr, h_score, a_score))
 
+        with conn:
+            for mr, h_score, a_score in matchup_scores:
                 home_id = mr["home_team_id"]
                 away_id = mr["away_team_id"]
 
@@ -582,9 +603,9 @@ def finalize_week(league_id: str, week: int, commissioner_token: str) -> Tuple[b
             for prio, tr in enumerate(rev_teams, start=1):
                 conn.execute("UPDATE teams SET waiver_priority = ? WHERE id = ?;", (prio, tr["id"]))
 
-            # Advance current_week if week == league.current_week and week < 14
-            next_week = league.current_week
-            if week == league.current_week and week < 14:
+            # Advance current_week if week == league.current_week
+            reg_weeks = league.settings.regular_season_weeks
+            if week == league.current_week and week <= reg_weeks:
                 next_week = week + 1
                 conn.execute("UPDATE leagues SET current_week = ? WHERE id = ?;", (next_week, league_id))
 
@@ -593,6 +614,22 @@ def finalize_week(league_id: str, week: int, commissioner_token: str) -> Tuple[b
             INSERT INTO audit_log (id, league_id, actor_name, action, description, created_at)
             VALUES (?, ?, ?, ?, ?, ?);
             """, (audit_id, league_id, "Commissioner", "finalize_week", f"Finalized Week {week} matchups and updated standings.", now_iso))
+
+        # Hook: calculate/persist seeds when regular season completes
+        if week == league.settings.regular_season_weeks:
+            try:
+                from app.fantasy.playoffs import get_playoff_seedings
+                get_playoff_seedings(league_id)
+            except Exception:
+                pass
+
+        # Hook: advance playoff round if this was a playoff week
+        if week > league.settings.regular_season_weeks:
+            try:
+                from app.fantasy.playoffs import advance_playoff_round_after_week
+                advance_playoff_round_after_week(league_id, week)
+            except Exception:
+                pass
 
         return True, f"Week {week} successfully finalized! Standings updated."
     finally:

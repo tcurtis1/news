@@ -301,9 +301,38 @@ def init_db(conn: Optional[sqlite3.Connection] = None) -> None:
                 ("current_pick_deadline", "TEXT"),
                 ("draft_paused_seconds", "INTEGER"),
                 ("current_week", "INTEGER NOT NULL DEFAULT 1"),
+                ("champion_team_id", "TEXT REFERENCES teams(id) ON DELETE SET NULL"),
+                ("second_place_team_id", "TEXT REFERENCES teams(id) ON DELETE SET NULL"),
+                ("third_place_team_id", "TEXT REFERENCES teams(id) ON DELETE SET NULL"),
+                ("sacko_team_id", "TEXT REFERENCES teams(id) ON DELETE SET NULL"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE leagues ADD COLUMN {col} {ctype};")
+                except sqlite3.OperationalError:
+                    pass
+
+            # Column migrations for teams table
+            for col, ctype in [
+                ("playoff_seed", "INTEGER"),
+                ("final_rank", "INTEGER"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE teams ADD COLUMN {col} {ctype};")
+                except sqlite3.OperationalError:
+                    pass
+
+            # Column migrations for matchups table
+            for col, ctype in [
+                ("matchup_type", "TEXT DEFAULT 'regular'"),
+                ("bracket_slot", "TEXT"),
+                ("playoff_round", "INTEGER DEFAULT 0"),
+                ("home_seed", "INTEGER"),
+                ("away_seed", "INTEGER"),
+                ("winner_id", "TEXT REFERENCES teams(id) ON DELETE SET NULL"),
+                ("loser_id", "TEXT REFERENCES teams(id) ON DELETE SET NULL"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE matchups ADD COLUMN {col} {ctype};")
                 except sqlite3.OperationalError:
                     pass
 
@@ -334,11 +363,20 @@ def row_to_team(r: sqlite3.Row) -> FantasyTeam:
         ties=r["ties"],
         points_for=r["points_for"],
         points_against=r["points_against"],
+        playoff_seed=r["playoff_seed"] if "playoff_seed" in r.keys() else None,
+        final_rank=r["final_rank"] if "final_rank" in r.keys() else None,
         created_at=r["created_at"],
     )
 
 
-def row_to_league(r: sqlite3.Row, teams: Optional[List[FantasyTeam]] = None) -> League:
+def row_to_league(
+    r: sqlite3.Row,
+    teams: Optional[List[FantasyTeam]] = None,
+    champion_team: Optional[FantasyTeam] = None,
+    second_place_team: Optional[FantasyTeam] = None,
+    third_place_team: Optional[FantasyTeam] = None,
+    sacko_team: Optional[FantasyTeam] = None,
+) -> League:
     try:
         settings_dict = json.loads(r["settings_json"])
     except Exception:
@@ -366,6 +404,14 @@ def row_to_league(r: sqlite3.Row, teams: Optional[List[FantasyTeam]] = None) -> 
         current_pick_deadline=r["current_pick_deadline"] if "current_pick_deadline" in r.keys() else None,
         draft_paused_seconds=r["draft_paused_seconds"] if "draft_paused_seconds" in r.keys() else None,
         current_week=r["current_week"] if "current_week" in r.keys() else 1,
+        champion_team_id=r["champion_team_id"] if "champion_team_id" in r.keys() else None,
+        second_place_team_id=r["second_place_team_id"] if "second_place_team_id" in r.keys() else None,
+        third_place_team_id=r["third_place_team_id"] if "third_place_team_id" in r.keys() else None,
+        sacko_team_id=r["sacko_team_id"] if "sacko_team_id" in r.keys() else None,
+        champion_team=champion_team,
+        second_place_team=second_place_team,
+        third_place_team=third_place_team,
+        sacko_team=sacko_team,
     )
 
 
@@ -431,6 +477,13 @@ def row_to_matchup(
         created_at=r["created_at"],
         home_team=home_team,
         away_team=away_team,
+        matchup_type=r["matchup_type"] if "matchup_type" in r.keys() and r["matchup_type"] else "regular",
+        bracket_slot=r["bracket_slot"] if "bracket_slot" in r.keys() else None,
+        playoff_round=r["playoff_round"] if "playoff_round" in r.keys() and r["playoff_round"] is not None else 0,
+        home_seed=r["home_seed"] if "home_seed" in r.keys() else None,
+        away_seed=r["away_seed"] if "away_seed" in r.keys() else None,
+        winner_id=r["winner_id"] if "winner_id" in r.keys() else None,
+        loser_id=r["loser_id"] if "loser_id" in r.keys() else None,
     )
 
 

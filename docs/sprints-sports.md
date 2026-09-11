@@ -228,3 +228,30 @@ Analytics: `sports_team_star` fires on star (not unstar). No `sports_view` — p
 - **League Activity Wire Feed**: Audits all roster adds, drops, waiver claims won, trades executed, and commissioner vetoes (`activity.html`).
 - **UI & Navigation**: Dedicated Waivers (`waivers.html`), Trades (`trades.html`), and Activity (`activity.html`) views integrated across the Fantasy navigation bar.
 
+### Sprint 5: Playoffs, Championship Bracket & Final Standings — **shipped 2026-09-11**
+- **Playoff Seeding Engine** (`app/fantasy/playoffs.py`):
+  - Automatic seed calculation based on league standings.
+  - Robust tiebreaker hierarchy: Win % → Points For (PF) → Head-to-Head record → Points Against (PA) → Registration order.
+- **Dynamic Playoff Brackets**:
+  - Configurable playoff team counts: 2 teams (Championship match), 4 teams (Semifinals & Finals), or 6 teams (Wildcard round with Round 1 byes for top 2 seeds).
+  - Optional Consolation Bracket / Toilet Bowl ladder for non-playoff contenders.
+  - Bracket generation (`generate_playoff_bracket`) with seed slotting, round tagging, and matchup types (`championship`, `third_place`, `consolation`, `sacko`).
+- **Automated Round Advancement**:
+  - Integrated into `finalize_week`: advancing winners toward the Championship and losers to 3rd-place or consolation games.
+  - Crowning of official league accolades: League Champion, Runner-Up, 3rd Place, and "Sacko" (last-place loser).
+- **Playoff UI & Celebration View** (`playoffs.html`):
+  - Responsive visual tournament bracket tree with seed chips, live scores, and matchup status badges.
+  - Podium celebration hero banner highlighting Champion, 2nd, and 3rd place with trophy icons.
+  - Dedicated "🏆 Playoffs" tab and navigation banners integrated into all fantasy league pages.
+
+---
+
+## Live Sports Betting Odds (Scoreboard & Game Pages) — **shipped 2026-09-11**
+- **ESPN Public Odds Integration**:
+  - Extracted betting odds from ESPN scoreboard competitions: point spread/details (`CIN -3.5`), over/under (`50.5`), and odds provider name (e.g. DraftKings).
+  - Built unified summary helper `odds_summary` (e.g., `KC -3.5 · O/U 48.5`) on `Event` model (`app/sports.py`) and event views (`app/main.py`).
+- **UI Surfaces**:
+  - Live/upcoming game cards on `/sports` display an odds pill chip in `score-card-meta`.
+  - Game detail views on `/sports/game/{id}` display point spread and over/under in `game-detail-line`.
+
+
