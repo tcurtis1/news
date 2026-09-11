@@ -65,6 +65,8 @@ class Event(BaseModel):
     over_under: Optional[float] = None
     odds_summary: Optional[str] = None
     odds_provider: Optional[str] = None
+    game_odds: Optional[Dict[str, Any]] = None
+    predictor: Optional[Dict[str, Any]] = None
 
 class SportsPayload(BaseModel):
     updated_at: datetime
@@ -576,7 +578,7 @@ def _context_line(ev: Dict[str, Any], package: Dict[str, Any], competition: Dict
 
 def _extract_odds(pkg: Dict[str, Any], comp0: Dict[str, Any]) -> Tuple[Optional[str], Optional[float], Optional[str], Optional[str]]:
     """Extract betting odds: spread details (e.g. 'CIN -3.5'), over/under (e.g. 50.5), combined summary, and provider."""
-    odds_list = comp0.get("odds") or pkg.get("odds") or []
+    odds_list = comp0.get("odds") or pkg.get("odds") or pkg.get("pickcenter") or []
     if not isinstance(odds_list, list) or not odds_list:
         return None, None, None, None
 
@@ -610,6 +612,186 @@ def _extract_odds(pkg: Dict[str, Any], comp0: Dict[str, Any]) -> Tuple[Optional[
             return details_str, ou_val, summary, provider_name
 
     return None, None, None, None
+
+
+def _extract_game_odds(pkg: Dict[str, Any], comp0: Dict[str, Any], home_abbr: str = "", away_abbr: str = "") -> Optional[Dict[str, Any]]:
+    """Extract structured game odds: spread, moneyline, over/under, juice, and line movements."""
+    odds_list = comp0.get("odds") or pkg.get("odds") or pkg.get("pickcenter") or []
+    if not isinstance(odds_list, list) or not odds_list:
+        return None
+
+    for item in odds_list:
+        if not isinstance(item, dict):
+            continue
+        details = item.get("details")
+        ou = item.get("overUnder")
+        spread = item.get("spread")
+        provider = item.get("provider") or {}
+        provider_name = "Sportsbook"
+        if isinstance(provider, dict):
+            provider_name = provider.get("displayName") or provider.get("name") or "Sportsbook"
+
+        ps = item.get("pointSpread") or {}
+        ml = item.get("moneyline") or {}
+        tot = item.get("total") or {}
+
+        home_ps = ps.get("home") or {}
+        away_ps = ps.get("away") or {}
+        home_ml_obj = ml.get("home") or {}
+        away_ml_obj = ml.get("away") or {}
+        over_obj = tot.get("over") or {}
+        under_obj = tot.get("under") or {}
+
+        h_sp_curr = home_ps.get("close", {}).get("line") or (f"{spread:g}" if isinstance(spread, (int, float)) else None)
+        h_sp_open = home_ps.get("open", {}).get("line")
+        h_sp_odds = home_ps.get("close", {}).get("odds")
+
+        a_sp_curr = away_ps.get("close", {}).get("line")
+        a_sp_open = away_ps.get("open", {}).get("line")
+        a_sp_odds = away_ps.get("close", {}).get("odds")
+
+        h_ml_curr = home_ml_obj.get("close", {}).get("odds") or item.get("homeTeamOdds", {}).get("moneyLine")
+        h_ml_open = home_ml_obj.get("open", {}).get("odds")
+        a_ml_curr = away_ml_obj.get("close", {}).get("odds") or item.get("awayTeamOdds", {}).get("moneyLine")
+        a_ml_open = away_ml_obj.get("open", {}).get("odds")
+
+        def fmt_ml(v: Any) -> Optional[str]:
+            if v is None:
+                return None
+            s = str(v).strip()
+            if not s or s in ("OFF", "None"):
+                return None
+            try:
+                iv = int(s)
+                return f"+{iv}" if iv > 0 else str(iv)
+            except (ValueError, TypeError):
+                return s
+
+        h_ml = fmt_ml(h_ml_curr)
+        h_ml_o = fmt_ml(h_ml_open)
+        a_ml = fmt_ml(a_ml_curr)
+        a_ml_o = fmt_ml(a_ml_open)
+
+        ou_val = None
+        if ou is not None:
+            try:
+                ou_val = float(ou)
+            except (ValueError, TypeError):
+                pass
+
+        tot_curr = over_obj.get("close", {}).get("line")
+        tot_open = over_obj.get("open", {}).get("line")
+        o_odds = over_obj.get("close", {}).get("odds") or item.get("overOdds")
+        u_odds = under_obj.get("close", {}).get("odds") or item.get("underOdds")
+
+        def parse_clean_num(val: Any) -> Optional[float]:
+            if val is None:
+                return None
+            clean_str = str(val).lower().lstrip("ou+").strip()
+            try:
+                return float(clean_str)
+            except (ValueError, TypeError):
+                return None
+
+        tot_curr_num = parse_clean_num(tot_curr)
+        if tot_curr_num is None:
+            tot_curr_num = ou_val
+        tot_open_num = parse_clean_num(tot_open)
+
+        movement: List[str] = []
+        if h_sp_open and h_sp_curr and str(h_sp_open).strip() != str(h_sp_curr).strip():
+            lbl = f" ({home_abbr})" if home_abbr else ""
+            movement.append(f"Spread{lbl}: {h_sp_open} → {h_sp_curr}")
+        elif a_sp_open and a_sp_curr and str(a_sp_open).strip() != str(a_sp_curr).strip():
+            lbl = f" ({away_abbr})" if away_abbr else ""
+            movement.append(f"Spread{lbl}: {a_sp_open} → {a_sp_curr}")
+
+        if tot_open_num is not None and tot_curr_num is not None and abs(tot_open_num - tot_curr_num) >= 0.1:
+            diff = tot_curr_num - tot_open_num
+            sign = "+" if diff > 0 else ""
+            movement.append(f"Total: {tot_open_num:g} → {tot_curr_num:g} ({sign}{diff:g})")
+
+        if h_ml_o and h_ml and h_ml_o != h_ml:
+            lbl = f" ({home_abbr})" if home_abbr else " (Home)"
+            movement.append(f"ML{lbl}: {h_ml_o} → {h_ml}")
+        if a_ml_o and a_ml and a_ml_o != a_ml:
+            lbl = f" ({away_abbr})" if away_abbr else " (Away)"
+            movement.append(f"ML{lbl}: {a_ml_o} → {a_ml}")
+
+        if details or ou_val is not None or h_sp_curr or h_ml or a_ml:
+            return {
+                "provider": provider_name,
+                "details": str(details).strip() if details else None,
+                "spread": spread,
+                "over_under": ou_val,
+                "home": {
+                    "spread": str(h_sp_curr).strip() if h_sp_curr else None,
+                    "spread_odds": str(h_sp_odds).strip() if h_sp_odds else None,
+                    "open_spread": str(h_sp_open).strip() if h_sp_open else None,
+                    "moneyline": h_ml,
+                    "open_moneyline": h_ml_o,
+                    "favorite": bool(item.get("homeTeamOdds", {}).get("favorite", False)),
+                },
+                "away": {
+                    "spread": str(a_sp_curr).strip() if a_sp_curr else None,
+                    "spread_odds": str(a_sp_odds).strip() if a_sp_odds else None,
+                    "open_spread": str(a_sp_open).strip() if a_sp_open else None,
+                    "moneyline": a_ml,
+                    "open_moneyline": a_ml_o,
+                    "favorite": bool(item.get("awayTeamOdds", {}).get("favorite", False)),
+                },
+                "total": {
+                    "line": f"{tot_curr_num:g}" if tot_curr_num is not None else None,
+                    "open_line": f"{tot_open_num:g}" if tot_open_num is not None else None,
+                    "over_odds": str(o_odds).strip() if o_odds else None,
+                    "under_odds": str(u_odds).strip() if u_odds else None,
+                },
+                "movement": movement,
+                "has_movement": len(movement) > 0,
+            }
+
+    return None
+
+
+def _extract_predictor(pkg: Dict[str, Any], home_team: Team, away_team: Team) -> Optional[Dict[str, Any]]:
+    """Extract ESPN Analytics / FPI matchup win probability projections."""
+    pred = pkg.get("predictor")
+    if not isinstance(pred, dict):
+        return None
+    home_data = pred.get("homeTeam") or {}
+    away_data = pred.get("awayTeam") or {}
+    if not isinstance(home_data, dict) or not isinstance(away_data, dict):
+        return None
+    try:
+        h_proj = float(home_data.get("gameProjection", 0))
+        a_proj = float(away_data.get("gameProjection", 0))
+    except (ValueError, TypeError):
+        return None
+    if h_proj <= 0 and a_proj <= 0:
+        return None
+
+    total = h_proj + a_proj
+    if total > 0 and abs(total - 100.0) > 0.5:
+        h_pct = (h_proj / total) * 100.0
+        a_pct = (a_proj / total) * 100.0
+    else:
+        h_pct = h_proj
+        a_pct = a_proj
+
+    favored = home_team if h_pct >= a_pct else away_team
+    fav_pct = h_pct if h_pct >= a_pct else a_pct
+
+    return {
+        "header": str(pred.get("header") or "Matchup Predictor"),
+        "home_projection": round(h_pct, 1),
+        "away_projection": round(a_pct, 1),
+        "home_display": f"{round(h_pct, 1):.1f}%",
+        "away_display": f"{round(a_pct, 1):.1f}%",
+        "favored_team_abbr": favored.abbreviation,
+        "favored_team_name": favored.name,
+        "favored_pct_display": f"{round(fav_pct, 1):.1f}%",
+    }
+
 
 
 def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
@@ -734,6 +916,8 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
     situation, situation_fields = _extract_situation(pkg, comp0)
     context_line = _context_line(ev, pkg, comp0, home_team, away_team, home_comp, away_comp)
     odds, over_under, odds_summary, odds_provider = _extract_odds(pkg, comp0)
+    game_odds = _extract_game_odds(pkg, comp0, home_team.abbreviation, away_team.abbreviation)
+    predictor = _extract_predictor(pkg, home_team, away_team)
 
     return Event(
         id=id_,
@@ -758,8 +942,11 @@ def parse_espn_event(league_key: str, ev: Dict[str, Any]) -> Event:
         over_under=over_under,
         odds_summary=odds_summary,
         odds_provider=odds_provider,
+        game_odds=game_odds,
+        predictor=predictor,
         **situation_fields,
     )
+
 
 async def _fetch_with_cache(key: str, fetch_func, fallback_data: Any, ttl: int = CACHE_TTL) -> SportsPayload:
     lock = get_cache_lock(key)
@@ -1207,7 +1394,20 @@ def overlay_scoreboard_event(detail: Event, board: Event) -> Event:
         detail.home_team.rank = board.home_team.rank
     if board.away_team.rank and not detail.away_team.rank:
         detail.away_team.rank = board.away_team.rank
+    if not detail.odds and board.odds:
+        detail.odds = board.odds
+    if detail.over_under is None and board.over_under is not None:
+        detail.over_under = board.over_under
+    if not detail.odds_summary and board.odds_summary:
+        detail.odds_summary = board.odds_summary
+    if not detail.odds_provider and board.odds_provider:
+        detail.odds_provider = board.odds_provider
+    if not detail.game_odds and board.game_odds:
+        detail.game_odds = board.game_odds
+    if not detail.predictor and board.predictor:
+        detail.predictor = board.predictor
     return detail
+
 
 
 async def get_game_detail(game_id: str) -> SportsPayload:

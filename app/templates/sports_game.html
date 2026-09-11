@@ -74,6 +74,118 @@
     </div>
   </section>
 
+  {% if game.predictor or game.game_odds %}
+  <div class="game-columns game-columns-odds">
+    {% if game.predictor %}
+    <section class="sports-panel game-predictor-panel" aria-labelledby="predictor-heading">
+      <div class="panel-header-flex">
+        <h2 id="predictor-heading">{{ game.predictor.header }}</h2>
+        <span class="panel-sub-label">ESPN Analytics (FPI)</span>
+      </div>
+      <div class="predictor-meta">
+        <span class="predictor-team-stat away">
+          {% if game.away_team.logo %}<img class="team-logo" src="{{ game.away_team.logo }}" alt="" width="18" height="18">{% endif %}
+          <b>{{ game.away_team.abbreviation }}</b>
+          <strong>{{ game.predictor.away_display }}</strong>
+        </span>
+        <span class="predictor-verdict">
+          {{ game.predictor.favored_team_abbr }} favored ({{ game.predictor.favored_pct_display }})
+        </span>
+        <span class="predictor-team-stat home">
+          <strong>{{ game.predictor.home_display }}</strong>
+          <b>{{ game.home_team.abbreviation }}</b>
+          {% if game.home_team.logo %}<img class="team-logo" src="{{ game.home_team.logo }}" alt="" width="18" height="18">{% endif %}
+        </span>
+      </div>
+      <div class="predictor-bar" role="meter" aria-label="Win probability: {{ game.away_team.abbreviation }} {{ game.predictor.away_display }}, {{ game.home_team.abbreviation }} {{ game.predictor.home_display }}" aria-valuenow="{{ game.predictor.home_projection }}" aria-valuemin="0" aria-valuemax="100">
+        <div class="predictor-bar-away" style="width: {{ game.predictor.away_projection }}%;"></div>
+        <div class="predictor-bar-home" style="width: {{ game.predictor.home_projection }}%;"></div>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if game.game_odds %}
+    <section class="sports-panel game-odds-panel" aria-labelledby="odds-heading">
+      <div class="panel-header-flex">
+        <h2 id="odds-heading">Betting Lines & Odds</h2>
+        {% if game.game_odds.provider %}<span class="panel-sub-label">via {{ game.game_odds.provider }}</span>{% endif %}
+      </div>
+      <div class="odds-table-wrap">
+        <table class="odds-table">
+          <thead>
+            <tr>
+              <th scope="col">Team</th>
+              <th scope="col">Spread</th>
+              <th scope="col">Moneyline</th>
+              <th scope="col">Total (O/U)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row" class="odds-team-cell">
+                {% if game.away_team.logo %}<img class="team-logo" src="{{ game.away_team.logo }}" alt="" width="18" height="18">{% endif %}
+                <b>{{ game.away_team.abbreviation }}</b>
+              </th>
+              <td>
+                {% if game.game_odds.away.spread %}
+                  <strong class="odds-main-val">{{ game.game_odds.away.spread }}</strong>
+                  {% if game.game_odds.away.spread_odds %}<small class="odds-juice">({{ game.game_odds.away.spread_odds }})</small>{% endif %}
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if game.game_odds.away.moneyline %}
+                  <strong class="odds-main-val">{{ game.game_odds.away.moneyline }}</strong>
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if game.game_odds.total.line %}
+                  <strong class="odds-main-val">O {{ game.game_odds.total.line }}</strong>
+                  {% if game.game_odds.total.over_odds %}<small class="odds-juice">({{ game.game_odds.total.over_odds }})</small>{% endif %}
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th scope="row" class="odds-team-cell">
+                {% if game.home_team.logo %}<img class="team-logo" src="{{ game.home_team.logo }}" alt="" width="18" height="18">{% endif %}
+                <b>{{ game.home_team.abbreviation }}</b>
+              </th>
+              <td>
+                {% if game.game_odds.home.spread %}
+                  <strong class="odds-main-val">{{ game.game_odds.home.spread }}</strong>
+                  {% if game.game_odds.home.spread_odds %}<small class="odds-juice">({{ game.game_odds.home.spread_odds }})</small>{% endif %}
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if game.game_odds.home.moneyline %}
+                  <strong class="odds-main-val">{{ game.game_odds.home.moneyline }}</strong>
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if game.game_odds.total.line %}
+                  <strong class="odds-main-val">U {{ game.game_odds.total.line }}</strong>
+                  {% if game.game_odds.total.under_odds %}<small class="odds-juice">({{ game.game_odds.total.under_odds }})</small>{% endif %}
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {% if game.game_odds.has_movement %}
+      <div class="odds-movement-section">
+        <span class="odds-movement-title">Line Movement:</span>
+        <div class="odds-movement-tags">
+          {% for move in game.game_odds.movement %}
+            <span class="odds-movement-tag">{{ move }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+  </div>
+  {% endif %}
+
+
   {% if game.scoring_summary or game.team_stats %}
   <div class="game-columns">
     {% if game.scoring_summary %}

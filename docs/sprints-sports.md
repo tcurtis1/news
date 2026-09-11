@@ -246,12 +246,19 @@ Analytics: `sports_team_star` fires on star (not unstar). No `sports_view` — p
 
 ---
 
-## Live Sports Betting Odds (Scoreboard & Game Pages) — **shipped 2026-09-11**
+## Live Sports Betting Odds & Matchup Predictor (Scoreboard & Game Pages) — **shipped 2026-09-11**
 - **ESPN Public Odds Integration**:
-  - Extracted betting odds from ESPN scoreboard competitions: point spread/details (`CIN -3.5`), over/under (`50.5`), and odds provider name (e.g. DraftKings).
+  - Extracted betting odds from ESPN scoreboard competitions and gamepackage `pickcenter`: point spread/details (`CIN -3.5`), over/under (`50.5`), and odds provider name (e.g. DraftKings).
   - Built unified summary helper `odds_summary` (e.g., `KC -3.5 · O/U 48.5`) on `Event` model (`app/sports.py`) and event views (`app/main.py`).
-- **UI Surfaces**:
-  - Live/upcoming game cards on `/sports` display an odds pill chip in `score-card-meta`.
-  - Game detail views on `/sports/game/{id}` display point spread and over/under in `game-detail-line`.
+- **Line Movement Tracker**:
+  - Track opening lines vs current lines across Spread, Over/Under Total, and Moneyline.
+  - Automatically detect shifts and juice changes (e.g. `Spread (CIN): -2.5 → -3.5`, `Total: 48.5 → 50.5 (+2)`, `ML: -170 → -198`).
+  - Render movement tag chips in game detail view and `↕ Moved` indicator on scoreboard cards.
+- **Matchup Predictor (ESPN Analytics / FPI)**:
+  - Extract win probability projections from ESPN's analytics predictor (`package["predictor"]`).
+  - Dual-toned visual percentage bar on `/sports/game/{id}` showing win projections for both home and away teams with favored team badge.
+- **Betting Lines Table**:
+  - Dedicated table on game detail pages showing Spread (with juice payout), Moneyline, and Total (Over/Under) for both teams, with bookmaker attribution (`via DraftKings`).
+
 
 

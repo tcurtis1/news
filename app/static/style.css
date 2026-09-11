@@ -2841,14 +2841,40 @@ li.card.story-card:hover {
 .team-cell-names .team-full-name { color: var(--muted); font-weight: normal; font-size: 0.8rem; }
 .clinch-badge { display: inline-block; padding: 0.05rem 0.28rem; border-radius: 4px; background: color-mix(in srgb, var(--accent) 15%, var(--card)); color: var(--accent); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; }
 
+/* Sports Betting Lines & Predictor */
+.game-columns-odds { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 0.8rem; margin: 0.8rem 0; }
+.panel-header-flex { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.panel-header-flex h2 { margin: 0; font-size: 1.05rem; }
+.panel-sub-label { color: var(--muted); font-size: 0.78rem; font-weight: 600; }
+.predictor-meta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.55rem; font-size: 0.86rem; }
+.predictor-team-stat { display: flex; align-items: center; gap: 0.35rem; }
+.predictor-verdict { font-size: 0.76rem; font-weight: 750; color: var(--accent); text-align: center; }
+.predictor-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--border); }
+.predictor-bar-away { background: color-mix(in srgb, var(--accent) 40%, var(--muted)); transition: width 0.3s ease; }
+.predictor-bar-home { background: var(--accent); transition: width 0.3s ease; }
+.odds-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.odds-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.odds-table th, .odds-table td { padding: 0.45rem 0.55rem; text-align: center; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.odds-table thead th { font-size: 0.74rem; font-weight: 750; color: var(--muted); letter-spacing: 0.03em; text-transform: uppercase; background: color-mix(in srgb, var(--panel) 60%, transparent); }
+.odds-team-cell { display: flex; align-items: center; gap: 0.4rem; text-align: left !important; }
+.odds-main-val { font-variant-numeric: tabular-nums; }
+.odds-juice { color: var(--muted); font-size: 0.74rem; margin-left: 0.15rem; font-variant-numeric: tabular-nums; }
+.odds-movement-section { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; margin-top: 0.65rem; font-size: 0.78rem; }
+.odds-movement-title { color: var(--muted); font-weight: 750; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.odds-movement-tags { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.odds-movement-tag { background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); color: var(--accent); padding: 0.12rem 0.42rem; border-radius: 4px; font-weight: 650; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 620px) {
   .sports-hero { align-items: start; flex-direction: column; }
   .sports-hero .muted { font-size: 0.9rem; }
   .sports-scores-link { font-size: 0.86rem; }
   .game-columns { grid-template-columns: 1fr; }
+  .game-columns-odds { grid-template-columns: 1fr; }
+  .predictor-meta { font-size: 0.8rem; }
   .game-stats > div { grid-template-columns: minmax(0, 1fr) minmax(6rem, auto) minmax(0, 1fr); font-size: 0.85rem; }
   .team-cell-names .team-full-name { display: none; }
 }
+
 
 /* Fantasy Football — Sprint 1 League Hub & Rosters */
 .btn-primary { display: inline-flex; align-items: center; justify-content: center; padding: 0.45rem 0.95rem; border: none; border-radius: 999px; background: var(--accent); color: #fff !important; font-size: 0.86rem; font-weight: 750; text-decoration: none; cursor: pointer; transition: opacity 0.15s ease; }

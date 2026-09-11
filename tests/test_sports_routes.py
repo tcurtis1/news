@@ -471,3 +471,88 @@ async def test_sitemap_includes_standings_routes():
     assert "https://news.yoyosup.com/sports/nhl/standings" in locs
     assert "https://news.yoyosup.com/sports/epl/standings" in locs
 
+
+def test_sports_game_renders_predictor_and_betting_lines(monkeypatch):
+    event = sample_event()
+    event.odds = "CIN -3.5"
+    event.over_under = 50.5
+    event.odds_summary = "CIN -3.5 · O/U 50.5"
+    event.odds_provider = "DraftKings"
+    event.predictor = {
+        "header": "Matchup Predictor",
+        "home_projection": 62.6,
+        "away_projection": 37.4,
+        "home_display": "62.6%",
+        "away_display": "37.4%",
+        "favored_team_abbr": "HOM",
+        "favored_team_name": "Home Team",
+        "favored_pct_display": "62.6%",
+    }
+    event.game_odds = {
+        "provider": "DraftKings",
+        "details": "CIN -3.5",
+        "spread": -3.5,
+        "over_under": 50.5,
+        "home": {
+            "spread": "-3.5",
+            "spread_odds": "-112",
+            "open_spread": "-2.5",
+            "moneyline": "-198",
+            "open_moneyline": "-170",
+            "favorite": True,
+        },
+        "away": {
+            "spread": "+3.5",
+            "spread_odds": "-108",
+            "open_spread": "+2.5",
+            "moneyline": "+164",
+            "open_moneyline": "+150",
+            "favorite": False,
+        },
+        "total": {
+            "line": "50.5",
+            "open_line": "48.5",
+            "over_odds": "-108",
+            "under_odds": "-112",
+        },
+        "movement": ["Spread (HOM): -2.5 → -3.5", "Total: 48.5 → 50.5 (+2)"],
+        "has_movement": True,
+    }
+    install_fakes(monkeypatch, game=event)
+
+    client = TestClient(main_mod.app)
+    # Check scoreboard odds pill and movement title
+    board_res = client.get("/sports/nfl")
+    assert board_res.status_code == 200
+    assert "CIN -3.5 · O/U 50.5" in board_res.text
+    assert "↕ Moved" in board_res.text
+
+    # Check game page detail view
+    res = client.get(f"/sports/game/{event.id}")
+    assert res.status_code == 200
+    assert "Matchup Predictor" in res.text
+    assert "ESPN Analytics (FPI)" in res.text
+    assert "62.6%" in res.text
+    assert "37.4%" in res.text
+    assert "HOM favored (62.6%)" in res.text
+    assert "Betting Lines & Odds" in res.text
+    assert "via DraftKings" in res.text
+
+    assert "-198" in res.text
+    assert "+164" in res.text
+    assert "O 50.5" in res.text
+    assert "U 50.5" in res.text
+    assert "Line Movement:" in res.text
+    assert "Spread (HOM): -2.5 → -3.5" in res.text
+    assert "Total: 48.5 → 50.5 (+2)" in res.text
+
+    # Check API response
+    api_res = client.get(f"/api/sports/game/{event.id}")
+    assert api_res.status_code == 200
+    data = api_res.json()
+    ev_data = data["events"][0]
+    assert ev_data["predictor"]["home_display"] == "62.6%"
+    assert ev_data["game_odds"]["has_movement"] is True
+    assert ev_data["game_odds"]["provider"] == "DraftKings"
+
+

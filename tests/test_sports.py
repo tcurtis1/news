@@ -909,3 +909,161 @@ def test_parse_espn_event_odds():
     assert event.odds_provider == "DraftKings"
 
 
+def test_parse_espn_event_game_odds_details_and_movement():
+    raw_event = {
+        "id": "401872925",
+        "date": "2026-09-15T17:00:00Z",
+        "competitions": [
+            {
+                "id": "401872925",
+                "competitors": [
+                    {
+                        "homeAway": "home",
+                        "team": {"id": "4", "abbreviation": "CIN", "displayName": "Cincinnati Bengals"},
+                    },
+                    {
+                        "homeAway": "away",
+                        "team": {"id": "27", "abbreviation": "TB", "displayName": "Tampa Bay Buccaneers"},
+                    },
+                ],
+                "odds": [
+                    {
+                        "details": "CIN -3.5",
+                        "spread": -3.5,
+                        "overUnder": 50.5,
+                        "provider": {"displayName": "DraftKings"},
+                        "pointSpread": {
+                            "home": {
+                                "open": {"line": "-2.5", "odds": "-110"},
+                                "close": {"line": "-3.5", "odds": "-112"},
+                            },
+                            "away": {
+                                "open": {"line": "+2.5", "odds": "-110"},
+                                "close": {"line": "+3.5", "odds": "-108"},
+                            },
+                        },
+                        "moneyline": {
+                            "home": {
+                                "open": {"odds": "-170"},
+                                "close": {"odds": "-198"},
+                            },
+                            "away": {
+                                "open": {"odds": "+150"},
+                                "close": {"odds": "+164"},
+                            },
+                        },
+                        "total": {
+                            "over": {
+                                "open": {"line": "o48.5", "odds": "-115"},
+                                "close": {"line": "o50.5", "odds": "-108"},
+                            },
+                            "under": {
+                                "open": {"line": "u48.5", "odds": "-105"},
+                                "close": {"line": "u50.5", "odds": "-112"},
+                            },
+                        },
+                        "homeTeamOdds": {"favorite": True, "moneyLine": -198},
+                        "awayTeamOdds": {"favorite": False, "moneyLine": 164},
+                    }
+                ],
+            }
+        ],
+    }
+    event = parse_espn_event("nfl", raw_event)
+    assert event.game_odds is not None
+    go = event.game_odds
+    assert go["provider"] == "DraftKings"
+    assert go["spread"] == -3.5
+    assert go["over_under"] == 50.5
+    assert go["home"]["spread"] == "-3.5"
+    assert go["home"]["spread_odds"] == "-112"
+    assert go["home"]["open_spread"] == "-2.5"
+    assert go["home"]["moneyline"] == "-198"
+    assert go["home"]["open_moneyline"] == "-170"
+    assert go["home"]["favorite"] is True
+    assert go["away"]["spread"] == "+3.5"
+    assert go["away"]["moneyline"] == "+164"
+    assert go["total"]["line"] == "50.5"
+    assert go["total"]["open_line"] == "48.5"
+    assert go["has_movement"] is True
+    assert any("Spread (CIN): -2.5 → -3.5" in m for m in go["movement"])
+    assert any("Total: 48.5 → 50.5 (+2)" in m for m in go["movement"])
+    assert any("ML (CIN): -170 → -198" in m for m in go["movement"])
+
+
+def test_parse_espn_event_predictor():
+    pkg = {
+        "id": "401872925",
+        "date": "2026-09-15T17:00:00Z",
+        "competitions": [
+            {
+                "competitors": [
+                    {"homeAway": "home", "team": {"id": "4", "abbreviation": "CIN", "displayName": "Cincinnati Bengals"}},
+                    {"homeAway": "away", "team": {"id": "27", "abbreviation": "TB", "displayName": "Tampa Bay Buccaneers"}},
+                ]
+            }
+        ],
+        "predictor": {
+            "header": "Matchup Predictor",
+            "homeTeam": {"id": "4", "gameProjection": "62.6"},
+            "awayTeam": {"id": "27", "gameProjection": "37.4"},
+        },
+    }
+    event = parse_espn_event("nfl", pkg)
+    assert event.predictor is not None
+    pred = event.predictor
+    assert pred["home_projection"] == 62.6
+    assert pred["away_projection"] == 37.4
+    assert pred["home_display"] == "62.6%"
+    assert pred["away_display"] == "37.4%"
+    assert pred["favored_team_abbr"] == "CIN"
+    assert pred["favored_pct_display"] == "62.6%"
+
+
+def test_pickcenter_and_scoreboard_overlay():
+    # Test pickcenter inside gamepackage
+    pkg = {
+        "id": "401872925",
+        "date": "2026-09-15T17:00:00Z",
+        "competitions": [
+            {
+                "competitors": [
+                    {"homeAway": "home", "team": {"id": "4", "abbreviation": "CIN", "displayName": "Cincinnati Bengals"}},
+                    {"homeAway": "away", "team": {"id": "27", "abbreviation": "TB", "displayName": "Tampa Bay Buccaneers"}},
+                ]
+            }
+        ],
+        "pickcenter": [
+            {
+                "details": "CIN -4.0",
+                "overUnder": 51.0,
+                "provider": {"displayName": "ESPN BET"},
+            }
+        ],
+    }
+    detail = parse_espn_event("nfl", pkg)
+    assert detail.odds == "CIN -4.0"
+    assert detail.over_under == 51.0
+    assert detail.odds_provider == "ESPN BET"
+
+    # Test overlay when detail is missing odds
+    detail_empty = parse_espn_event("nfl", {
+        "id": "401872925",
+        "date": "2026-09-15T17:00:00Z",
+        "competitions": [
+            {
+                "competitors": [
+                    {"homeAway": "home", "team": {"id": "4", "abbreviation": "CIN", "displayName": "Cincinnati Bengals"}},
+                    {"homeAway": "away", "team": {"id": "27", "abbreviation": "TB", "displayName": "Tampa Bay Buccaneers"}},
+                ]
+            }
+        ],
+    })
+    assert detail_empty.odds is None
+    overlay_scoreboard_event(detail_empty, detail)
+    assert detail_empty.odds == "CIN -4.0"
+    assert detail_empty.over_under == 51.0
+    assert detail_empty.odds_provider == "ESPN BET"
+
+
+

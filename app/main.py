@@ -424,6 +424,8 @@ def _sports_event_view(event: Event) -> dict:
         "over_under": event.over_under,
         "odds_summary": event.odds_summary or "",
         "odds_provider": event.odds_provider or "",
+        "game_odds": event.game_odds,
+        "predictor": event.predictor,
         "context_line": event.context_line or "",
         "scoring_summary": event.scoring_summary,
         "team_stats": stats,

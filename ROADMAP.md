@@ -5,7 +5,7 @@ Living product list. Ship small; prefer honest UX over flashy features.
 ## Now / next
 
 ### Sports — make `/sports` a glance, then news
-Scoreboard is live (ESPN public feed). **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md). **S0–S6 shipped** (live-first mix, ticking scores, game pages, MyTeams, headlines + Follow, noindex game URLs, local date nav, compact share, college Top 25, live game betting odds & over/under).
+Scoreboard is live (ESPN public feed). **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md). **S0–S6 shipped** (live-first mix, ticking scores, game pages, MyTeams, headlines + Follow, noindex game URLs, local date nav, compact share, college Top 25, live game betting odds, line movement tracker & ESPN Analytics matchup predictor).
 
 ### Fantasy NFL Football — `/sports/fantasy`
 Free, zero-friction league platform with cookie manager auth (no forced logins). **Sprints:** [docs/sprints-sports.md](docs/sprints-sports.md#fantasy-nfl-football-sprints).
