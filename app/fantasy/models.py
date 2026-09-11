@@ -159,7 +159,7 @@ class LeagueSettings:
             max_teams=int(data.get("max_teams") or 10),
             waiver_type=str(data.get("waiver_type") or "faab"),
             faab_budget=int(data.get("faab_budget") or 100),
-            trade_review_hours=int(data.get("trade_review_hours") or 24),
+            trade_review_hours=int(data.get("trade_review_hours") if data.get("trade_review_hours") is not None else 24),
             draft_type=str(data.get("draft_type") or "snake"),
             pick_timer_seconds=int(data.get("pick_timer_seconds") if data.get("pick_timer_seconds") is not None else 60),
             total_rounds=int(data.get("total_rounds") or 15),
@@ -479,4 +479,142 @@ class PlayerGameStats:
             "dst_td": self.dst_td,
             "dst_points_allowed": self.dst_points_allowed,
             "updated_at": self.updated_at,
+        }
+
+
+@dataclass
+class PlayerWaiverStatus:
+    id: str
+    league_id: str
+    player_id: str
+    waiver_until: str
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "league_id": self.league_id,
+            "player_id": self.player_id,
+            "waiver_until": self.waiver_until,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass
+class WaiverClaim:
+    id: str
+    league_id: str
+    team_id: str
+    add_player_id: str
+    drop_player_id: Optional[str] = None
+    bid_amount: int = 0
+    priority: int = 1
+    status: str = "pending"  # pending, successful, failed, cancelled
+    fail_reason: Optional[str] = None
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    processed_at: Optional[str] = None
+    add_player: Optional[Player] = None
+    drop_player: Optional[Player] = None
+    team: Optional[FantasyTeam] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "league_id": self.league_id,
+            "team_id": self.team_id,
+            "add_player_id": self.add_player_id,
+            "drop_player_id": self.drop_player_id,
+            "bid_amount": self.bid_amount,
+            "priority": self.priority,
+            "status": self.status,
+            "fail_reason": self.fail_reason,
+            "created_at": self.created_at,
+            "processed_at": self.processed_at,
+            "add_player": self.add_player.to_dict() if self.add_player else None,
+            "drop_player": self.drop_player.to_dict() if self.drop_player else None,
+            "team": self.team.to_dict() if self.team else None,
+        }
+
+
+@dataclass
+class TradeItem:
+    id: str
+    trade_id: str
+    from_team_id: str
+    to_team_id: str
+    player_id: str
+    player: Optional[Player] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "trade_id": self.trade_id,
+            "from_team_id": self.from_team_id,
+            "to_team_id": self.to_team_id,
+            "player_id": self.player_id,
+            "player": self.player.to_dict() if self.player else None,
+        }
+
+
+@dataclass
+class Trade:
+    id: str
+    league_id: str
+    proposer_team_id: str
+    recipient_team_id: str
+    status: str = "proposed"  # proposed, accepted, rejected, cancelled, vetoed, processed
+    note: str = ""
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    expires_at: Optional[str] = None
+    processed_at: Optional[str] = None
+    proposer_team: Optional[FantasyTeam] = None
+    recipient_team: Optional[FantasyTeam] = None
+    proposer_sends: List[Player] = field(default_factory=list)
+    recipient_sends: List[Player] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "league_id": self.league_id,
+            "proposer_team_id": self.proposer_team_id,
+            "recipient_team_id": self.recipient_team_id,
+            "status": self.status,
+            "note": self.note,
+            "created_at": self.created_at,
+            "expires_at": self.expires_at,
+            "processed_at": self.processed_at,
+            "proposer_team": self.proposer_team.to_dict() if self.proposer_team else None,
+            "recipient_team": self.recipient_team.to_dict() if self.recipient_team else None,
+            "proposer_sends": [p.to_dict() for p in self.proposer_sends],
+            "recipient_sends": [p.to_dict() for p in self.recipient_sends],
+        }
+
+
+@dataclass
+class LeagueTransaction:
+    id: str
+    league_id: str
+    team_id: Optional[str]
+    type: str  # free_agent_add, waiver_claim, drop, trade, commissioner
+    description: str
+    details_json: str = "{}"
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    team: Optional[FantasyTeam] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        import json
+        details = {}
+        try:
+            details = json.loads(self.details_json) if self.details_json else {}
+        except Exception:
+            pass
+        return {
+            "id": self.id,
+            "league_id": self.league_id,
+            "team_id": self.team_id,
+            "type": self.type,
+            "description": self.description,
+            "details": details,
+            "created_at": self.created_at,
+            "team": self.team.to_dict() if self.team else None,
         }

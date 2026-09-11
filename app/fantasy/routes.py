@@ -46,6 +46,21 @@ from app.fantasy.matchups import (
     simulate_week_stats,
     swap_lineup_slots,
 )
+from app.fantasy.waivers import (
+    add_drop_free_agent,
+    cancel_waiver_claim,
+    get_available_players,
+    get_league_transactions,
+    get_team_waiver_claims,
+    process_waivers,
+    submit_waiver_claim,
+)
+from app.fantasy.trades import (
+    get_league_trades,
+    get_trade_details,
+    propose_trade,
+    respond_to_trade,
+)
 
 router = APIRouter(prefix="/sports/fantasy", tags=["fantasy"])
 
@@ -719,4 +734,311 @@ async def api_simulate_week_stats(request: Request, league_id: str):
     if not ok:
         return JSONResponse({"error": msg}, status_code=400)
     return JSONResponse({"success": True, "message": msg})
+
+
+# --- WAIVERS & FREE AGENCY ROUTES ---
+
+@router.get("/league/{league_id}/waivers", response_class=HTMLResponse)
+async def fantasy_waivers_view(
+    request: Request,
+    league_id: str,
+    q: str = "",
+    pos: str = "ALL",
+    avail: str = "ALL",
+    page: int = 1,
+):
+    templates: Jinja2Templates = request.app.state.templates
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
+
+    limit = 25
+    offset = max(0, (page - 1) * limit)
+    data = get_available_players(league_id, query=q, position=pos, availability=avail, limit=limit, offset=offset)
+
+    my_roster = get_team_roster(my_team.id) if my_team else []
+    my_claims = get_team_waiver_claims(league_id, my_team.id, status="pending") if my_team else []
+
+    total_pages = max(1, (data["total_count"] + limit - 1) // limit)
+
+    return templates.TemplateResponse(request, "fantasy/waivers.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"Waivers & Free Agency · {league.name}",
+        "league": league,
+        "my_team": my_team,
+        "is_commissioner": is_commish,
+        "players": data["players"],
+        "total_count": data["total_count"],
+        "query": q,
+        "pos": pos.upper(),
+        "avail": avail.upper(),
+        "page": page,
+        "total_pages": total_pages,
+        "my_roster": my_roster,
+        "my_claims": my_claims,
+        "positions": ["ALL", "QB", "RB", "WR", "TE", "K", "DST"],
+        "active_nav": "waivers",
+    })
+
+
+@router.post("/api/league/{league_id}/waivers/add-drop")
+async def api_add_drop_free_agent(request: Request, league_id: str):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    add_player_id = data.get("add_player_id")
+    drop_player_id = data.get("drop_player_id")
+    if not add_player_id:
+        return JSONResponse({"error": "No player selected to add."}, status_code=400)
+
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found."}, status_code=404)
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    if not my_team:
+        commish_token_match = next((tok for tok in tokens if tok == league.commissioner_token), None)
+        if not commish_token_match:
+            return JSONResponse({"error": "Unauthorized to perform add/drop transactions."}, status_code=403)
+        actor_token = commish_token_match
+        target_team_id = data.get("team_id", league.teams[0].id if league.teams else "")
+    else:
+        actor_token = my_team.manager_token
+        target_team_id = my_team.id
+
+    ok, msg = add_drop_free_agent(league_id, target_team_id, add_player_id, drop_player_id, actor_token)
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+    return JSONResponse({"success": True, "message": msg})
+
+
+@router.post("/api/league/{league_id}/waivers/claim")
+async def api_submit_waiver_claim(request: Request, league_id: str):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    add_player_id = data.get("add_player_id")
+    drop_player_id = data.get("drop_player_id")
+    bid_amount = int(data.get("bid_amount", 0))
+    priority = int(data.get("priority", 1))
+
+    if not add_player_id:
+        return JSONResponse({"error": "No player selected to claim."}, status_code=400)
+
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found."}, status_code=404)
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    if not my_team:
+        return JSONResponse({"error": "Unauthorized: team manager credentials required."}, status_code=403)
+
+    ok, msg = submit_waiver_claim(league_id, my_team.id, add_player_id, drop_player_id, bid_amount, priority, my_team.manager_token)
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+    return JSONResponse({"success": True, "message": msg})
+
+
+@router.post("/api/league/{league_id}/waivers/cancel")
+async def api_cancel_waiver_claim(request: Request, league_id: str):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    claim_id = data.get("claim_id")
+    if not claim_id:
+        return JSONResponse({"error": "Claim ID required."}, status_code=400)
+
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found."}, status_code=404)
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    if not my_team:
+        return JSONResponse({"error": "Unauthorized: team manager credentials required."}, status_code=403)
+
+    ok, msg = cancel_waiver_claim(league_id, my_team.id, claim_id, my_team.manager_token)
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+    return JSONResponse({"success": True, "message": msg})
+
+
+@router.post("/api/league/{league_id}/waivers/process")
+async def api_process_waivers(request: Request, league_id: str):
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found."}, status_code=404)
+
+    tokens = get_tokens_from_cookie(request)
+    is_commish = league.commissioner_token in tokens or any(t.is_commissioner and t.manager_token in tokens for t in league.teams)
+    if not is_commish:
+        return JSONResponse({"error": "Only commissioner can trigger waiver processing."}, status_code=403)
+
+    ok, msg, summary = process_waivers(league_id, league.commissioner_token)
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+    return JSONResponse({"success": True, "message": msg, "summary": summary})
+
+
+# --- TRADES ROUTES ---
+
+@router.get("/league/{league_id}/trades", response_class=HTMLResponse)
+async def fantasy_trades_view(request: Request, league_id: str):
+    templates: Jinja2Templates = request.app.state.templates
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
+
+    trades = get_league_trades(league_id, status="ALL")
+
+    my_incoming_trades = []
+    my_outgoing_trades = []
+    league_trades = []
+
+    if my_team:
+        for tr in trades:
+            if tr.recipient_team_id == my_team.id and tr.status in ("proposed", "accepted"):
+                my_incoming_trades.append(tr)
+            elif tr.proposer_team_id == my_team.id and tr.status in ("proposed", "accepted"):
+                my_outgoing_trades.append(tr)
+            else:
+                league_trades.append(tr)
+    else:
+        league_trades = trades
+
+    # Teams and rosters for trade partner selector
+    teams_with_rosters = []
+    for t in league.teams:
+        r = get_team_roster(t.id)
+        teams_with_rosters.append({
+            "team": t,
+            "roster": r,
+        })
+
+    return templates.TemplateResponse(request, "fantasy/trades.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"The Trade Machine · {league.name}",
+        "league": league,
+        "my_team": my_team,
+        "is_commissioner": is_commish,
+        "incoming_trades": my_incoming_trades,
+        "outgoing_trades": my_outgoing_trades,
+        "league_trades": league_trades,
+        "teams_with_rosters": teams_with_rosters,
+        "active_nav": "trades",
+    })
+
+
+@router.post("/api/league/{league_id}/trades/propose")
+async def api_propose_trade(request: Request, league_id: str):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    recipient_team_id = data.get("recipient_team_id")
+    proposer_player_ids = data.get("proposer_player_ids") or []
+    recipient_player_ids = data.get("recipient_player_ids") or []
+    note = data.get("note", "")
+
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found."}, status_code=404)
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    if not my_team:
+        return JSONResponse({"error": "Unauthorized: team manager credentials required."}, status_code=403)
+
+    ok, msg, trade_id = propose_trade(
+        league_id=league_id,
+        proposer_team_id=my_team.id,
+        recipient_team_id=recipient_team_id,
+        proposer_player_ids=proposer_player_ids,
+        recipient_player_ids=recipient_player_ids,
+        note=note,
+        actor_token=my_team.manager_token,
+    )
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+    return JSONResponse({"success": True, "message": msg, "trade_id": trade_id})
+
+
+@router.post("/api/league/{league_id}/trades/respond")
+async def api_respond_trade(request: Request, league_id: str):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    trade_id = data.get("trade_id")
+    action = data.get("action")  # accept, reject, cancel, veto, approve
+    if not trade_id or not action:
+        return JSONResponse({"error": "Trade ID and action required."}, status_code=400)
+
+    league = get_league(league_id)
+    if not league:
+        return JSONResponse({"error": "League not found."}, status_code=404)
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    actor_token = league.commissioner_token if league.commissioner_token in tokens else (my_team.manager_token if my_team else "")
+    if not actor_token:
+        return JSONResponse({"error": "Unauthorized to respond to trades."}, status_code=403)
+
+    ok, msg = respond_to_trade(league_id, trade_id, action, actor_token)
+    if not ok:
+        return JSONResponse({"error": msg}, status_code=400)
+    return JSONResponse({"success": True, "message": msg})
+
+
+# --- ACTIVITY WIRE ROUTES ---
+
+@router.get("/league/{league_id}/activity", response_class=HTMLResponse)
+async def fantasy_activity_view(request: Request, league_id: str, type: Optional[str] = None):
+    templates: Jinja2Templates = request.app.state.templates
+    league = get_league(league_id)
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    tokens = get_tokens_from_cookie(request)
+    my_team = next((t for t in league.teams if t.manager_token in tokens), None)
+    is_commish = bool(my_team and my_team.is_commissioner) or (league.commissioner_token in tokens)
+
+    tx_type = type if type and type != "ALL" else None
+    transactions = get_league_transactions(league_id, transaction_type=tx_type, limit=50)
+
+    return templates.TemplateResponse(request, "fantasy/activity.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"League Activity Wire · {league.name}",
+        "league": league,
+        "my_team": my_team,
+        "is_commissioner": is_commish,
+        "transactions": transactions,
+        "current_filter": type or "ALL",
+        "active_nav": "activity",
+    })
+
+
+@router.get("/api/league/{league_id}/activity")
+async def api_league_activity(league_id: str, type: Optional[str] = None, limit: int = 50):
+    txs = get_league_transactions(league_id, transaction_type=type, limit=limit)
+    return JSONResponse({"transactions": [tx.to_dict() for tx in txs]})
+
 

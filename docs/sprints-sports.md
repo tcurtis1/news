@@ -186,3 +186,45 @@ Analytics: `sports_team_star` fires on star (not unstar). No `sports_view` — p
 1. Equivalent exists: extend `/sports` + existing search/topic/MyNews. Do not add `/scores` on a new host.
 2. Evidence: live board 2026-09-01 (one live on Top vs ~10 on `/sports/mlb`) plus poll/cache bugs in `sports.js` / `_sports_board`. Not a GSC guess.
 3. Invariants: free, no signup, teal, no ads on the board, no per-game SEO farm.
+
+---
+
+## Fantasy NFL Football Sprints (`/sports/fantasy`)
+
+### Sprint 1: League Foundation & Architecture — **shipped 2026-09-09**
+- SQLite database with WAL mode and schema auto-migration (`app/fantasy/db.py`).
+- Models: `League`, `LeagueSettings`, `FantasyTeam`, `Player`, `AuditLogEntry` (`app/fantasy/models.py`).
+- Cookie-based manager auth (token array in `yoyo_fantasy_tokens` cookie) with zero forced account signup.
+- League Hub, create/join flows, teams/rosters overview, commissioner settings panel.
+- NFL player catalog seeded with top ADPs, projections, and bye weeks (`app/fantasy/players.py`).
+
+### Sprint 2: Real-Time Snake Draft Engine & Room — **shipped 2026-09-09**
+- Snake draft math, round order alternation, roster slot determination (`app/fantasy/draft.py`).
+- 180+ NFL player catalog for full 15-round league drafts.
+- Real-time countdown timer engine with client sync and automatic timeout/auto-pick fallback.
+- Queue prioritization and BPA (Best Player Available) roster need auto-selection.
+- Commissioner controls: start, pause, resume, undo pick, randomize order, draft reset.
+- Responsive interactive Draft Room UI with Web Audio chimes, search, position filter, draft board grid, and live ticker.
+
+### Sprint 3: Weekly Schedule, Head-to-Head Matchups & Live Scoring — **shipped 2026-09-09**
+- Weekly round-robin schedule generator for 2–16 team leagues (`app/fantasy/matchups.py`).
+- Live scoring engine (`app/fantasy/scoring.py`): PPR, Half-PPR, Standard, D/ST scoring brackets.
+- Roster management: starter/bench position validation, drag/drop or click swapping (`lineup.html`).
+- Head-to-head matchup board with live projected scores and real-time win probability bar (`matchup.html`).
+- Commissioner week finalization and automatic standings calculation (record, points for, streak).
+
+### Sprint 4: Waivers, FAAB, Free Agency & The Trade Machine — **shipped 2026-09-11**
+- **Instant Free Agency Add/Drop**: First-come-first-serve adds for cleared players; roster limit checks; dropped players locked on 48h waiver hold.
+- **Dual Waiver Wire Engine**:
+  - FAAB (Free Agent Acquisition Budget): $100 starting budget, blind auction bidding with tiebreakers (waiver priority then claim time).
+  - Rolling Waiver Priority: Claims resolved by priority; winning teams drop to last priority while non-winning teams move up.
+  - Atomic waiver processing (`process_waivers`) with automatic invalidation of impossible claims (e.g. dropped player already gone).
+- **Multi-Player Trade Machine** (`app/fantasy/trades.py`):
+  - Propose trades with multiple players sent and received between two league teams.
+  - Pre-validation and execution checks: player ownership verification and team roster limit compliance.
+  - Review window vs instant execution based on league settings (`trade_review_hours`).
+  - Commissioner veto and approval actions.
+  - Atomic roster swaps and trade status transitions (`proposed`, `accepted`, `rejected`, `vetoed`, `executed`, `cancelled`).
+- **League Activity Wire Feed**: Audits all roster adds, drops, waiver claims won, trades executed, and commissioner vetoes (`activity.html`).
+- **UI & Navigation**: Dedicated Waivers (`waivers.html`), Trades (`trades.html`), and Activity (`activity.html`) views integrated across the Fantasy navigation bar.
+

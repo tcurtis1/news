@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page activity-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow">
+        <a href="/sports/fantasy">Fantasy NFL</a> › 
+        <a href="/sports/fantasy/league/{{ league.id }}">{{ league.name }}</a> › 
+        Activity Wire
+      </p>
+      <h1>League Transaction Wire</h1>
+      <p class="muted">
+        Real-time audit stream of all roster moves, free agent signings, trades, and waiver claims.
+      </p>
+    </div>
+    <div class="fantasy-hero-actions">
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/waivers">Waiver Wire 🏷️</a>
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/trades">Trade Machine 🤝</a>
+    </div>
+  </header>
+
+  <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
+    <a href="/sports/fantasy/league/{{ league.id }}">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/matchup">⚔️ Matchup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/lineup">📋 Lineup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/schedule">📅 Schedule</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/draft">⚡ Draft Room</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/waivers">🏷️ Waivers</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/trades">🤝 Trades</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/activity" aria-current="page">📜 Activity</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/settings">Settings</a>
+  </nav>
+
+  <!-- Filter Buttons -->
+  <section class="activity-filters" style="margin: 1.5rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <a href="/sports/fantasy/league/{{ league.id }}/activity?type=ALL" 
+       class="chip {% if current_filter == 'ALL' %}chip-active{% endif %}"
+       style="padding: 0.35rem 0.85rem; border-radius: 999px; border: 1px solid var(--border); text-decoration: none; color: var(--text); font-size: 0.85rem; {% if current_filter == 'ALL' %}background: var(--text); color: var(--bg); font-weight: 700;{% endif %}">
+      All Moves
+    </a>
+    <a href="/sports/fantasy/league/{{ league.id }}/activity?type=free_agent_add" 
+       class="chip {% if current_filter == 'free_agent_add' %}chip-active{% endif %}"
+       style="padding: 0.35rem 0.85rem; border-radius: 999px; border: 1px solid var(--border); text-decoration: none; color: var(--text); font-size: 0.85rem; {% if current_filter == 'free_agent_add' %}background: #10b981; color: white; font-weight: 700;{% endif %}">
+      Free Agent Adds
+    </a>
+    <a href="/sports/fantasy/league/{{ league.id }}/activity?type=add_drop" 
+       class="chip {% if current_filter == 'add_drop' %}chip-active{% endif %}"
+       style="padding: 0.35rem 0.85rem; border-radius: 999px; border: 1px solid var(--border); text-decoration: none; color: var(--text); font-size: 0.85rem; {% if current_filter == 'add_drop' %}background: var(--accent); color: white; font-weight: 700;{% endif %}">
+      Add / Drops
+    </a>
+    <a href="/sports/fantasy/league/{{ league.id }}/activity?type=waiver_claim" 
+       class="chip {% if current_filter == 'waiver_claim' %}chip-active{% endif %}"
+       style="padding: 0.35rem 0.85rem; border-radius: 999px; border: 1px solid var(--border); text-decoration: none; color: var(--text); font-size: 0.85rem; {% if current_filter == 'waiver_claim' %}background: #f59e0b; color: white; font-weight: 700;{% endif %}">
+      Waivers
+    </a>
+    <a href="/sports/fantasy/league/{{ league.id }}/activity?type=trade" 
+       class="chip {% if current_filter == 'trade' %}chip-active{% endif %}"
+       style="padding: 0.35rem 0.85rem; border-radius: 999px; border: 1px solid var(--border); text-decoration: none; color: var(--text); font-size: 0.85rem; {% if current_filter == 'trade' %}background: #6366f1; color: white; font-weight: 700;{% endif %}">
+      Trades
+    </a>
+  </section>
+
+  <!-- Activity Timeline -->
+  <section class="activity-timeline" style="margin: 1.5rem 0;">
+    {% if transactions %}
+    <div class="activity-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+      {% for tx in transactions %}
+      <div class="activity-card" style="padding: 1rem 1.25rem; border-radius: 8px; background: var(--card); border: 1px solid var(--border); display: flex; align-items: flex-start; gap: 1rem;">
+        <div style="margin-top: 0.15rem;">
+          {% if tx.type == 'free_agent_add' %}
+            <span class="badge-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 800; font-size: 0.75rem; border: 1px solid #10b981;">ADD</span>
+          {% elif tx.type == 'add_drop' %}
+            <span class="badge-pill" style="background: rgba(15, 118, 110, 0.15); color: var(--accent); font-weight: 800; font-size: 0.75rem; border: 1px solid var(--accent);">ADD/DROP</span>
+          {% elif tx.type == 'waiver_claim' %}
+            <span class="badge-pill" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-weight: 800; font-size: 0.75rem; border: 1px solid #f59e0b;">WAIVER</span>
+          {% elif tx.type == 'trade' %}
+            <span class="badge-pill" style="background: rgba(99, 102, 241, 0.15); color: #6366f1; font-weight: 800; font-size: 0.75rem; border: 1px solid #6366f1;">TRADE</span>
+          {% else %}
+            <span class="badge-pill" style="background: var(--bg); font-weight: 800; font-size: 0.75rem; border: 1px solid var(--border);">MOVE</span>
+          {% endif %}
+        </div>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; font-size: 0.98rem; line-height: 1.4;">
+            {{ tx.description }}
+          </div>
+          <div class="muted" style="font-size: 0.8rem; margin-top: 0.35rem;">
+            {% if tx.team %}{{ tx.team.name }} · {% endif %}{{ tx.created_at[:16]|replace('T', ' ') }} UTC
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="padding: 3rem 1rem; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 8px;" class="muted">
+      No transactions recorded in this league yet.
+    </div>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

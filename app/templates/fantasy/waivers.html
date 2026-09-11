@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page fantasy-page waivers-page">
+  <header class="sports-hero">
+    <div>
+      <p class="eyebrow">
+        <a href="/sports/fantasy">Fantasy NFL</a> › 
+        <a href="/sports/fantasy/league/{{ league.id }}">{{ league.name }}</a> › 
+        Waivers & Free Agency
+      </p>
+      <h1>Waiver Wire & Free Agency</h1>
+      <p class="muted">
+        System: <b>{{ league.settings.waiver_type | upper }}</b> · 
+        {% if my_team %}
+          Your Team: <b>{{ my_team.name }}</b> · 
+          {% if league.settings.waiver_type == 'faab' %}
+            FAAB: <b style="color: var(--accent);">${{ my_team.faab_balance }}</b> / ${{ league.settings.faab_budget }}
+          {% else %}
+            Waiver Priority: <b style="color: var(--accent);">#{{ my_team.waiver_priority }}</b>
+          {% endif %}
+        {% else %}
+          Viewing as Spectator
+        {% endif %}
+      </p>
+    </div>
+    <div class="fantasy-hero-actions">
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/lineup">My Lineup 📋</a>
+      <a class="sports-scores-link" href="/sports/fantasy/league/{{ league.id }}/activity">Activity Wire 📜</a>
+    </div>
+  </header>
+
+  <nav class="sports-view-nav fantasy-league-nav" aria-label="League sections">
+    <a href="/sports/fantasy/league/{{ league.id }}">League Hub</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/matchup">⚔️ Matchup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/lineup">📋 Lineup</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/schedule">📅 Schedule</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/draft">⚡ Draft Room</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/waivers" aria-current="page">🏷️ Waivers</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/trades">🤝 Trades</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/activity">📜 Activity</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/teams">Teams & Rosters</a>
+    <a href="/sports/fantasy/league/{{ league.id }}/settings">Settings</a>
+  </nav>
+
+  <!-- Commissioner Action Bar -->
+  {% if is_commissioner %}
+  <div class="waivers-admin-bar" style="margin: 1rem 0; padding: 0.75rem 1rem; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); border: 1px solid var(--accent); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+    <div>
+      <span style="font-weight: 700; color: var(--accent);">⚙️ Commissioner Controls:</span>
+      <span class="muted" style="font-size: 0.88rem; margin-left: 0.5rem;">Manually resolve all pending waiver claims right now.</span>
+    </div>
+    <button id="btn-process-waivers" class="btn-primary" style="padding: 0.4rem 0.9rem; font-size: 0.88rem;">Process Waivers Now ⚡</button>
+  </div>
+  {% endif %}
+
+  <!-- My Pending Claims Section -->
+  {% if my_claims %}
+  <section class="waiver-claims-panel" style="margin: 1.5rem 0; padding: 1.25rem; border-radius: 10px; background: var(--card); border: 1px solid var(--border);">
+    <h3 style="margin-top: 0; display: flex; align-items: center; gap: 0.5rem;">
+      <span>📑 Your Active Waiver Claims</span>
+      <span class="badge-pill" style="background: var(--accent); color: white;">{{ my_claims|length }}</span>
+    </h3>
+    <div class="claims-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      {% for c in my_claims %}
+      <div class="claim-card" style="border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem; background: var(--bg); display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span class="badge-pill" style="background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); font-weight: 700;">
+              {% if league.settings.waiver_type == 'faab' %}Bid: ${{ c.bid_amount }}{% else %}Priority #{{ c.priority }}{% endif %}
+            </span>
+            <span class="muted" style="font-size: 0.78rem;">Submitted {{ c.created_at[:10] }}</span>
+          </div>
+          <div style="font-weight: 700; font-size: 1.05rem;">+ {{ c.add_player.name }} <span class="muted" style="font-size: 0.85rem;">({{ c.add_player.position }} · {{ c.add_player.nfl_team }})</span></div>
+          {% if c.drop_player %}
+          <div style="color: #ef4444; font-size: 0.88rem; margin-top: 0.25rem;">- Drop: {{ c.drop_player.name }} ({{ c.drop_player.position }})</div>
+          {% else %}
+          <div class="muted" style="font-size: 0.85rem; margin-top: 0.25rem;">(No player dropped)</div>
+          {% endif %}
+        </div>
+        <div style="margin-top: 0.85rem; display: flex; justify-content: flex-end;">
+          <button class="btn-quiet btn-cancel-claim" data-claim-id="{{ c.id }}" style="font-size: 0.8rem; color: #ef4444; border-color: #ef4444;">Cancel Claim ✕</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Filter & Search Toolbar -->
+  <section class="waivers-filter-bar" style="margin: 1.5rem 0; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;">
+    <form method="GET" action="/sports/fantasy/league/{{ league.id }}/waivers" style="display: flex; gap: 0.5rem; flex-wrap: wrap; flex: 1; min-width: 260px;">
+      <input type="text" name="q" value="{{ query }}" placeholder="Search player or team (e.g. Mahomes, KC)..." style="padding: 0.5rem 0.85rem; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text); flex: 1; min-width: 180px;">
+      <input type="hidden" name="pos" value="{{ pos }}">
+      <input type="hidden" name="avail" value="{{ avail }}">
+      <button type="submit" class="btn-primary" style="padding: 0.5rem 1rem;">Search</button>
+      {% if query or pos != 'ALL' or avail != 'ALL' %}
+        <a href="/sports/fantasy/league/{{ league.id }}/waivers" class="btn-quiet" style="padding: 0.5rem 0.85rem;">Clear</a>
+      {% endif %}
+    </form>
+
+    <div class="pos-chips" style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+      {% for p in positions %}
+      <a href="/sports/fantasy/league/{{ league.id }}/waivers?pos={{ p }}&q={{ query }}&avail={{ avail }}" 
+         class="chip {% if pos == p %}chip-active{% endif %}"
+         style="padding: 0.3rem 0.65rem; border-radius: 999px; border: 1px solid var(--border); font-size: 0.82rem; text-decoration: none; color: var(--text); {% if pos == p %}background: var(--accent); color: white; border-color: var(--accent); font-weight: 700;{% endif %}">
+        {{ p }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <div class="avail-chips" style="display: flex; gap: 0.35rem;">
+      <a href="/sports/fantasy/league/{{ league.id }}/waivers?avail=ALL&pos={{ pos }}&q={{ query }}" class="chip {% if avail == 'ALL' %}chip-active{% endif %}" style="padding: 0.3rem 0.65rem; border-radius: 999px; border: 1px solid var(--border); font-size: 0.82rem; text-decoration: none; color: var(--text); {% if avail == 'ALL' %}background: var(--text); color: var(--bg); font-weight: 700;{% endif %}">All</a>
+      <a href="/sports/fantasy/league/{{ league.id }}/waivers?avail=FA&pos={{ pos }}&q={{ query }}" class="chip {% if avail == 'FA' %}chip-active{% endif %}" style="padding: 0.3rem 0.65rem; border-radius: 999px; border: 1px solid var(--border); font-size: 0.82rem; text-decoration: none; color: var(--text); {% if avail == 'FA' %}background: #10b981; color: white; font-weight: 700;{% endif %}">Free Agents</a>
+      <a href="/sports/fantasy/league/{{ league.id }}/waivers?avail=WAIVERS&pos={{ pos }}&q={{ query }}" class="chip {% if avail == 'WAIVERS' %}chip-active{% endif %}" style="padding: 0.3rem 0.65rem; border-radius: 999px; border: 1px solid var(--border); font-size: 0.82rem; text-decoration: none; color: var(--text); {% if avail == 'WAIVERS' %}background: #f59e0b; color: white; font-weight: 700;{% endif %}">On Waivers</a>
+    </div>
+  </section>
+
+  <!-- Player List Table -->
+  <section class="waiver-players-container" style="background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;">
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.92rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); background: color-mix(in srgb, var(--border) 20%, var(--card)); color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">
+            <th style="padding: 0.75rem 1rem;">Player</th>
+            <th style="padding: 0.75rem 0.5rem; text-align: center;">Pos</th>
+            <th style="padding: 0.75rem 0.5rem; text-align: center;">Team</th>
+            <th style="padding: 0.75rem 0.5rem; text-align: center;">Bye</th>
+            <th style="padding: 0.75rem 0.5rem; text-align: right;">Proj Pts</th>
+            <th style="padding: 0.75rem 0.75rem; text-align: center;">Status</th>
+            <th style="padding: 0.75rem 1rem; text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in players %}
+          {% set p = item.player %}
+          <tr style="border-bottom: 1px solid var(--border);" class="player-row">
+            <td style="padding: 0.75rem 1rem;">
+              <div style="font-weight: 700; color: var(--text);">{{ p.name }}</div>
+              <div class="muted" style="font-size: 0.78rem;">ADP: {{ p.adp }}</div>
+            </td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center;">
+              <span class="pos-badge pos-{{ p.position|lower }}" style="padding: 0.2rem 0.45rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent);">{{ p.position }}</span>
+            </td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center; font-weight: 600;">{{ p.nfl_team }}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: center;" class="muted">{{ p.bye_week }}</td>
+            <td style="padding: 0.75rem 0.5rem; text-align: right; font-weight: 700; color: var(--accent);">{{ p.projected_points|round(1) }}</td>
+            <td style="padding: 0.75rem 0.75rem; text-align: center;">
+              {% if item.status == 'FA' %}
+                <span class="badge-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700; font-size: 0.78rem; border: 1px solid #10b981;">FA</span>
+              {% else %}
+                <span class="badge-pill" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-weight: 700; font-size: 0.78rem; border: 1px solid #f59e0b;" title="Waiver clears {{ item.waiver_until }}">WAIVER</span>
+              {% endif %}
+            </td>
+            <td style="padding: 0.75rem 1rem; text-align: right;">
+              {% if my_team %}
+                {% if item.status == 'FA' %}
+                  <button class="btn-primary btn-action-add" 
+                          data-pid="{{ p.id }}" 
+                          data-name="{{ p.name }}" 
+                          data-pos="{{ p.position }}" 
+                          data-team="{{ p.nfl_team }}"
+                          style="padding: 0.35rem 0.75rem; font-size: 0.82rem; background: #10b981;">
+                    + Add
+                  </button>
+                {% else %}
+                  <button class="btn-primary btn-action-claim" 
+                          data-pid="{{ p.id }}" 
+                          data-name="{{ p.name }}" 
+                          data-pos="{{ p.position }}" 
+                          data-team="{{ p.nfl_team }}"
+                          data-waiver-until="{{ item.waiver_until }}"
+                          style="padding: 0.35rem 0.75rem; font-size: 0.82rem; background: #f59e0b;">
+                    🏷️ Claim
+                  </button>
+                {% endif %}
+              {% else %}
+                <span class="muted" style="font-size: 0.8rem;">Join to add</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" style="padding: 3rem 1rem; text-align: center;" class="muted">
+              No available players found matching your criteria.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-top: 1px solid var(--border); font-size: 0.88rem;">
+      <span class="muted">Showing {{ players|length }} of {{ total_count }} available players (Page {{ page }} of {{ total_pages }})</span>
+      <div style="display: flex; gap: 0.5rem;">
+        {% if page > 1 %}
+          <a href="/sports/fantasy/league/{{ league.id }}/waivers?page={{ page - 1 }}&pos={{ pos }}&q={{ query }}&avail={{ avail }}" class="btn-quiet">‹ Previous</a>
+        {% endif %}
+        {% if page < total_pages %}
+          <a href="/sports/fantasy/league/{{ league.id }}/waivers?page={{ page + 1 }}&pos={{ pos }}&q={{ query }}&avail={{ avail }}" class="btn-quiet">Next ›</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- Add / Drop Modal -->
+  <dialog id="modal-add-drop" style="border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; background: var(--card); color: var(--text); max-width: 460px; width: 92%;">
+    <h3 style="margin-top: 0; color: #10b981;">+ Instant Free Agent Pickup</h3>
+    <p id="modal-add-player-desc" style="font-weight: 700; font-size: 1.1rem; margin: 0.5rem 0;"></p>
+    
+    <div style="margin: 1.25rem 0;">
+      <label for="select-drop-player" style="display: block; font-size: 0.88rem; font-weight: 700; margin-bottom: 0.4rem;">
+        Select player to drop (optional if roster has space):
+      </label>
+      <select id="select-drop-player" style="width: 100%; padding: 0.55rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.92rem;">
+        <option value="">-- Do not drop anyone (keep roster spot) --</option>
+        {% for rp in my_roster %}
+        <option value="{{ rp.player_id }}">{{ rp.player_name }} ({{ rp.position }} · {{ rp.nfl_team }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+      <button type="button" class="btn-quiet" onclick="document.getElementById('modal-add-drop').close()">Cancel</button>
+      <button type="button" id="btn-confirm-add" class="btn-primary" style="background: #10b981;">Confirm Add/Drop</button>
+    </div>
+  </dialog>
+
+  <!-- Waiver Claim Modal -->
+  <dialog id="modal-claim" style="border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; background: var(--card); color: var(--text); max-width: 460px; width: 92%;">
+    <h3 style="margin-top: 0; color: #f59e0b;">🏷️ Place Waiver Claim</h3>
+    <p id="modal-claim-player-desc" style="font-weight: 700; font-size: 1.1rem; margin: 0.5rem 0;"></p>
+
+    {% if league.settings.waiver_type == 'faab' %}
+    <div style="margin: 1rem 0;">
+      <label for="input-bid-amount" style="display: block; font-size: 0.88rem; font-weight: 700; margin-bottom: 0.4rem;">
+        Your FAAB Bid ($0 – ${{ my_team.faab_balance if my_team else 0 }} available):
+      </label>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <span style="font-size: 1.2rem; font-weight: 800; color: var(--accent);">$</span>
+        <input type="number" id="input-bid-amount" min="0" max="{{ my_team.faab_balance if my_team else 100 }}" value="5" style="width: 100px; padding: 0.45rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-weight: 700; font-size: 1.1rem;">
+      </div>
+      <p class="muted" style="font-size: 0.78rem; margin-top: 0.35rem;">Highest bid wins when waivers clear. Tiebreaker is waiver priority.</p>
+    </div>
+    {% else %}
+    <div style="margin: 1rem 0;">
+      <p class="muted" style="font-size: 0.88rem;">This league uses <b>Rolling Waiver Priority</b>. Your current priority is <b>#{{ my_team.waiver_priority if my_team else 1 }}</b>.</p>
+    </div>
+    {% endif %}
+
+    <div style="margin: 1.25rem 0;">
+      <label for="select-claim-drop-player" style="display: block; font-size: 0.88rem; font-weight: 700; margin-bottom: 0.4rem;">
+        Select player to drop (if claim succeeds):
+      </label>
+      <select id="select-claim-drop-player" style="width: 100%; padding: 0.55rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.92rem;">
+        <option value="">-- Do not drop anyone --</option>
+        {% for rp in my_roster %}
+        <option value="{{ rp.player_id }}">{{ rp.player_name }} ({{ rp.position }} · {{ rp.nfl_team }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+      <button type="button" class="btn-quiet" onclick="document.getElementById('modal-claim').close()">Cancel</button>
+      <button type="button" id="btn-confirm-claim" class="btn-primary" style="background: #f59e0b;">Submit Claim</button>
+    </div>
+  </dialog>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const leagueId = '{{ league.id }}';
+  let activeAddPid = null;
+  let activeClaimPid = null;
+
+  // Add Free Agent modal triggers
+  document.querySelectorAll('.btn-action-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeAddPid = btn.getAttribute('data-pid');
+      const name = btn.getAttribute('data-name');
+      const pos = btn.getAttribute('data-pos');
+      const team = btn.getAttribute('data-team');
+      document.getElementById('modal-add-player-desc').textContent = `${name} (${pos} · ${team})`;
+      document.getElementById('modal-add-drop').showModal();
+    });
+  });
+
+  // Confirm Free Agent Add
+  document.getElementById('btn-confirm-add')?.addEventListener('click', async () => {
+    if (!activeAddPid) return;
+    const dropPid = document.getElementById('select-drop-player').value || null;
+    const btn = document.getElementById('btn-confirm-add');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+      const res = await fetch(`/sports/fantasy/api/league/${leagueId}/waivers/add-drop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ add_player_id: activeAddPid, drop_player_id: dropPid }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        alert(data.error || 'Failed to add player');
+        btn.disabled = false;
+        btn.textContent = 'Confirm Add/Drop';
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      alert('Network error adding player');
+      btn.disabled = false;
+      btn.textContent = 'Confirm Add/Drop';
+    }
+  });
+
+  // Claim Waiver modal triggers
+  document.querySelectorAll('.btn-action-claim').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeClaimPid = btn.getAttribute('data-pid');
+      const name = btn.getAttribute('data-name');
+      const pos = btn.getAttribute('data-pos');
+      const team = btn.getAttribute('data-team');
+      document.getElementById('modal-claim-player-desc').textContent = `${name} (${pos} · ${team})`;
+      document.getElementById('modal-claim').showModal();
+    });
+  });
+
+  // Confirm Waiver Claim
+  document.getElementById('btn-confirm-claim')?.addEventListener('click', async () => {
+    if (!activeClaimPid) return;
+    const dropPid = document.getElementById('select-claim-drop-player').value || null;
+    const bid = parseInt(document.getElementById('input-bid-amount')?.value || '0', 10);
+    const btn = document.getElementById('btn-confirm-claim');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    try {
+      const res = await fetch(`/sports/fantasy/api/league/${leagueId}/waivers/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          add_player_id: activeClaimPid,
+          drop_player_id: dropPid,
+          bid_amount: isNaN(bid) ? 0 : bid,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        alert(data.error || 'Failed to submit waiver claim');
+        btn.disabled = false;
+        btn.textContent = 'Submit Claim';
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      alert('Network error submitting claim');
+      btn.disabled = false;
+      btn.textContent = 'Submit Claim';
+    }
+  });
+
+  // Cancel Claim triggers
+  document.querySelectorAll('.btn-cancel-claim').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const claimId = btn.getAttribute('data-claim-id');
+      if (!confirm('Are you sure you want to cancel this waiver claim?')) return;
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`/sports/fantasy/api/league/${leagueId}/waivers/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ claim_id: claimId }),
+        });
+        const data = await res.json();
+        if (data.error) alert(data.error);
+        window.location.reload();
+      } catch (err) {
+        alert('Network error');
+        btn.disabled = false;
+      }
+    });
+  });
+
+  // Process Waivers (Commissioner)
+  document.getElementById('btn-process-waivers')?.addEventListener('click', async () => {
+    if (!confirm('Run the waiver wire processing engine right now?')) return;
+    const btn = document.getElementById('btn-process-waivers');
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+
+    try {
+      const res = await fetch(`/sports/fantasy/api/league/${leagueId}/waivers/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        alert(data.error || 'Failed to process waivers');
+        btn.disabled = false;
+        btn.textContent = 'Process Waivers Now ⚡';
+      } else {
+        alert(data.message);
+        window.location.reload();
+      }
+    } catch (err) {
+      alert('Network error');
+      btn.disabled = false;
+    }
+  });
+});
+</script>
+{% endblock %}

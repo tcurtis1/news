@@ -16,11 +16,16 @@ from app.fantasy.models import (
     FantasyTeam,
     League,
     LeagueSettings,
+    LeagueTransaction,
     LineupSlot,
     Matchup,
     Player,
     PlayerGameStats,
+    PlayerWaiverStatus,
     RosterPlayer,
+    Trade,
+    TradeItem,
+    WaiverClaim,
 )
 from app.fantasy.players import load_seed_players
 
@@ -218,6 +223,77 @@ def init_db(conn: Optional[sqlite3.Connection] = None) -> None:
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_player_stats_uniq ON player_game_stats(player_id, season, week);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_player_stats_lookup ON player_game_stats(season, week);")
 
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS waiver_claims (
+                id TEXT PRIMARY KEY,
+                league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+                team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                add_player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                drop_player_id TEXT REFERENCES players(id) ON DELETE SET NULL,
+                bid_amount INTEGER NOT NULL DEFAULT 0,
+                priority INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'pending',
+                fail_reason TEXT,
+                created_at TEXT NOT NULL,
+                processed_at TEXT
+            );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_waiver_claims_league ON waiver_claims(league_id, status);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_waiver_claims_team ON waiver_claims(team_id, status);")
+
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS player_waiver_status (
+                id TEXT PRIMARY KEY,
+                league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+                player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                waiver_until TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            """)
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_player_waiver_unique ON player_waiver_status(league_id, player_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_player_waiver_until ON player_waiver_status(league_id, waiver_until);")
+
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS trades (
+                id TEXT PRIMARY KEY,
+                league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+                proposer_team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                recipient_team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                status TEXT NOT NULL DEFAULT 'proposed',
+                note TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                expires_at TEXT,
+                processed_at TEXT
+            );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_trades_league ON trades(league_id, status);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_trades_proposer ON trades(proposer_team_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_trades_recipient ON trades(recipient_team_id);")
+
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS trade_items (
+                id TEXT PRIMARY KEY,
+                trade_id TEXT NOT NULL REFERENCES trades(id) ON DELETE CASCADE,
+                from_team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                to_team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+                player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE
+            );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_trade_items_trade ON trade_items(trade_id);")
+
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                id TEXT PRIMARY KEY,
+                league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+                team_id TEXT REFERENCES teams(id) ON DELETE SET NULL,
+                type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                details_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_transactions_league ON transactions(league_id, created_at);")
+
             # Column migrations for leagues table
             for col, ctype in [
                 ("draft_order_json", "TEXT DEFAULT '[]'"),
@@ -399,4 +475,65 @@ def row_to_player_game_stats(r: sqlite3.Row) -> PlayerGameStats:
         dst_points_allowed=r["dst_points_allowed"],
         raw_stats_json=r["raw_stats_json"] if "raw_stats_json" in r.keys() else "{}",
         updated_at=r["updated_at"],
+    )
+
+
+def row_to_waiver_claim(
+    r: sqlite3.Row,
+    add_player: Optional[Player] = None,
+    drop_player: Optional[Player] = None,
+    team: Optional[FantasyTeam] = None,
+) -> WaiverClaim:
+    return WaiverClaim(
+        id=r["id"],
+        league_id=r["league_id"],
+        team_id=r["team_id"],
+        add_player_id=r["add_player_id"],
+        drop_player_id=r["drop_player_id"],
+        bid_amount=r["bid_amount"],
+        priority=r["priority"],
+        status=r["status"],
+        fail_reason=r["fail_reason"],
+        created_at=r["created_at"],
+        processed_at=r["processed_at"],
+        add_player=add_player,
+        drop_player=drop_player,
+        team=team,
+    )
+
+
+def row_to_trade(
+    r: sqlite3.Row,
+    proposer_team: Optional[FantasyTeam] = None,
+    recipient_team: Optional[FantasyTeam] = None,
+    proposer_sends: Optional[List[Player]] = None,
+    recipient_sends: Optional[List[Player]] = None,
+) -> Trade:
+    return Trade(
+        id=r["id"],
+        league_id=r["league_id"],
+        proposer_team_id=r["proposer_team_id"],
+        recipient_team_id=r["recipient_team_id"],
+        status=r["status"],
+        note=r["note"] if "note" in r.keys() else "",
+        created_at=r["created_at"],
+        expires_at=r["expires_at"] if "expires_at" in r.keys() else None,
+        processed_at=r["processed_at"] if "processed_at" in r.keys() else None,
+        proposer_team=proposer_team,
+        recipient_team=recipient_team,
+        proposer_sends=proposer_sends or [],
+        recipient_sends=recipient_sends or [],
+    )
+
+
+def row_to_transaction(r: sqlite3.Row, team: Optional[FantasyTeam] = None) -> LeagueTransaction:
+    return LeagueTransaction(
+        id=r["id"],
+        league_id=r["league_id"],
+        team_id=r["team_id"],
+        type=r["type"],
+        description=r["description"],
+        details_json=r["details_json"] if "details_json" in r.keys() else "{}",
+        created_at=r["created_at"],
+        team=team,
     )
