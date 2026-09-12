@@ -1299,6 +1299,7 @@ html[data-theme="dark"] .dist-bal {
 .plat-dot.plat-youtube { background: #ff0033; }
 .plat-dot.plat-x { background: #e7e9ea; }
 .plat-dot.plat-polymarket { background: #2e5cff; }
+.plat-dot.plat-kalshi { background: #00d26a; }
 .plat-dot.plat-tiktok { background: #25f4ee; box-shadow: 2px 0 0 #fe2c55; }
 .plat-dot.plat-facebook { background: #1877f2; }
 .plat-dot.plat-instagram {
@@ -1405,6 +1406,7 @@ html[data-theme="dark"] .dist-bal {
 .rank-pill.plat-youtube { background: #ff8a9b; }
 .rank-pill.plat-x { background: #e7e9ea; }
 .rank-pill.plat-polymarket { background: #9db4ff; }
+.rank-pill.plat-kalshi { background: #85f0b5; color: #064e3b; }
 .rank-pill.plat-tiktok { background: #25f4ee; }
 .rank-pill.plat-facebook { background: #8bb8f8; }
 .rank-pill.plat-instagram { background: #f5a9c8; }
@@ -1892,6 +1894,15 @@ html[data-theme="dark"] .dist-bal {
   -webkit-text-fill-color: #0b1b4a;
   border: 1px solid #2e5cff !important;
   box-shadow: 0 0 0 1px rgba(46, 92, 255, 0.45);
+}
+/* Kalshi: regulated prediction market emerald green chip */
+.plat-tag.plat-kalshi {
+  background: #d1fae5 !important;
+  background-color: #d1fae5 !important;
+  color: #064e3b !important;
+  -webkit-text-fill-color: #064e3b;
+  border: 1px solid #10b981 !important;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.45);
 }
 .plat-tag.plat-tiktok {
   background: #25f4ee !important;

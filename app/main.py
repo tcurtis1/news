@@ -268,7 +268,7 @@ async def rss_feed():
         '  <channel>',
         '    <title>yoyosup News — Daily Consensus</title>',
         f'    <link>{PUBLIC_BASE}</link>',
-        '    <description>Daily multi-platform news consensus tracking Google, Reddit, Bing, YouTube, Polymarket, TikTok, X.</description>',
+        '    <description>Daily multi-platform news consensus tracking Google, Reddit, Bing, YouTube, Polymarket, Kalshi, TikTok, X.</description>',
         '    <language>en-us</language>',
     ]
     for topic in items[:30]:
@@ -311,7 +311,7 @@ async def trending_page(request: Request):
             "public_base": PUBLIC_BASE,
             "pulse": data,
             "page_title": "Surging & Trending Topics",
-            "meta_description": "Real-time surge velocity tracking top news stories across Google, Reddit, Bing, Polymarket, TikTok, and X.",
+            "meta_description": "Real-time surge velocity tracking top news stories across Google, Reddit, Bing, Polymarket, Kalshi, TikTok, and X.",
             "slugify": slugify,
         },
     )

@@ -22,6 +22,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 | **Bias / lean badges** — Lean left · right · mixed · unclear (outlet map) | Live |
 | **Safety** — guidelines + OpenAI/local moderation + report | Live |
 | **Polymarket** — top markets by 24h volume | Live |
+| **Kalshi** — regulated event contracts by 24h volume | Live |
 | **YoyoSup logo** — SVG wordmark + mark | Live |
 | **MyNews** — personal topic board (`/my`, localStorage, no auth) | Live |
 | **Auto-curated My Feed** — learns from local searches/topic opens; on by default with visible opt-out | Live |
@@ -51,6 +52,7 @@ Meta-aggregator for **https://news.yoyosup.com**
 | YouTube | Daily Top Videos chart | Country (no free state chart) |
 | X | trends24 mirror | Country (no free state chart) |
 | Polymarket | Gamma API `volume24hr` (no key) | Always global |
+| Kalshi | Public Trade API `volume_24h_fp` (no key) | Always global |
 | TikTok | Creative Center hashtags (+ news pad) | Country; **states → local TikTok news buzz** |
 | Facebook | News-buzz proxy (no free Meta top-10 API) | Country; **states → local news buzz** |
 | Instagram | News-buzz proxy (no free Meta top-10 API) | Country; **states → local news buzz** |

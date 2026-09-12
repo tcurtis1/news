@@ -204,6 +204,7 @@ def lean_for(source: str = "", url: str = "") -> dict[str, str]:
             "facebook.com",
             "instagram.com",
             "polymarket.com",
+            "kalshi.com",
         )
     ):
         if lean == LEAN_UNCLEAR or "reddit" in src_l or "hacker news" in src_l:

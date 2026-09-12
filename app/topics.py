@@ -67,7 +67,7 @@ async def build_topic(
     if consensus and consensus.get("title"):
         display = consensus["title"]
     else:
-        for plat in ("google", "bing", "x", "polymarket", "youtube", "tiktok"):
+        for plat in ("google", "bing", "x", "polymarket", "kalshi", "youtube", "tiktok"):
             row = (ranks.get("platforms") or {}).get(plat) or {}
             if row.get("in_top") and row.get("title"):
                 display = row["title"]

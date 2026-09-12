@@ -246,6 +246,11 @@ class Place:
                 "code": "global",
                 "label": "Global",
             },
+            "kalshi": {
+                "scope": "global",
+                "code": "global",
+                "label": "Global",
+            },
             "facebook": {
                 "scope": "partial",
                 "code": local if is_region else self.news_gl,
@@ -271,12 +276,12 @@ class Place:
                 "Bing, Facebook, Instagram, and TikTok boards use local news buzz "
                 f"about {self.short_label()} (not official state charts — those platforms "
                 "don’t publish free state Top 10s). YouTube and X stay at the U.S. country "
-                "chart. Polymarket is always global."
+                "chart. Polymarket and Kalshi are always global."
             )
         else:
             note = (
                 f"Boards for {self.label} where each platform publishes local charts. "
-                "Bing/Facebook/Instagram are best-effort; Polymarket is always global."
+                "Bing/Facebook/Instagram are best-effort; Polymarket and Kalshi are always global."
             )
         return {
             "full": full,

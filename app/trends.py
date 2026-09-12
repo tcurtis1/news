@@ -1,6 +1,6 @@
 """Daily multi-platform trends + consensus + rank lookup.
 
-Sources: Google, Bing, YouTube, X, Polymarket, TikTok, Facebook, Instagram.
+Sources: Google, Bing, YouTube, X, Polymarket, Kalshi, TikTok, Facebook, Instagram.
 Pulled at most once per UTC day (CACHE_DIR). Force with force=True / ?force=1.
 """
 
@@ -45,6 +45,7 @@ PLATFORM_ORDER = (
     "youtube",
     "x",
     "polymarket",
+    "kalshi",
     "tiktok",
     "facebook",
     "instagram",
@@ -55,6 +56,7 @@ PLATFORM_LABELS = {
     "youtube": "YouTube",
     "x": "X",
     "polymarket": "Polymarket",
+    "kalshi": "Kalshi",
     "tiktok": "TikTok",
     "facebook": "Facebook",
     "instagram": "Instagram",
@@ -66,6 +68,7 @@ PLATFORM_NOTES = {
     "youtube": "Daily Top Videos",
     "x": "trends24",
     "polymarket": "24h volume · Global",
+    "kalshi": "24h volume · Regulated",
     "tiktok": "Creative Center",
     "facebook": "News buzz proxy",
     "instagram": "News buzz proxy",
@@ -817,6 +820,81 @@ async def _fetch_polymarket(client: httpx.AsyncClient) -> list[TrendItem]:
         return []
 
 
+async def _fetch_kalshi(client: httpx.AsyncClient) -> list[TrendItem]:
+    """Top regulated prediction markets by 24h volume (public Kalshi API, no key)."""
+    try:
+        r = await client.get(
+            "https://api.elections.kalshi.com/trade-api/v2/events",
+            params={
+                "limit": "100",
+                "status": "open",
+                "with_nested_markets": "true",
+            },
+            headers={**_browser_headers(), "Accept": "application/json"},
+        )
+        r.raise_for_status()
+        data = r.json()
+        events = data.get("events")
+        if not isinstance(events, list):
+            return []
+        scored: list[tuple[float, float, dict[str, Any]]] = []
+        for ev in events:
+            markets = ev.get("markets") or []
+            vol24 = 0.0
+            vol = 0.0
+            for m in markets:
+                try:
+                    vol24 += float(m.get("volume_24h_fp") or 0)
+                except (ValueError, TypeError):
+                    pass
+                try:
+                    vol += float(m.get("volume_fp") or 0)
+                except (ValueError, TypeError):
+                    pass
+            scored.append((vol24, vol, ev))
+        scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+        items: list[TrendItem] = []
+        for i, (vol24, vol, ev) in enumerate(scored[:MAX_PER_PLATFORM], 1):
+            title = (ev.get("title") or "").strip()
+            if not title:
+                continue
+            series_ticker = (ev.get("series_ticker") or "").lower()
+            event_ticker = (ev.get("event_ticker") or "").lower()
+            ticker = series_ticker or event_ticker
+            url = f"https://kalshi.com/markets/{ticker}" if ticker else "https://kalshi.com/"
+            category = (ev.get("category") or "").strip()
+
+            parts: list[str] = []
+            if vol24 > 0:
+                parts.append(f"{_fmt_money(vol24)} 24h vol")
+            if vol > 0:
+                parts.append(f"{_fmt_money(vol)} total")
+            if category:
+                parts.append(category)
+
+            items.append(
+                TrendItem(
+                    rank=i,
+                    title=title,
+                    url=url,
+                    platform="kalshi",
+                    snippet=" · ".join(parts) or "Kalshi",
+                    traffic=str(vol24 or vol or ""),
+                    extra={
+                        "volume24hr": vol24,
+                        "volume": vol,
+                        "category": category,
+                        "ticker": ticker,
+                    },
+                )
+            )
+        return items
+    except Exception as e:
+        log.warning("Kalshi fetch failed: %s", e)
+        return []
+
+
 async def _fetch_tiktok(client: httpx.AsyncClient, place: Place) -> list[TrendItem]:
     """
     TikTok popular hashtags via Creative Center (public page → jina reader).
@@ -1498,6 +1576,7 @@ async def _pull_trends_live(place: Place) -> dict[str, Any]:
             youtube,
             x_items,
             poly,
+            kalshi,
             tiktok,
             facebook,
             instagram,
@@ -1507,6 +1586,7 @@ async def _pull_trends_live(place: Place) -> dict[str, Any]:
             _fetch_youtube(client, place),
             _fetch_x(client, place),
             _fetch_polymarket(client),
+            _fetch_kalshi(client),
             _fetch_tiktok(client, place),
             _fetch_facebook(client, place),
             _fetch_instagram(client, place),
@@ -1525,6 +1605,7 @@ async def _pull_trends_live(place: Place) -> dict[str, Any]:
         "youtube": _ok(youtube, "youtube"),
         "x": _ok(x_items, "x"),
         "polymarket": _ok(poly, "polymarket"),
+        "kalshi": _ok(kalshi, "kalshi"),
         "tiktok": _ok(tiktok, "tiktok"),
         "facebook": _ok(facebook, "facebook"),
         "instagram": _ok(instagram, "instagram"),
@@ -1559,11 +1640,11 @@ async def _pull_trends_live(place: Place) -> dict[str, Any]:
         "disclaimer": (
             f"Daily attention + money map for {place.label} (UTC day). "
             "Google Trends · Bing Popular/News · YouTube Top Videos · X (trends24) · "
-            "Polymarket 24h volume (always global) · TikTok Creative Center hashtags · "
+            "Polymarket & Kalshi 24h volume (always global) · TikTok Creative Center hashtags · "
             "Facebook/Instagram via news-buzz proxies. "
             "US states: Google is state-level; Bing/Facebook/Instagram/TikTok use "
             "local news buzz for that state; YouTube & X stay at U.S. country charts; "
-            "Polymarket is global. "
+            "Polymarket and Kalshi are global. "
             "Consensus = topics on 2+ platform Top 10s. "
             "Deltas (NEW / ↑ / ↓) compare to yesterday’s UTC snapshot for this place. "
             "Not affiliated; not financial advice."

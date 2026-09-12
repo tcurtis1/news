@@ -245,6 +245,7 @@
       "youtube",
       "x",
       "polymarket",
+      "kalshi",
       "tiktok",
       "facebook",
       "instagram",

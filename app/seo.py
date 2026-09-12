@@ -120,7 +120,7 @@ async def collect_sitemap_urls() -> list[dict[str, Any]]:
                 }
             )
         # Also top items from major platforms (extra topic coverage)
-        for plat in ("google", "bing", "x", "polymarket"):
+        for plat in ("google", "bing", "x", "polymarket", "kalshi"):
             for it in (trends.get("top10") or {}).get(plat) or []:
                 title = it.get("title") or ""
                 slug = slugify(title)

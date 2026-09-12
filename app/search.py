@@ -408,6 +408,7 @@ def portal_links(q: str) -> list[PortalLink]:
         PortalLink("YouTube", f"https://www.youtube.com/results?search_query={enc}", "video"),
         PortalLink("X", f"https://x.com/search?q={enc}&src=typed_query", "social"),
         PortalLink("Polymarket", f"https://polymarket.com/search?_q={enc}", "news"),
+        PortalLink("Kalshi", f"https://kalshi.com/markets?query={enc}", "news"),
         PortalLink("TikTok", f"https://www.tiktok.com/search?q={enc}", "video"),
         PortalLink("Facebook", f"https://www.facebook.com/search/top/?q={enc}", "social"),
         PortalLink("Instagram", f"https://www.instagram.com/explore/search/keyword/?q={enc}", "social"),
@@ -1407,7 +1408,7 @@ async def _run_search_one(
             f"Rank map for {place.label} = mass platforms on Daily Intersection (not Hacker News). "
             f"Headlines filtered for your {meta['lean_pref_label'].lower()} source preference. "
             "Lean badges = curated outlet labels (not a truth score). "
-            "Polymarket volumes are not financial advice. Verify sources."
+            "Polymarket and Kalshi volumes are not financial advice. Verify sources."
         ),
     }
 

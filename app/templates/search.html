@@ -12,9 +12,9 @@
 {% block content %}
   {% set labels = results.trends.labels if results and results.trends and results.trends.labels else {
     'google': 'Google', 'bing': 'Bing', 'youtube': 'YouTube', 'x': 'X',
-    'polymarket': 'Polymarket', 'tiktok': 'TikTok', 'facebook': 'Facebook', 'instagram': 'Instagram'
+    'polymarket': 'Polymarket', 'kalshi': 'Kalshi', 'tiktok': 'TikTok', 'facebook': 'Facebook', 'instagram': 'Instagram'
   } %}
-  {% set board_keys = ['google', 'bing', 'youtube', 'x', 'polymarket', 'tiktok', 'facebook', 'instagram'] %}
+  {% set board_keys = ['google', 'bing', 'youtube', 'x', 'polymarket', 'kalshi', 'tiktok', 'facebook', 'instagram'] %}
 
   {% set geo_code = geo or (place.code if place else 'US') %}
   {% set place_label = place.label if place else 'United States' %}
@@ -296,7 +296,7 @@
             {# Short chips on narrow mobile — full name in title tooltip #}
             {% set short = {
               'google': 'Google', 'bing': 'Bing', 'youtube': 'YouTube', 'x': 'X',
-              'polymarket': 'Poly', 'tiktok': 'TikTok', 'facebook': 'FB', 'instagram': 'IG'
+              'polymarket': 'Poly', 'kalshi': 'Kalshi', 'tiktok': 'TikTok', 'facebook': 'FB', 'instagram': 'IG'
             } %}
             <tr class="{% if row.in_top %}hit{% else %}miss{% endif %}">
               <td>
