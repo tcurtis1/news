@@ -523,7 +523,11 @@ async def _fetch_google_news(
                     title=title,
                     url=link or f"https://news.google.com/search?q={quote_plus(q)}",
                     source=f"Google News · {source}" if source != "Google News" else "Google News",
-                    snippet="Google News",
+                    # Google News RSS <description> is just the title re-wrapped in an
+                    # <a> tag plus the source name — no real summary text exists to
+                    # show. Leave it empty rather than rendering "Google News" as if
+                    # it were a snippet; templates already skip the <p> when falsy.
+                    snippet="",
                     score=score_base - i,
                     published=published,
                     image_url=image_url,

@@ -197,6 +197,8 @@
           <span class="scope-pill scope-pill-country" title="Parent country chart — no free state Top 10">country</span>
           {% elif scope == 'global' %}
           <span class="scope-pill scope-pill-global" title="Always global">global</span>
+          {% elif scope == 'proxy' %}
+          <span class="scope-pill scope-pill-proxy" title="No free ranking API exists for this platform — this board is a Google News proxy for what's being said about it, not its own official chart">not official</span>
           {% endif %}
         </h2>
         {% if t.notes and t.notes[key] %}

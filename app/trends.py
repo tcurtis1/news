@@ -61,6 +61,14 @@ PLATFORM_LABELS = {
     "facebook": "Facebook",
     "instagram": "Instagram",
 }
+# Platforms with no free top-10 API at any geo level (see Place.platform_geo
+# in places.py, scope == "proxy"). Both are the *same* underlying source —
+# a Google News search for "on Facebook" / "on Instagram" phrasing — so the
+# same real-world article can independently satisfy both queries. Letting
+# them count toward Consensus Top 10's "2+ platforms agree" would let one
+# Google News hit masquerade as two independent platforms agreeing.
+PROXY_ONLY_PLATFORMS = frozenset({"facebook", "instagram"})
+
 # Short note shown under column headers / chips (geo suffix added at runtime)
 PLATFORM_NOTES = {
     "google": "Trends RSS",
@@ -331,6 +339,22 @@ def titles_similar(a: str, b: str) -> bool:
     shorter, longer = (na, nb) if len(na) <= len(nb) else (nb, na)
     if len(shorter) >= 8 and shorter in longer:
         return True
+    # A distinctive adjacent two-word phrase carried over, even when the rest
+    # of the headline is reworded entirely day to day — e.g. "iran war news
+    # today" vs "Iran war sparks global fuel riots; Hegseth faces GOP
+    # impeachment push". This is a much stronger signal than any 2 shared
+    # tokens, since it requires the words to be next to each other in both
+    # titles, not just present somewhere. Caught a real case where a genuine
+    # continuing story was resetting to NEW daily because compound headlines
+    # share few loose tokens with short query-style titles for the same event.
+    shorter_words = shorter.split()
+    for i in range(len(shorter_words) - 1):
+        w1, w2 = shorter_words[i], shorter_words[i + 1]
+        if w1 in STOPWORDS or w2 in STOPWORDS:
+            continue
+        bigram = f"{w1} {w2}"
+        if len(bigram) >= 7 and bigram in longer:
+            return True
     ta, tb = topic_tokens(a), topic_tokens(b)
     if not ta or not tb:
         return False
@@ -1147,10 +1171,19 @@ def build_consensus(
     """
     Topics that appear on 2+ platforms (within each platform's top_n window).
     Ranked by platform count, then average rank quality.
+
+    Facebook and Instagram are excluded from this calculation: both are a
+    Google News search proxy (no free top-10 API exists for either), and
+    they're the *same* proxy with different query phrasing — so a single
+    real-world article could satisfy both and count as two independent
+    platforms agreeing, which it isn't. They still get their own Top 10
+    column, honestly labeled, just not a vote in "2+ platforms agree."
     """
     # Collect top_n items only for consensus (keeps signal tight)
     pool: list[dict[str, Any]] = []
     for plat, items in platforms.items():
+        if plat in PROXY_ONLY_PLATFORMS:
+            continue
         for it in (items or [])[:top_n]:
             row = dict(it)
             row["platform"] = plat

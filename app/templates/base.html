@@ -13,11 +13,14 @@
   <meta property="og:title" content="{{ page_title }} · yoyosup News" />
   <meta property="og:description" content="{{ meta_description | default('Daily Intersection (mass attention) and Curious Pulse on yoyosup.com.') }}" />
   <meta property="og:url" content="{{ public_base }}{{ request.url.path }}" />
-  <meta property="og:image" content="{{ public_base }}/static/apple-touch-icon.png" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="{{ public_base }}/static/og-card.png?v={{ app_version }}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="yoyosup News — Curious, not mass media" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="{{ page_title }} · yoyosup News" />
   <meta name="twitter:description" content="{{ meta_description | default('Daily Intersection (mass attention) and Curious Pulse on yoyosup.com.') }}" />
-  <meta name="twitter:image" content="{{ public_base }}/static/apple-touch-icon.png" />
+  <meta name="twitter:image" content="{{ public_base }}/static/og-card.png?v={{ app_version }}" />
   <link rel="stylesheet" href="/static/style.css?v={{ app_version | default('0.9.9') }}" />
   <script src="/static/theme.js?v={{ app_version }}"></script>
   <script src="/static/view-pref.js?v={{ app_version }}"></script>

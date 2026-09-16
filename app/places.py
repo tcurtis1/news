@@ -251,13 +251,19 @@ class Place:
                 "code": "global",
                 "label": "Global",
             },
+            # No free Meta top-10 API exists at any geo level — this board is
+            # always a Google News proxy for "what's being said about
+            # Facebook," never Facebook's own ranking. That's categorically
+            # different from "partial" (real per-platform data, imprecise
+            # geography), so it gets its own scope rather than being lumped
+            # in with Bing/TikTok's honest-but-imperfect local approximation.
             "facebook": {
-                "scope": "partial",
+                "scope": "proxy",
                 "code": local if is_region else self.news_gl,
                 "label": local if is_region else self.label,
             },
             "instagram": {
-                "scope": "partial",
+                "scope": "proxy",
                 "code": local if is_region else self.news_gl,
                 "label": local if is_region else self.label,
             },
@@ -268,25 +274,32 @@ class Place:
         full = [k for k, v in pg.items() if v["scope"] == "full"]
         country = [k for k, v in pg.items() if v["scope"] == "country"]
         partial = [k for k, v in pg.items() if v["scope"] == "partial"]
+        proxy = [k for k, v in pg.items() if v["scope"] == "proxy"]
         global_ = [k for k, v in pg.items() if v["scope"] == "global"]
         none = [k for k, v in pg.items() if v["scope"] == "none"]
         if self.kind == "region":
             note = (
-                f"For {self.short_label()}: Google Trends is state-level. "
-                "Bing, Facebook, Instagram, and TikTok boards use local news buzz "
-                f"about {self.short_label()} (not official state charts — those platforms "
-                "don’t publish free state Top 10s). YouTube and X stay at the U.S. country "
-                "chart. Polymarket and Kalshi are always global."
+                f"For {self.short_label()}: Google Trends is state-level. Bing and TikTok "
+                f"lead with local news buzz about {self.short_label()} (not official state "
+                "charts — those platforms don’t publish free state Top 10s). Facebook and "
+                "Instagram have no free ranking API at any level, so those boards are always "
+                "Google News proxies for what's being said about those platforms, not their "
+                "own charts. YouTube and X stay at the U.S. country chart. Polymarket and "
+                "Kalshi are always global."
             )
         else:
             note = (
                 f"Boards for {self.label} where each platform publishes local charts. "
-                "Bing/Facebook/Instagram are best-effort; Polymarket and Kalshi are always global."
+                "Bing/TikTok are best-effort (real platform data, imprecise geography). "
+                "Facebook/Instagram have no free top-10 API at all, so those boards are "
+                "Google News proxies, not an official ranking. Polymarket and Kalshi are "
+                "always global."
             )
         return {
             "full": full,
             "country": country,
             "partial": partial,
+            "proxy": proxy,
             "global": global_,
             "none": none,
             "note": note,
