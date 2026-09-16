@@ -3,6 +3,19 @@
   "site": "news",
   "entries": [
     {
+      "id": "sports-team-clubhouse",
+      "seq": 37,
+      "date": "2026-09-16",
+      "title": "Team Clubhouses on Sports",
+      "detail": "Drill down on any team across NFL, NBA, MLB, NHL, and college sports for full schedules, rosters, season stats, next game previews, and team news.",
+      "href": "https://news.yoyosup.com/sports",
+      "tags": [
+        "sports",
+        "news"
+      ],
+      "site": "news"
+    },
+    {
       "id": "auto-curated-my-feed",
       "seq": 36,
       "date": "2026-09-07",
