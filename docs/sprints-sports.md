@@ -260,5 +260,40 @@ Analytics: `sports_team_star` fires on star (not unstar). No `sports_view` — p
 - **Betting Lines Table**:
   - Dedicated table on game detail pages showing Spread (with juice payout), Moneyline, and Total (Over/Under) for both teams, with bookmaker attribution (`via DraftKings`).
 
+---
+
+## Sprint 7: Comprehensive Sports Team Clubhouse & Drilldown View — **shipped 2026-09-16**
+- **Comprehensive Clubhouse View (`/sports/{league}/team/{team_id}` & `/api/sports/team/{league}/{team_id}`)**:
+  - Direct ESPN-grade (or better) drilldown view for every team across all supported leagues (NFL, NBA, MLB, NHL, CFB, EPL, MLS, WNBA, CBB).
+  - Parallel background fetching via `asyncio.gather` for identity, schedule, roster, season stats, next game, and Google News (`app/sports.py: get_team_drilldown`).
+  - Strict 10-minute caching (`TEAM_DRILLDOWN_TTL`) with stale-while-revalidate protection.
+- **Hero Identity & Franchise Facts**:
+  - High-resolution team logo, full display name, nickname, abbreviation, league badge, official colors, and conference/division standing summary ("1st in AFC West").
+  - Overall record breakdown with home, road, current streak, points per game, and opponent points allowed.
+  - Franchise venue card: venue name, city/state, capacity, turf/indoor flag, and stadium imagery.
+  - Head coach attribution and current AP/CFP ranking badges.
+- **Interactive Fan Actions**:
+  - Direct Star/Pin toggle integrated with `localStorage` and the `/sports` "Your teams" quick bar via `sports.js`.
+  - Follow in MyNews shortcut button.
+  - Native Web Share API integration to easily share team clubhouses.
+- **Recent Form & Next Matchup Cards**:
+  - Recent form tracker showing the last 5 completed games with [W]/[L] badges, scores, opponent abbreviations, and direct game links.
+  - Next matchup preview hero card: opponent logo, rank, date/local time, TV broadcast networks, betting spread/odds, and link to game preview.
+- **5 Client-Side Sub-Navigation Tabs**:
+  - Instant zero-lag tab switching with URL hash persistence (`#overview`, `#schedule`, `#roster`, `#stats`, `#news`):
+    - **Overview**: Next matchup hero, recent form, franchise facts, team stat summary, latest headlines.
+    - **Schedule & Results**: Complete season schedule with date, opponent, home/away status, final scores, W/L badges, TV coverage, and boxscore links.
+    - **Roster & Depth Chart**: Position groups (Offense, Defense, Special Teams, Guards, Forwards, Pitchers, Infielders, etc.) with player headshots, jersey numbers, heights, weights, ages, experience, and colleges.
+    - **Team Statistics**: Grouped league metric cards with categories (Passing, Rushing, Receiving, Scoring, Defense, Batting, etc.) and official league rank chips.
+    - **Latest Team News**: Real-time Google News search headlines for the team with outbound links and search integration.
+- **Full Sitewide Cross-Linking**:
+  - Standings table (`sports_standings.html`): clicking any team navigates directly to its clubhouse.
+  - Rankings table (`sports_rankings.html`): clicking ranked teams opens their team drilldown.
+  - Game center (`sports_game.html`): home and away teams in hero and news link to their clubhouse.
+  - Scoreboard cards (`sports.html`): team names and logos link directly to their clubhouse.
+- **Better than ESPN**:
+  - 100% ad-free, zero video auto-play, zero tracking bloat, instant local paint, full dark/light theme integration.
+
+
 
 

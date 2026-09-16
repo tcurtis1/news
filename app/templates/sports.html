@@ -119,6 +119,8 @@
                 </div>
                 {% if game.context_line %}<p class="score-context">{{ game.context_line }}</p>{% endif %}
                 <div class="score-card-stars">
+                  <a class="team-clubhouse-link" href="/sports/{{ game.league_slug }}/team/{{ game.away_team.id }}" title="{{ game.away_team.name }} clubhouse">{{ game.away_team.abbreviation }} ↗</a>
+                  <a class="team-clubhouse-link" href="/sports/{{ game.league_slug }}/team/{{ game.home_team.id }}" title="{{ game.home_team.name }} clubhouse">{{ game.home_team.abbreviation }} ↗</a>
                   <button type="button" class="team-star" data-team-key="{{ game.league_slug }}:{{ game.away_team.id }}" data-team-id="{{ game.away_team.id }}" data-team-name="{{ game.away_team.name }}" data-team-abbr="{{ game.away_team.abbreviation }}" data-league="{{ game.league_slug }}" aria-pressed="false">Star {{ game.away_team.abbreviation }}</button>
                   <button type="button" class="team-star" data-team-key="{{ game.league_slug }}:{{ game.home_team.id }}" data-team-id="{{ game.home_team.id }}" data-team-name="{{ game.home_team.name }}" data-team-abbr="{{ game.home_team.abbreviation }}" data-league="{{ game.league_slug }}" aria-pressed="false">Star {{ game.home_team.abbreviation }}</button>
                   <button type="button" class="score-share" data-share data-share-line="{{ game.share_line }}" data-share-url="{{ public_base }}/sports/game/{{ game.id }}">Share</button>

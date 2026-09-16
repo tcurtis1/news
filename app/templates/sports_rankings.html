@@ -39,7 +39,7 @@
         {% for team in rankings.teams %}
         <div class="rank-row">
           <span class="rank-num">{{ team.current }}</span>
-          <span class="rank-team">
+          <a class="rank-team team-link" href="/sports/{{ active_league }}/team/{{ team.team_id }}" title="View {{ team.name }} clubhouse">
             {% if team.logo %}
               <img class="team-logo rank-team-logo" src="{{ team.logo }}" alt="" width="24" height="24" loading="lazy" decoding="async" onerror="this.style.display='none'">
             {% endif %}
@@ -47,7 +47,7 @@
               <b>{{ team.name }}</b>
               <small>{{ team.abbreviation }}{% if team.record %} · {{ team.record }}{% endif %}</small>
             </span>
-          </span>
+          </a>
           <span class="rank-trend{% if team.trend.startswith('+') %} is-up{% elif team.trend.startswith('-') %} is-down{% endif %}">{{ team.trend }}</span>
           <span class="rank-actions">
             <button type="button" class="team-star" data-team-key="{{ active_league }}:{{ team.team_id }}" data-team-id="{{ team.team_id }}" data-team-name="{{ team.name }}" data-team-abbr="{{ team.abbreviation }}" data-league="{{ active_league }}" aria-pressed="false">Star {{ team.abbreviation }}</button>

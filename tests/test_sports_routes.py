@@ -556,3 +556,182 @@ def test_sports_game_renders_predictor_and_betting_lines(monkeypatch):
     assert ev_data["game_odds"]["provider"] == "DraftKings"
 
 
+def test_sports_team_drilldown_route_and_api(monkeypatch):
+    from app.sports import SportsPayload
+    sample_payload = SportsPayload(
+        updated_at=datetime(2026, 8, 19, 23, 4, tzinfo=timezone.utc),
+        freshness="fresh",
+        provider_label="espn",
+        data={
+            "available": True,
+            "league": "nfl",
+            "league_name": "NFL",
+            "league_short": "NFL",
+            "team": {
+                "id": "12",
+                "name": "Kansas City Chiefs",
+                "nickname": "Chiefs",
+                "abbreviation": "KC",
+                "location": "Kansas City",
+                "color": "#e31837",
+                "alternate_color": "#ffb612",
+                "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/12.png",
+                "standing_summary": "1st in AFC West",
+                "rank": None,
+                "record": {
+                    "summary": "1-0",
+                    "home": "1-0",
+                    "away": "0-0",
+                    "streak": "W1",
+                    "points_for": "31.0",
+                    "points_against": "10.0",
+                },
+                "venue": {
+                    "name": "Arrowhead Stadium",
+                    "city": "Kansas City",
+                    "state": "MO",
+                    "image": "https://a.espncdn.com/i/venues/nfl/day/3622.jpg",
+                    "capacity": 73500,
+                    "indoor": False,
+                },
+                "coach": "Andy Reid",
+            },
+            "next_game": {
+                "id": "401872945",
+                "name": "Indianapolis Colts at Kansas City Chiefs",
+                "short_name": "IND @ KC",
+                "date": "2026-09-21T00:20Z",
+                "state": "pre",
+                "status_detail": "Sun, Sep 20 - 8:20 PM EDT",
+                "is_home": True,
+                "vs_at": "vs",
+                "opponent": {
+                    "id": "11",
+                    "name": "Indianapolis Colts",
+                    "abbreviation": "IND",
+                    "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/11.png",
+                    "record": "0-1",
+                    "rank": None,
+                },
+                "broadcast": "NBC",
+                "odds": "KC -3.5 · O/U 48.5",
+                "venue": "Arrowhead Stadium",
+            },
+            "recent_form": [
+                {
+                    "result": "W",
+                    "opp": "DEN",
+                    "is_home": True,
+                    "vs_at": "vs",
+                    "score": "31-10",
+                    "game_id": "401872931",
+                }
+            ],
+            "schedule": [
+                {
+                    "id": "401872931",
+                    "date": "2026-09-15T00:15Z",
+                    "week": "Week 1",
+                    "is_home": True,
+                    "vs_at": "vs",
+                    "opponent": {
+                        "id": "7",
+                        "name": "Denver Broncos",
+                        "abbreviation": "DEN",
+                        "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/7.png",
+                        "rank": None,
+                    },
+                    "state": "post",
+                    "status_detail": "Final",
+                    "result": "W",
+                    "my_score": 31,
+                    "opp_score": 10,
+                    "score_display": "31 - 10",
+                    "broadcast": "ESPN, ABC",
+                    "game_url": "/sports/game/401872931",
+                }
+            ],
+            "roster_groups": [
+                {
+                    "group_name": "Offense",
+                    "players": [
+                        {
+                            "id": "15",
+                            "name": "Patrick Mahomes",
+                            "jersey": "15",
+                            "pos": "QB",
+                            "pos_name": "Quarterback",
+                            "height": "6' 2\"",
+                            "weight": "225 lbs",
+                            "age": 28,
+                            "exp": "7 yrs",
+                            "college": "Texas Tech",
+                            "headshot": "https://a.espncdn.com/i/headshots/nfl/players/full/3139477.png",
+                        }
+                    ],
+                }
+            ],
+            "stat_categories": [
+                {
+                    "name": "Passing",
+                    "stats": [
+                        {"name": "Passing Yards", "value": "291", "rank": "#3 in NFL"}
+                    ],
+                }
+            ],
+            "news": [
+                {
+                    "title": "Mahomes leads Chiefs past Broncos",
+                    "source": "ESPN",
+                    "time": "1 hour ago",
+                    "url": "https://espn.com/chiefs",
+                }
+            ],
+        },
+    )
+
+    async def fake_team_drilldown(league, team_id):
+        if league != "nfl" or team_id != "12":
+            raise ValueError(f"Team {team_id} not found in {league}")
+        return sample_payload
+
+    monkeypatch.setattr(main_mod, "get_team_drilldown", fake_team_drilldown)
+
+    client = TestClient(main_mod.app)
+
+    # 1. HTML view
+    res = client.get("/sports/nfl/team/12")
+    assert res.status_code == 200
+    assert "Kansas City Chiefs" in res.text
+    assert "1st in AFC West" in res.text
+    assert "Arrowhead Stadium" in res.text
+    assert "Andy Reid" in res.text
+    assert "Patrick Mahomes" in res.text
+    assert "Passing Yards" in res.text
+    assert "#3 in NFL" in res.text
+    assert "Mahomes leads Chiefs past Broncos" in res.text
+    assert "recent-form-pill is-w" in res.text
+    assert 'data-tab="schedule"' in res.text
+    assert 'data-tab="roster"' in res.text
+    assert 'data-tab="stats"' in res.text
+
+    # 2. API view
+    api_res = client.get("/api/sports/team/nfl/12")
+    assert api_res.status_code == 200
+    data = api_res.json()
+    assert data["team"]["name"] == "Kansas City Chiefs"
+    assert data["team"]["coach"] == "Andy Reid"
+    assert len(data["schedule"]) == 1
+    assert len(data["roster_groups"]) == 1
+
+    # 3. 404 tests
+    bad_team = client.get("/sports/nfl/team/99999")
+    assert bad_team.status_code == 404
+
+    bad_league = client.get("/sports/badleague/team/12")
+    assert bad_league.status_code == 404
+
+    bad_api = client.get("/api/sports/team/badleague/12")
+    assert bad_api.status_code == 404
+
+

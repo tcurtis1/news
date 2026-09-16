@@ -48,7 +48,7 @@
             {% for team in division.teams %}
             <tr>
               <th class="td-team" scope="row">
-                <div class="team-cell">
+                <a class="team-cell team-link" href="/sports/{{ active_league }}/team/{{ team.id }}" title="View {{ team.name }} clubhouse">
                   {% if team.logo %}
                     <img class="team-logo" src="{{ team.logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" onerror="this.style.display='none'">
                   {% endif %}
@@ -57,7 +57,7 @@
                     <span class="team-full-name">{{ team.name }}</span>
                     {% if team.clinch %}<span class="clinch-badge">{{ team.clinch }}</span>{% endif %}
                   </span>
-                </div>
+                </a>
               </th>
               <td class="td-stat">{{ team.wins }}</td>
               <td class="td-stat">{{ team.losses }}</td>

@@ -146,6 +146,7 @@ RANKINGS_POLL_ORDER = ("ap", "cfp", "usa")
 RANKINGS_SKIP_TYPES = frozenset({"fcs", "afca"})
 STANDINGS_TTL = 15 * 60
 STANDINGS_LEAGUES = frozenset({"mlb", "nfl", "nba", "nhl", "wnba", "mls", "epl"})
+TEAM_DRILLDOWN_TTL = 10 * 60
 
 class CachedData(BaseModel):
     timestamp: float
@@ -1518,3 +1519,336 @@ def group_events(
         final = final[:HOME_FINAL_CAP]
         upcoming = upcoming[:HOME_UPCOMING_CAP]
     return {"live": live, "final": final, "upcoming": upcoming}
+
+
+def _parse_team_drilldown_data(
+    league: str,
+    tid: str,
+    raw_team: Dict[str, Any],
+    raw_sched: Dict[str, Any],
+    raw_roster: Dict[str, Any],
+    raw_stats: Dict[str, Any],
+    news_items: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    l_info = LEAGUES.get(league, {})
+
+    # 1. Colors & Logos
+    color = raw_team.get("color") or "0f766e"
+    alt_color = raw_team.get("alternateColor") or "2dd4bf"
+    if not color.startswith("#"):
+        color = f"#{color}"
+    if not alt_color.startswith("#"):
+        alt_color = f"#{alt_color}"
+
+    logo = _team_logo(league, raw_team) or ""
+
+    # Venue
+    venue_data = raw_team.get("franchise", {}).get("venue", {})
+    venue_img = ""
+    if isinstance(venue_data.get("images"), list) and venue_data["images"]:
+        venue_img = venue_data["images"][0].get("href", "")
+    venue = {
+        "name": venue_data.get("fullName", ""),
+        "city": venue_data.get("address", {}).get("city", ""),
+        "state": venue_data.get("address", {}).get("state", ""),
+        "image": venue_img,
+        "capacity": venue_data.get("capacity"),
+        "indoor": venue_data.get("indoor", False),
+    }
+
+    # Record
+    rec_summary = ""
+    rec_home = ""
+    rec_away = ""
+    streak = ""
+    avg_pf = ""
+    avg_pa = ""
+    for ri in raw_team.get("record", {}).get("items", []):
+        t = ri.get("type")
+        s = ri.get("summary", "")
+        if t == "total":
+            rec_summary = s
+            for st in ri.get("stats", []):
+                sname = st.get("name")
+                val = st.get("displayValue") or str(st.get("value") or "")
+                if sname == "streak": streak = val
+                elif sname == "avgPointsFor": avg_pf = val
+                elif sname == "avgPointsAgainst": avg_pa = val
+        elif t == "home":
+            rec_home = s
+        elif t in ("road", "away"):
+            rec_away = s
+
+    coach_name = ""
+    if isinstance(raw_roster.get("coach"), list) and raw_roster["coach"]:
+        c = raw_roster["coach"][0]
+        coach_name = f"{c.get('firstName', '')} {c.get('lastName', '')}".strip()
+
+    team_info = {
+        "id": str(tid),
+        "name": raw_team.get("displayName") or raw_team.get("name") or "",
+        "nickname": raw_team.get("nickname") or "",
+        "abbreviation": raw_team.get("abbreviation") or "",
+        "location": raw_team.get("location") or "",
+        "color": color,
+        "alternate_color": alt_color,
+        "logo": logo,
+        "standing_summary": raw_team.get("standingSummary", ""),
+        "record": {
+            "summary": rec_summary,
+            "home": rec_home,
+            "away": rec_away,
+            "streak": streak,
+            "points_for": avg_pf,
+            "points_against": avg_pa,
+        },
+        "venue": venue,
+        "coach": coach_name,
+        "rank": raw_team.get("rank"),
+    }
+
+    # 2. Next Game / In-Progress Game
+    next_game = None
+    if raw_team.get("nextEvent"):
+        ne = raw_team["nextEvent"][0]
+        comp = ne.get("competitions", [{}])[0]
+        competitors = comp.get("competitors", [])
+        home_c = next((c for c in competitors if c.get("homeAway") == "home"), {})
+        away_c = next((c for c in competitors if c.get("homeAway") == "away"), {})
+        is_home = (str(home_c.get("team", {}).get("id")) == str(tid) or str(home_c.get("id")) == str(tid))
+        opp_c = away_c if is_home else home_c
+        opp_team = opp_c.get("team", {})
+        broadcasts = _broadcast_names(comp.get("broadcasts"))
+        odds = [o.get("details") for o in comp.get("odds", []) if o.get("details")]
+        opp_logo = _team_logo(league, opp_team) or ""
+
+        status_type = comp.get("status", {}).get("type", {})
+        state = status_type.get("state", "scheduled")
+        detail = status_type.get("detail") or status_type.get("description", "")
+
+        next_game = {
+            "id": str(ne.get("id", "")),
+            "name": ne.get("name", ""),
+            "short_name": ne.get("shortName", ""),
+            "date": ne.get("date", ""),
+            "state": state,
+            "status_detail": detail,
+            "is_home": is_home,
+            "vs_at": "vs" if is_home else "@",
+            "opponent": {
+                "id": str(opp_team.get("id", "")),
+                "name": opp_team.get("displayName") or opp_team.get("name", ""),
+                "abbreviation": opp_team.get("abbreviation", ""),
+                "logo": opp_logo,
+                "record": opp_c.get("record", [{}])[0].get("displayValue", "") if opp_c.get("record") else "",
+                "rank": _team_rank(opp_c),
+            },
+            "broadcast": ", ".join(filter(None, broadcasts)),
+            "odds": odds[0] if odds else "",
+            "venue": comp.get("venue", {}).get("fullName", venue.get("name", "")),
+        }
+
+    # 3. Schedule & Recent Form
+    games = []
+    recent_form = []
+    for ev in raw_sched.get("events", []):
+        comp = ev.get("competitions", [{}])[0]
+        competitors = comp.get("competitors", [])
+        my_c = next((c for c in competitors if str(c.get("team", {}).get("id")) == str(tid) or str(c.get("id")) == str(tid)), None)
+        opp_c = next((c for c in competitors if str(c.get("team", {}).get("id")) != str(tid) and str(c.get("id")) != str(tid)), None)
+        if not my_c or not opp_c:
+            continue
+
+        is_home = (my_c.get("homeAway") == "home")
+        status_type = comp.get("status", {}).get("type", {})
+        state = status_type.get("state", "scheduled")
+        detail = status_type.get("detail") or status_type.get("description", "")
+
+        my_score = my_c.get("score", {}).get("displayValue")
+        opp_score = opp_c.get("score", {}).get("displayValue")
+
+        result = None
+        if state == "post":
+            if my_c.get("winner") is True:
+                result = "W"
+            elif opp_c.get("winner") is True:
+                result = "L"
+            elif my_score is not None and opp_score is not None:
+                try:
+                    ms, os = float(my_score), float(opp_score)
+                    if ms > os: result = "W"
+                    elif ms < os: result = "L"
+                    else: result = "T"
+                except Exception:
+                    pass
+            if result:
+                opp_abbr = opp_c.get("team", {}).get("abbreviation", "")
+                recent_form.append({
+                    "result": result,
+                    "opp": opp_abbr,
+                    "is_home": is_home,
+                    "vs_at": "vs" if is_home else "@",
+                    "score": f"{my_score}-{opp_score}",
+                    "game_id": str(ev.get("id", "")),
+                })
+
+        broadcasts = _broadcast_names(comp.get("broadcasts"))
+        opp_t = opp_c.get("team", {})
+        opp_logo = _team_logo(league, opp_t) or ""
+        week_val = ev.get("week", {}).get("text") or ev.get("seasonType", {}).get("name", "")
+
+        games.append({
+            "id": str(ev.get("id", "")),
+            "date": ev.get("date", ""),
+            "week": week_val,
+            "is_home": is_home,
+            "vs_at": "vs" if is_home else "@",
+            "opponent": {
+                "id": str(opp_t.get("id", "")),
+                "name": opp_t.get("displayName") or opp_t.get("name", ""),
+                "abbreviation": opp_t.get("abbreviation", ""),
+                "logo": opp_logo,
+                "rank": _team_rank(opp_c),
+            },
+            "state": state,
+            "status_detail": detail,
+            "result": result,
+            "my_score": my_score,
+            "opp_score": opp_score,
+            "score_display": f"{my_score} - {opp_score}" if my_score is not None and opp_score is not None else "—",
+            "broadcast": ", ".join(filter(None, broadcasts)),
+            "game_url": f"/sports/game/{ev.get('id')}",
+        })
+
+    if recent_form:
+        recent_form = recent_form[-5:]
+
+    # 4. Roster
+    def parse_player(p):
+        pos = p.get("position", {})
+        pos_abbr = pos.get("abbreviation") if isinstance(pos, dict) else str(pos or "")
+        pos_name = pos.get("displayName") if isinstance(pos, dict) else str(pos or "")
+        exp = p.get("experience")
+        exp_text = f"{exp.get('years', 0)} yrs" if isinstance(exp, dict) else ("Rookie" if exp == 0 else f"{exp} yrs" if exp else "—")
+        college = p.get("college")
+        college_name = college.get("name") if isinstance(college, dict) else str(college or "—")
+        headshot = ""
+        if isinstance(p.get("headshot"), dict):
+            headshot = p["headshot"].get("href", "")
+        elif isinstance(p.get("headshot"), str):
+            headshot = p["headshot"]
+
+        return {
+            "id": str(p.get("id", "")),
+            "name": p.get("fullName") or p.get("displayName", ""),
+            "jersey": str(p.get("jersey", "")),
+            "pos": pos_abbr,
+            "pos_name": pos_name,
+            "height": p.get("displayHeight", "—"),
+            "weight": p.get("displayWeight", "—"),
+            "age": p.get("age", "—"),
+            "exp": exp_text,
+            "college": college_name,
+            "headshot": headshot,
+        }
+
+    roster_groups = []
+    athletes_raw = raw_roster.get("athletes", [])
+    if athletes_raw:
+        if "items" in athletes_raw[0]:
+            for grp in athletes_raw:
+                pos_raw = grp.get("position", "Players")
+                title = pos_raw.get("displayName") if isinstance(pos_raw, dict) else str(pos_raw or "Players")
+                display_title = {
+                    "offense": "Offense", "defense": "Defense", "specialTeam": "Special Teams",
+                    "injuredReserveOrOut": "Injured Reserve / Out", "practiceSquad": "Practice Squad",
+                    "suspended": "Suspended"
+                }.get(title, title.title())
+                players = [parse_player(p) for p in grp.get("items", [])]
+                if players:
+                    roster_groups.append({"group_name": display_title, "players": players})
+        else:
+            grouped = {}
+            for p in athletes_raw:
+                pos = p.get("position", {})
+                pos_name = pos.get("displayName") or pos.get("name") if isinstance(pos, dict) else "Players"
+                if not pos_name: pos_name = "Players"
+                grouped.setdefault(pos_name, []).append(parse_player(p))
+            roster_groups = [{"group_name": k, "players": v} for k, v in grouped.items()]
+
+    # 5. Stats
+    stat_categories = []
+    stats_data = raw_stats.get("results", {}).get("stats", {}).get("categories", [])
+    for sc in stats_data:
+        cat_name = sc.get("displayName") or sc.get("name", "").title()
+        cat_stats = []
+        for s in sc.get("stats", []):
+            cat_stats.append({
+                "name": s.get("displayName") or s.get("name"),
+                "value": s.get("displayValue"),
+                "rank": s.get("rankDisplayValue") if s.get("rankDisplayValue") not in ("N/A", None, "") else None
+            })
+        if cat_stats:
+            stat_categories.append({"name": cat_name, "stats": cat_stats})
+
+    return {
+        "available": True,
+        "league": league,
+        "league_name": l_info.get("name", league.upper()),
+        "league_short": l_info.get("short_name", league.upper()),
+        "team": team_info,
+        "next_game": next_game,
+        "recent_form": recent_form,
+        "schedule": games,
+        "roster_groups": roster_groups,
+        "stat_categories": stat_categories,
+        "news": news_items,
+    }
+
+
+async def get_team_drilldown(league: str, team_id: str) -> SportsPayload:
+    """Fetch comprehensive team clubhouse data: identity, schedule, roster, stats, next game, news."""
+    if league not in LEAGUES:
+        raise ValueError(f"Unknown league: {league}")
+    l_info = LEAGUES[league]
+    sport = l_info["sport"]
+    path = l_info["path"]
+    tid = str(team_id).strip()
+    key = f"team_drilldown:{league}:{tid}"
+
+    async def fetcher():
+        headers = {"User-Agent": "Mozilla/5.0"}
+        async with httpx.AsyncClient(timeout=8.0, headers=headers) as client:
+            u_team = f"https://site.web.api.espn.com/apis/site/v2/sports/{sport}/{path}/teams/{tid}?enable=roster,schedule,stats"
+            u_sched = f"https://site.web.api.espn.com/apis/site/v2/sports/{sport}/{path}/teams/{tid}/schedule"
+            u_roster = f"https://site.web.api.espn.com/apis/site/v2/sports/{sport}/{path}/teams/{tid}/roster"
+            u_stats = f"https://site.web.api.espn.com/apis/site/v2/sports/{sport}/{path}/teams/{tid}/statistics"
+
+            res_team, res_sched, res_roster, res_stats = await asyncio.gather(
+                client.get(u_team),
+                client.get(u_sched),
+                client.get(u_roster),
+                client.get(u_stats),
+                return_exceptions=True
+            )
+
+            if isinstance(res_team, Exception) or getattr(res_team, "status_code", 0) != 200:
+                raise ValueError(f"Team {tid} not found in {league}")
+
+            raw_team = res_team.json().get("team", {})
+            raw_sched = res_sched.json() if not isinstance(res_sched, Exception) and res_sched.status_code == 200 else {}
+            raw_roster = res_roster.json() if not isinstance(res_roster, Exception) and res_roster.status_code == 200 else {}
+            raw_stats = res_stats.json() if not isinstance(res_stats, Exception) and res_stats.status_code == 200 else {}
+
+            team_name = raw_team.get("displayName") or raw_team.get("name") or ""
+            news_items = []
+            if team_name:
+                try:
+                    headlines_res = await get_sports_headlines(team_name, limit=6)
+                    news_items = headlines_res.get("headlines", [])
+                except Exception:
+                    pass
+
+            return _parse_team_drilldown_data(league, tid, raw_team, raw_sched, raw_roster, raw_stats, news_items)
+
+    return await _fetch_with_cache(key, fetcher, None, ttl=TEAM_DRILLDOWN_TTL)

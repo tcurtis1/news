@@ -54,7 +54,7 @@ from app.source_prefs import (
 )
 from app.topics import build_topic, slugify, unslug
 from app.trends import build_trends, rank_lookup
-from app.sports import Event, EventState, LEAGUES, compact_score_line, get_game_detail, get_rankings, get_scoreboard, get_sports_headlines, get_sports_home_summary, get_standings, group_events, has_college_rankings, has_standings, league_news_query
+from app.sports import Event, EventState, LEAGUES, compact_score_line, get_game_detail, get_rankings, get_scoreboard, get_sports_headlines, get_sports_home_summary, get_standings, get_team_drilldown, group_events, has_college_rankings, has_standings, league_news_query
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("news")
@@ -670,6 +670,42 @@ async def sports_league_standings(request: Request, league: str):
     return response
 
 
+@app.get("/sports/{league}/team/{team_id}", response_class=HTMLResponse)
+async def sports_team_drilldown(request: Request, league: str, team_id: str):
+    if league not in LEAGUES:
+        raise HTTPException(status_code=404, detail="League not found")
+    try:
+        payload = await get_team_drilldown(league, team_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        log.exception("Error loading team %s in %s: %s", team_id, league, exc)
+        raise HTTPException(status_code=503, detail="Team information is temporarily unavailable") from exc
+
+    if payload.data is None:
+        raise HTTPException(status_code=503, detail="Team information is temporarily unavailable")
+
+    meta = LEAGUES[league]
+    team_data = payload.data
+    team = team_data["team"]
+
+    response = templates.TemplateResponse(request, "sports_team.html", {
+        "public_base": PUBLIC_BASE,
+        "page_title": f"{team['name']} ({meta['short_name']}) — Scores, Schedule, Roster & Stats",
+        "meta_description": f"Comprehensive {team['name']} clubhouse: full season schedule, roster, stats, recent form, next game, and latest news on YoyoNews.",
+        "heading": meta["name"],
+        "leagues": _sports_leagues(),
+        "active_league": league,
+        "team_data": team_data,
+        "team": team,
+        "has_standings": has_standings(league),
+        "has_rankings": has_college_rankings(league),
+        "payload": payload,
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/api/sports/scoreboard")
 async def api_sports_scoreboard(league: str | None = None, date: date | None = None):
     if league and league not in LEAGUES:
@@ -712,6 +748,19 @@ async def api_sports_game(game_id: str):
     if payload.data is None:
         raise HTTPException(status_code=503, detail="Game information is temporarily unavailable")
     return JSONResponse(_sports_payload_view(payload, [payload.data]))
+
+
+@app.get("/api/sports/team/{league}/{team_id}")
+async def api_sports_team_drilldown(league: str, team_id: str):
+    if league not in LEAGUES:
+        raise HTTPException(status_code=404, detail="League not found")
+    try:
+        payload = await get_team_drilldown(league, team_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if payload.data is None:
+        raise HTTPException(status_code=503, detail="Team information is temporarily unavailable")
+    return JSONResponse(payload.data)
 
 
 @app.get("/api/pulse")

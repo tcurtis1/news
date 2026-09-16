@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+
+{% block safety_callout %}{% endblock %}
+
+{% block content %}
+<main class="sports-page sports-team-page" data-sports-page data-team-id="{{ team.id }}" data-league="{{ active_league }}">
+  <!-- Breadcrumb Navigation -->
+  <nav class="sports-breadcrumb" aria-label="Breadcrumb">
+    <a href="/sports">Sports</a>
+    <span>/</span>
+    <a href="/sports/{{ active_league }}">{{ heading }}</a>
+    <span>/</span>
+    <span aria-current="page">{{ team.name }}</span>
+  </nav>
+
+  <!-- Team Clubhouse Hero Header -->
+  <header class="team-clubhouse-hero" style="--team-color: {{ team.color }}; --team-alt: {{ team.alternate_color }};">
+    <div class="team-clubhouse-banner">
+      <div class="team-clubhouse-identity">
+        {% if team.logo %}
+          <div class="team-clubhouse-logo-wrap">
+            <img class="team-clubhouse-logo" src="{{ team.logo }}" alt="{{ team.name }} logo" width="84" height="84" loading="eager" decoding="async" onerror="this.style.display='none'">
+          </div>
+        {% endif %}
+        <div class="team-clubhouse-titles">
+          <div class="team-league-chip">
+            <span class="eyebrow">{{ team_data.league_short }}</span>
+            {% if team.rank %}<span class="team-rank-badge">#{{ team.rank }}</span>{% endif %}
+            {% if team.standing_summary %}<span class="team-standing-pill">{{ team.standing_summary }}</span>{% endif %}
+          </div>
+          <h1>{{ team.name }}</h1>
+          <div class="team-meta-row">
+            {% if team.record.summary %}
+              <span class="team-record-badge"><strong>{{ team.record.summary }}</strong></span>
+            {% endif %}
+            {% if team.record.home or team.record.away %}
+              <span class="team-split-text">Home: {{ team.record.home or '—' }} · Away: {{ team.record.away or '—' }}</span>
+            {% endif %}
+            {% if team.record.streak %}
+              <span class="team-streak-badge">Streak: {{ team.record.streak }}</span>
+            {% endif %}
+            {% if team.record.points_for %}
+              <span class="team-points-text">{{ team.record.points_for }} PPG{% if team.record.points_against %} · {{ team.record.points_against }} Opp PPG{% endif %}</span>
+            {% endif %}
+          </div>
+          <div class="team-venue-row">
+            {% if team.venue.name %}
+              <span class="team-venue-chip">🏟 {{ team.venue.name }}{% if team.venue.city %}, {{ team.venue.city }}{% if team.venue.state %}, {{ team.venue.state }}{% endif %}{% endif %}</span>
+            {% endif %}
+            {% if team.coach %}
+              <span class="team-coach-chip">👤 Coach: {{ team.coach }}</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="team-clubhouse-actions">
+        <button type="button" class="team-star" data-team-key="{{ active_league }}:{{ team.id }}" data-team-id="{{ team.id }}" data-team-name="{{ team.name }}" data-team-abbr="{{ team.abbreviation }}" data-league="{{ active_league }}" aria-pressed="false">Star {{ team.abbreviation }}</button>
+        <button type="button" class="mynews-follow" data-topic="{{ team.name }}">Follow in MyNews</button>
+        <button type="button" class="score-share team-share-btn" data-share data-share-line="{{ team.name }} ({{ team.record.summary }}) — Schedule, Roster &amp; Scores on YoyoNews" data-share-url="{{ public_base }}/sports/{{ active_league }}/team/{{ team.id }}">Share</button>
+      </div>
+    </div>
+
+    <!-- Recent Form Quick Strip -->
+    {% if team_data.recent_form %}
+      <div class="team-recent-form-bar">
+        <span class="recent-form-label">Recent Form:</span>
+        <div class="recent-form-pills">
+          {% for rf in team_data.recent_form %}
+            <a href="/sports/game/{{ rf.game_id }}" class="recent-form-pill is-{{ rf.result | lower }}" title="{{ rf.result }} {{ rf.score }} {{ rf.vs_at }} {{ rf.opp }}">
+              <span class="rf-result">{{ rf.result }}</span>
+              <span class="rf-score">{{ rf.score }}</span>
+              <span class="rf-opp">{{ rf.vs_at }} {{ rf.opp }}</span>
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </header>
+
+  <!-- Navigation View Tabs -->
+  <nav class="sports-view-nav team-nav-tabs" role="tablist" aria-label="Team views">
+    <button type="button" class="team-tab-btn active" data-tab="overview" role="tab" aria-selected="true" aria-controls="tab-overview">Overview</button>
+    <button type="button" class="team-tab-btn" data-tab="schedule" role="tab" aria-selected="false" aria-controls="tab-schedule">Schedule &amp; Results ({{ team_data.schedule | length }})</button>
+    <button type="button" class="team-tab-btn" data-tab="roster" role="tab" aria-selected="false" aria-controls="tab-roster">Roster</button>
+    {% if team_data.stat_categories %}
+      <button type="button" class="team-tab-btn" data-tab="stats" role="tab" aria-selected="false" aria-controls="tab-stats">Team Stats</button>
+    {% endif %}
+    <button type="button" class="team-tab-btn" data-tab="news" role="tab" aria-selected="false" aria-controls="tab-news">Team News ({{ team_data.news | length }})</button>
+  </nav>
+
+  <!-- TAB 1: OVERVIEW -->
+  <div id="tab-overview" class="team-tab-panel active" role="tabpanel">
+    <div class="team-overview-grid">
+      <!-- Next Matchup Hero Card -->
+      {% if team_data.next_game %}
+        {% set ng = team_data.next_game %}
+        <section class="sports-panel next-matchup-panel" aria-labelledby="next-matchup-heading">
+          <div class="sports-section-heading">
+            <h2 id="next-matchup-heading">{% if ng.state == 'in' %}<span class="live-pill">Live</span> Game In Progress{% else %}Next Matchup{% endif %}</h2>
+            {% if ng.broadcast %}<span class="broadcast-chip">📺 {{ ng.broadcast }}</span>{% endif %}
+          </div>
+          
+          <div class="next-matchup-card">
+            <div class="next-matchup-teams">
+              <div class="next-team my-team">
+                {% if team.logo %}
+                  <img class="team-logo-lg" src="{{ team.logo }}" alt="" width="44" height="44">
+                {% endif %}
+                <b>{{ team.abbreviation }}</b>
+                <span>{{ team.name }}</span>
+                {% if team.record.summary %}<small class="muted">{{ team.record.summary }}</small>{% endif %}
+              </div>
+              
+              <div class="next-matchup-middle">
+                <span class="matchup-vs-badge">{{ ng.vs_at | upper }}</span>
+                <time datetime="{{ ng.date }}" data-local-time class="matchup-date-time">{{ ng.date }}</time>
+                {% if ng.venue %}<small class="matchup-venue">{{ ng.venue }}</small>{% endif %}
+                {% if ng.odds %}<div class="matchup-odds-pill">🎲 {{ ng.odds }}</div>{% endif %}
+              </div>
+
+              <a class="next-team opp-team team-link" href="/sports/{{ active_league }}/team/{{ ng.opponent.id }}">
+                {% if ng.opponent.logo %}
+                  <img class="team-logo-lg" src="{{ ng.opponent.logo }}" alt="" width="44" height="44" onerror="this.style.display='none'">
+                {% endif %}
+                <b>{% if ng.opponent.rank %}<span class="team-rank">#{{ ng.opponent.rank }}</span>{% endif %}{{ ng.opponent.abbreviation }}</b>
+                <span>{{ ng.opponent.name }}</span>
+                {% if ng.opponent.record %}<small class="muted">{{ ng.opponent.record }}</small>{% endif %}
+              </a>
+            </div>
+
+            <div class="next-matchup-cta">
+              <a href="/sports/game/{{ ng.id }}" class="primary btn-matchup-center">
+                {% if ng.state == 'in' %}View Live Game &amp; Scoring Plays →{% else %}Game Center, Matchup Predictor &amp; Odds →{% endif %}
+              </a>
+            </div>
+          </div>
+        </section>
+      {% endif %}
+
+      <!-- Season Summary & Franchise Facts -->
+      <section class="sports-panel team-facts-panel" aria-labelledby="facts-heading">
+        <h2 id="facts-heading">Franchise &amp; Season Facts</h2>
+        <div class="facts-grid">
+          <div class="fact-box">
+            <span class="fact-label">League &amp; Division</span>
+            <strong>{{ team_data.league_name }}</strong>
+            <small>{{ team.standing_summary or '—' }}</small>
+          </div>
+          <div class="fact-box">
+            <span class="fact-label">Overall Record</span>
+            <strong class="fact-highlight">{{ team.record.summary or '—' }}</strong>
+            <small>Home: {{ team.record.home or '—' }} | Away: {{ team.record.away or '—' }}</small>
+          </div>
+          {% if team.venue.name %}
+            <div class="fact-box">
+              <span class="fact-label">Home Venue</span>
+              <strong>{{ team.venue.name }}</strong>
+              <small>{{ team.venue.city }}{% if team.venue.state %}, {{ team.venue.state }}{% endif %}{% if team.venue.capacity %} · {{ "{:,}".format(team.venue.capacity) }} seats{% endif %}</small>
+            </div>
+          {% endif %}
+          {% if team.coach %}
+            <div class="fact-box">
+              <span class="fact-label">Leadership</span>
+              <strong>{{ team.coach }}</strong>
+              <small>Head Coach</small>
+            </div>
+          {% endif %}
+        </div>
+        {% if team.venue.image %}
+          <div class="venue-image-wrap">
+            <img src="{{ team.venue.image }}" alt="{{ team.venue.name }}" loading="lazy" decoding="async">
+            <small>{{ team.venue.name }}</small>
+          </div>
+        {% endif %}
+      </section>
+
+      <!-- Top Team News Preview -->
+      {% if team_data.news %}
+        <section class="sports-panel team-news-preview" aria-labelledby="news-preview-heading">
+          <div class="sports-section-heading">
+            <h2 id="news-preview-heading">Latest {{ team.name }} News</h2>
+            <button type="button" class="link-btn" data-goto-tab="news">All News →</button>
+          </div>
+          <ul class="sports-headlines">
+            {% for n in team_data.news[:4] %}
+              <li>
+                <a href="{{ n.url }}" target="_blank" rel="noopener noreferrer">{{ n.title }}</a>
+                <small>{{ n.source }} · {{ n.time }}</small>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      <!-- Top Roster Snapshot Preview -->
+      {% if team_data.roster_groups %}
+        <section class="sports-panel team-roster-preview" aria-labelledby="roster-preview-heading">
+          <div class="sports-section-heading">
+            <h2 id="roster-preview-heading">Roster Snapshot</h2>
+            <button type="button" class="link-btn" data-goto-tab="roster">Full Roster →</button>
+          </div>
+          <div class="roster-preview-grid">
+            {% for grp in team_data.roster_groups %}
+              {% for p in grp.players[:3] %}
+                <div class="player-mini-card">
+                  {% if p.headshot %}
+                    <img class="player-headshot-sm" src="{{ p.headshot }}" alt="" width="36" height="36" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                  {% endif %}
+                  <div class="player-mini-info">
+                    <b>{% if p.jersey %}#{{ p.jersey }} {% endif %}{{ p.name }}</b>
+                    <small>{{ p.pos }} · {{ p.exp }}</small>
+                  </div>
+                </div>
+              {% endfor %}
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- TAB 2: SCHEDULE & RESULTS -->
+  <div id="tab-schedule" class="team-tab-panel" role="tabpanel" hidden>
+    <section class="sports-section" aria-labelledby="schedule-heading">
+      <div class="sports-section-heading">
+        <h2 id="schedule-heading">Full Season Schedule &amp; Results</h2>
+        <span>{{ team_data.schedule | length }} Games</span>
+      </div>
+
+      {% if not team_data.schedule %}
+        <div class="sports-empty">
+          <p>No schedule records found for this season.</p>
+        </div>
+      {% else %}
+        <div class="table-scroll-hint"><span>⟵ Swipe horizontally to view full schedule &amp; boxscores ⟶</span></div>
+        <div class="standings-table-wrap team-schedule-wrap">
+          <table class="standings-table team-schedule-table">
+            <thead>
+              <tr>
+                <th scope="col" style="text-align:left;min-width:110px;">Date</th>
+                <th scope="col" style="text-align:left;min-width:180px;">Opponent</th>
+                <th scope="col" style="text-align:center;min-width:110px;">Result / Status</th>
+                <th scope="col" style="text-align:center;min-width:90px;">TV</th>
+                <th scope="col" style="text-align:center;min-width:95px;">Coverage</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for g in team_data.schedule %}
+                <tr class="{% if g.state == 'in' %}is-live-row{% elif g.result == 'W' %}is-win-row{% elif g.result == 'L' %}is-loss-row{% endif %}">
+                  <td style="text-align:left;">
+                    <div><time datetime="{{ g.date }}" data-local-time>{{ g.date }}</time></div>
+                    {% if g.week %}<small class="muted">{{ g.week }}</small>{% endif %}
+                  </td>
+                  <td style="text-align:left;">
+                    <a class="schedule-opp-cell team-link" href="/sports/{{ active_league }}/team/{{ g.opponent.id }}">
+                      <span class="schedule-home-away">{{ g.vs_at }}</span>
+                      {% if g.opponent.logo %}
+                        <img class="team-logo" src="{{ g.opponent.logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                      {% endif %}
+                      <span class="schedule-opp-name">
+                        <b>{% if g.opponent.rank %}<span class="team-rank">#{{ g.opponent.rank }}</span>{% endif %}{{ g.opponent.abbreviation }}</b>
+                        <span class="opp-full-name">{{ g.opponent.name }}</span>
+                      </span>
+                    </a>
+                  </td>
+                  <td style="text-align:center;">
+                    {% if g.state == 'post' %}
+                      <span class="result-badge is-{{ g.result | lower }}">{{ g.result }}</span>
+                      <strong>{{ g.score_display }}</strong>
+                    {% elif g.state == 'in' %}
+                      <span class="live-pill">Live</span>
+                      <strong>{{ g.score_display }}</strong>
+                      <small class="live-clock">{{ g.status_detail }}</small>
+                    {% else %}
+                      <span class="scheduled-time">{{ g.status_detail or 'Scheduled' }}</span>
+                    {% endif %}
+                  </td>
+                  <td style="text-align:center;">
+                    <small class="tv-badge">{{ g.broadcast or '—' }}</small>
+                  </td>
+                  <td style="text-align:center;">
+                    <a href="{{ g.game_url }}" class="game-boxscore-btn">
+                      {% if g.state == 'post' %}Boxscore →{% elif g.state == 'in' %}Live →{% else %}Preview →{% endif %}
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <!-- TAB 3: ROSTER -->
+  <div id="tab-roster" class="team-tab-panel" role="tabpanel" hidden>
+    <section class="sports-section" aria-labelledby="roster-heading">
+      <div class="sports-section-heading">
+        <h2 id="roster-heading">{{ team.name }} Roster &amp; Depth Chart</h2>
+        {% if team.coach %}<span>Head Coach: {{ team.coach }}</span>{% endif %}
+      </div>
+
+      {% if not team_data.roster_groups %}
+        <div class="sports-empty">
+          <p>Roster details are currently unavailable for this team.</p>
+        </div>
+      {% else %}
+        {% for grp in team_data.roster_groups %}
+          <div class="roster-position-group">
+            <h3 class="roster-group-title">{{ grp.group_name }} <small>({{ grp.players | length }})</small></h3>
+            <div class="table-scroll-hint"><span>⟵ Swipe horizontally to view full player details ⟶</span></div>
+            <div class="standings-table-wrap">
+              <table class="standings-table roster-table">
+                <thead>
+                  <tr>
+                    <th scope="col" style="text-align:left;min-width:200px;">Player</th>
+                    <th scope="col" style="text-align:center;min-width:65px;">Pos</th>
+                    <th scope="col" style="text-align:center;min-width:80px;">Height</th>
+                    <th scope="col" style="text-align:center;min-width:80px;">Weight</th>
+                    <th scope="col" style="text-align:center;min-width:55px;">Age</th>
+                    <th scope="col" style="text-align:center;min-width:75px;">Exp</th>
+                    <th scope="col" style="text-align:left;min-width:130px;">College / Origin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for p in grp.players %}
+                    <tr>
+                      <td style="text-align:left;">
+                        <div class="player-cell">
+                          {% if p.headshot %}
+                            <img class="player-headshot" src="{{ p.headshot }}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                          {% else %}
+                            <div class="player-headshot-placeholder">{{ p.jersey or '—' }}</div>
+                          {% endif %}
+                          <div class="player-identity">
+                            <b>{{ p.name }}</b>
+                            {% if p.jersey %}<span class="player-jersey">#{{ p.jersey }}</span>{% endif %}
+                          </div>
+                        </div>
+                      </td>
+                      <td style="text-align:center;"><span class="badge pos-badge">{{ p.pos }}</span></td>
+                      <td style="text-align:center;">{{ p.height }}</td>
+                      <td style="text-align:center;">{{ p.weight }}</td>
+                      <td style="text-align:center;">{{ p.age }}</td>
+                      <td style="text-align:center;">{{ p.exp }}</td>
+                      <td style="text-align:left;">{{ p.college }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </section>
+  </div>
+
+  <!-- TAB 4: TEAM STATS -->
+  {% if team_data.stat_categories %}
+    <div id="tab-stats" class="team-tab-panel" role="tabpanel" hidden>
+      <section class="sports-section" aria-labelledby="stats-heading">
+        <div class="sports-section-heading">
+          <h2 id="stats-heading">{{ team.name }} Statistics &amp; League Rankings</h2>
+          <span>Official ESPN statistical split</span>
+        </div>
+
+        <div class="team-stats-categories-grid">
+          {% for cat in team_data.stat_categories %}
+            <div class="sports-panel stat-category-card">
+              <h3>{{ cat.name }}</h3>
+              <div class="stat-items-grid">
+                {% for s in cat.stats %}
+                  <div class="stat-item-row">
+                    <span class="stat-item-label">{{ s.name }}</span>
+                    <div class="stat-item-values">
+                      <strong class="stat-item-val">{{ s.value }}</strong>
+                      {% if s.rank %}
+                        <span class="stat-rank-chip">{{ s.rank }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+  {% endif %}
+
+  <!-- TAB 5: NEWS -->
+  <div id="tab-news" class="team-tab-panel" role="tabpanel" hidden>
+    <section class="sports-section" aria-labelledby="team-news-heading">
+      <div class="sports-section-heading">
+        <h2 id="team-news-heading">{{ team.name }} News &amp; Headlines</h2>
+        <a href="/search?q={{ team.name | urlencode }}">Search all {{ team.name }} on YoyoNews →</a>
+      </div>
+
+      {% if not team_data.news %}
+        <div class="sports-empty">
+          <p>No recent news headlines found for {{ team.name }}.</p>
+          <a href="/search?q={{ team.name | urlencode }}" class="primary">Search YoyoNews</a>
+        </div>
+      {% else %}
+        <div class="team-news-feed">
+          {% for n in team_data.news %}
+            <article class="sports-panel team-news-card">
+              <h3><a href="{{ n.url }}" target="_blank" rel="noopener noreferrer">{{ n.title }}</a></h3>
+              <div class="news-meta">
+                <span class="news-source">{{ n.source }}</span>
+                <span class="news-time">· {{ n.time }}</span>
+                <a href="{{ n.url }}" target="_blank" rel="noopener noreferrer" class="news-read-link">Read original ↗</a>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <footer class="sports-source">
+    Data from ESPN public team feeds and Google News. Official records, schedules, and rosters for {{ team.name }}.
+  </footer>
+</main>
+
+<script>
+  // Tab switching logic for Sports Team Drilldown
+  (function() {
+    function activateTab(tabId) {
+      document.querySelectorAll('.team-tab-btn').forEach(function(btn) {
+        var isTarget = btn.getAttribute('data-tab') === tabId;
+        btn.classList.toggle('active', isTarget);
+        btn.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+      });
+      document.querySelectorAll('.team-tab-panel').forEach(function(panel) {
+        var isTarget = panel.id === 'tab-' + tabId;
+        panel.classList.toggle('active', isTarget);
+        panel.hidden = !isTarget;
+      });
+    }
+
+    document.addEventListener('click', function(e) {
+      var tabBtn = e.target.closest('.team-tab-btn');
+      if (tabBtn) {
+        var tabId = tabBtn.getAttribute('data-tab');
+        if (tabId) {
+          activateTab(tabId);
+          if (history.replaceState) {
+            history.replaceState(null, null, '#' + tabId);
+          }
+        }
+        return;
+      }
+
+      var gotoBtn = e.target.closest('[data-goto-tab]');
+      if (gotoBtn) {
+        var targetTab = gotoBtn.getAttribute('data-goto-tab');
+        if (targetTab) {
+          activateTab(targetTab);
+          if (history.replaceState) {
+            history.replaceState(null, null, '#' + targetTab);
+          }
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    });
+
+    // Handle hash on page load
+    var hash = (window.location.hash || '').replace('#', '');
+    if (hash && document.getElementById('tab-' + hash)) {
+      activateTab(hash);
+    }
+  })();
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/sports.js?v={{ app_version }}" defer></script>
+{% endblock %}

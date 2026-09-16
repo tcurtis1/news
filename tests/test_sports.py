@@ -7,7 +7,7 @@ from app.sports import (
     get_game_detail, get_league_catalog, get_rankings, get_scoreboard, get_sports_headlines,
     get_sports_home_summary, get_standings, group_events, has_college_rankings, has_standings,
     league_news_query, overlay_scoreboard_event, parse_espn_event, parse_espn_rankings,
-    parse_espn_standings, set_provider,
+    parse_espn_standings, set_provider, _parse_team_drilldown_data,
 )
 
 class MockProvider(ProviderAdapter):
@@ -1064,6 +1064,231 @@ def test_pickcenter_and_scoreboard_overlay():
     assert detail_empty.odds == "CIN -4.0"
     assert detail_empty.over_under == 51.0
     assert detail_empty.odds_provider == "ESPN BET"
+
+
+def test_parse_team_drilldown_data_full():
+    raw_team = {
+        "displayName": "Kansas City Chiefs",
+        "nickname": "Chiefs",
+        "abbreviation": "KC",
+        "location": "Kansas City",
+        "color": "e31837",
+        "alternateColor": "ffb81c",
+        "standingSummary": "1st in AFC West",
+        "rank": 1,
+        "franchise": {
+            "venue": {
+                "fullName": "GEHA Field at Arrowhead Stadium",
+                "address": {"city": "Kansas City", "state": "MO"},
+                "images": [{"href": "https://a.espncdn.com/venue.jpg"}],
+                "capacity": 76416,
+                "indoor": False,
+            }
+        },
+        "record": {
+            "items": [
+                {
+                    "type": "total",
+                    "summary": "14-3",
+                    "stats": [
+                        {"name": "streak", "displayValue": "W5"},
+                        {"name": "avgPointsFor", "displayValue": "28.5"},
+                        {"name": "avgPointsAgainst", "displayValue": "17.2"},
+                    ],
+                },
+                {"type": "home", "summary": "8-1"},
+                {"type": "road", "summary": "6-2"},
+            ]
+        },
+        "nextEvent": [
+            {
+                "id": "401547789",
+                "name": "Denver Broncos at Kansas City Chiefs",
+                "shortName": "DEN @ KC",
+                "date": "2026-09-20T17:00Z",
+                "competitions": [
+                    {
+                        "status": {"type": {"state": "pre", "detail": "Sun, Sep 20 at 1:00 PM EDT"}},
+                        "broadcasts": [{"media": {"shortName": "CBS"}}],
+                        "odds": [{"details": "KC -7.5"}],
+                        "competitors": [
+                            {"id": "12", "homeAway": "home", "team": {"id": "12", "displayName": "Kansas City Chiefs"}},
+                            {
+                                "id": "7",
+                                "homeAway": "away",
+                                "team": {"id": "7", "displayName": "Denver Broncos", "abbreviation": "DEN"},
+                                "record": [{"displayValue": "8-9"}],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    raw_sched = {
+        "events": [
+            {
+                "id": "401547701",
+                "date": "2026-09-06T17:00Z",
+                "week": {"text": "Week 1"},
+                "competitions": [
+                    {
+                        "status": {"type": {"state": "post", "detail": "Final"}},
+                        "competitors": [
+                            {"id": "12", "homeAway": "home", "winner": True, "score": {"displayValue": "27"}, "team": {"id": "12"}},
+                            {"id": "33", "homeAway": "away", "winner": False, "score": {"displayValue": "20"}, "team": {"id": "33", "abbreviation": "BAL", "displayName": "Baltimore Ravens"}},
+                        ],
+                    }
+                ],
+            },
+            {
+                "id": "401547702",
+                "date": "2026-09-13T20:20Z",
+                "week": {"text": "Week 2"},
+                "competitions": [
+                    {
+                        "status": {"type": {"state": "post", "detail": "Final"}},
+                        "competitors": [
+                            {"id": "12", "homeAway": "away", "winner": True, "score": {"displayValue": "26"}, "team": {"id": "12"}},
+                            {"id": "4", "homeAway": "home", "winner": False, "score": {"displayValue": "25"}, "team": {"id": "4", "abbreviation": "CIN", "displayName": "Cincinnati Bengals"}},
+                        ],
+                    }
+                ],
+            },
+        ]
+    }
+
+    raw_roster = {
+        "coach": [{"firstName": "Andy", "lastName": "Reid"}],
+        "athletes": [
+            {
+                "position": "offense",
+                "items": [
+                    {
+                        "id": "3139477",
+                        "fullName": "Patrick Mahomes",
+                        "jersey": "15",
+                        "position": {"abbreviation": "QB", "displayName": "Quarterback"},
+                        "displayHeight": "6' 2\"",
+                        "displayWeight": "225 lbs",
+                        "age": 30,
+                        "experience": {"years": 8},
+                        "college": {"name": "Texas Tech"},
+                        "headshot": {"href": "https://a.espncdn.com/mahomes.png"},
+                    }
+                ],
+            }
+        ],
+    }
+
+    raw_stats = {
+        "results": {
+            "stats": {
+                "categories": [
+                    {
+                        "displayName": "Passing",
+                        "stats": [
+                            {"displayName": "Passing Yards", "displayValue": "4,183", "rankDisplayValue": "2nd"},
+                            {"displayName": "Passing TDs", "displayValue": "27", "rankDisplayValue": "N/A"},
+                        ],
+                    }
+                ]
+            }
+        }
+    }
+
+    news_items = [{"title": "Chiefs prepare for rivalry match", "link": "https://example.com/1"}]
+
+    parsed = _parse_team_drilldown_data("nfl", "12", raw_team, raw_sched, raw_roster, raw_stats, news_items)
+
+    assert parsed["available"] is True
+    assert parsed["league"] == "nfl"
+    assert parsed["team"]["name"] == "Kansas City Chiefs"
+    assert parsed["team"]["abbreviation"] == "KC"
+    assert parsed["team"]["color"] == "#e31837"
+    assert parsed["team"]["alternate_color"] == "#ffb81c"
+    assert parsed["team"]["coach"] == "Andy Reid"
+    assert parsed["team"]["record"]["summary"] == "14-3"
+    assert parsed["team"]["record"]["streak"] == "W5"
+    assert parsed["team"]["venue"]["name"] == "GEHA Field at Arrowhead Stadium"
+    assert parsed["team"]["venue"]["capacity"] == 76416
+
+    # Next game
+    assert parsed["next_game"] is not None
+    assert parsed["next_game"]["is_home"] is True
+    assert parsed["next_game"]["vs_at"] == "vs"
+    assert parsed["next_game"]["opponent"]["abbreviation"] == "DEN"
+    assert parsed["next_game"]["broadcast"] == "CBS"
+    assert parsed["next_game"]["odds"] == "KC -7.5"
+
+    # Schedule
+    assert len(parsed["schedule"]) == 2
+    assert parsed["schedule"][0]["result"] == "W"
+    assert parsed["schedule"][0]["score_display"] == "27 - 20"
+    assert parsed["schedule"][0]["vs_at"] == "vs"
+    assert parsed["schedule"][1]["vs_at"] == "@"
+
+    # Recent form
+    assert len(parsed["recent_form"]) == 2
+    assert parsed["recent_form"][0]["result"] == "W"
+    assert parsed["recent_form"][0]["opp"] == "BAL"
+    assert parsed["recent_form"][1]["opp"] == "CIN"
+
+    # Roster
+    assert len(parsed["roster_groups"]) == 1
+    assert parsed["roster_groups"][0]["group_name"] == "Offense"
+    p = parsed["roster_groups"][0]["players"][0]
+    assert p["name"] == "Patrick Mahomes"
+    assert p["jersey"] == "15"
+    assert p["pos"] == "QB"
+    assert p["college"] == "Texas Tech"
+    assert p["headshot"] == "https://a.espncdn.com/mahomes.png"
+
+    # Stats
+    assert len(parsed["stat_categories"]) == 1
+    assert parsed["stat_categories"][0]["name"] == "Passing"
+    s0 = parsed["stat_categories"][0]["stats"][0]
+    assert s0["name"] == "Passing Yards"
+    assert s0["value"] == "4,183"
+    assert s0["rank"] == "2nd"
+    s1 = parsed["stat_categories"][0]["stats"][1]
+    assert s1["rank"] is None  # "N/A" filtered out
+
+    # News
+    assert len(parsed["news"]) == 1
+
+
+def test_parse_team_drilldown_data_flat_roster():
+    # NBA/MLB style flat roster without 'items' key
+    raw_team = {"displayName": "Utah Jazz", "abbreviation": "UTA"}
+    raw_sched = {"events": []}
+    raw_roster = {
+        "athletes": [
+            {
+                "id": "101",
+                "fullName": "Keyonte George",
+                "jersey": "3",
+                "position": {"name": "Guard", "abbreviation": "G"},
+                "experience": 1,
+            },
+            {
+                "id": "102",
+                "fullName": "Lauri Markkanen",
+                "jersey": "23",
+                "position": {"name": "Forward", "abbreviation": "F"},
+                "experience": 7,
+            },
+        ]
+    }
+    raw_stats = {}
+    parsed = _parse_team_drilldown_data("nba", "26", raw_team, raw_sched, raw_roster, raw_stats, [])
+    assert parsed["available"] is True
+    assert len(parsed["roster_groups"]) == 2
+    group_names = {g["group_name"] for g in parsed["roster_groups"]}
+    assert "Guard" in group_names
+    assert "Forward" in group_names
+
 
 
 
