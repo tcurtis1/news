@@ -168,7 +168,16 @@
   );
 
   function scanCards() {
-    const cards = document.querySelectorAll(".story-card, .pulse-story, .category-card, .trending-card, li.card");
+    // Only cards built for a full-width top thumbnail (a .story-content
+    // wrapper below it) belong here. The old catch-all "li.card" also
+    // matched compact rank+text rows like .consensus-card and .card-tech,
+    // which share the base 2-column .card grid (a narrow rank column +
+    // a content column, no room for a photo). Injecting a thumbnail into
+    // one of those became a THIRD grid item with nowhere designed to go:
+    // the image got squeezed into the 36px rank column, the rank number
+    // got shoved into the content column, and the actual title/text
+    // wrapped character-by-character in that same 36px column below it.
+    const cards = document.querySelectorAll(".story-card, .pulse-story, .category-card, .trending-card");
     cards.forEach((card) => {
       if (card.querySelector(".story-thumb")) return;
       const link = card.querySelector("a[data-story-link], h2 a, h3 a") || card.querySelector("a");
