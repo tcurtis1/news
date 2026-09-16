@@ -1521,6 +1521,26 @@ def group_events(
     return {"live": live, "final": final, "upcoming": upcoming}
 
 
+def _format_date_short(date_str: str) -> str:
+    if not date_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return dt.strftime("%b %-d")
+    except Exception:
+        return date_str
+
+
+def _format_date_matchup(date_str: str) -> str:
+    if not date_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return dt.strftime("%a, %b %-d")
+    except Exception:
+        return date_str
+
+
 def _parse_team_drilldown_data(
     league: str,
     tid: str,
@@ -1631,6 +1651,7 @@ def _parse_team_drilldown_data(
             "name": ne.get("name", ""),
             "short_name": ne.get("shortName", ""),
             "date": ne.get("date", ""),
+            "date_display": _format_date_matchup(ne.get("date", "")),
             "state": state,
             "status_detail": detail,
             "is_home": is_home,
@@ -1700,6 +1721,7 @@ def _parse_team_drilldown_data(
         games.append({
             "id": str(ev.get("id", "")),
             "date": ev.get("date", ""),
+            "date_display": _format_date_short(ev.get("date", "")),
             "week": week_val,
             "is_home": is_home,
             "vs_at": "vs" if is_home else "@",

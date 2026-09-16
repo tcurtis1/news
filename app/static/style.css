@@ -12,6 +12,7 @@
   --accent-dim: rgba(45, 212, 191, 0.15);
   --ok: #15803d;
   --bad: #b42318;
+  --warn: #b45309;
   --radius: 12px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
 }
@@ -28,6 +29,7 @@ html[data-theme="dark"] {
   --link: #7db4ff;
   --ok: #4ade80;
   --bad: #f87171;
+  --warn: #f0b168;
 }
 
 * {
@@ -1266,6 +1268,18 @@ html[data-theme="dark"] .dist-bal {
   border: 1px solid rgba(96, 165, 250, 0.3);
 }
 
+/* Distinct from "partial" (real per-platform data, imprecise geography) —
+   this platform has no free top-10 API at all, so the whole board is a
+   Google News proxy for "what's being said about this platform," not the
+   platform's own ranking. That's a different, more important caveat than
+   geographic approximation and deserves a visually distinct, warmer pill
+   so it doesn't get read as "mostly right, just local." */
+.scope-pill-proxy {
+  background: rgba(180, 83, 9, 0.12);
+  color: var(--warn);
+  border: 1px solid rgba(180, 83, 9, 0.3);
+}
+
 /* Country-chart columns when viewing a U.S. state: slightly muted */
 .trend-col.scope-country {
   opacity: 0.88;
@@ -1283,6 +1297,11 @@ html[data-theme="dark"] .dist-bal {
 
 .trend-col.scope-partial {
   border-color: rgba(45, 212, 191, 0.28);
+}
+
+.trend-col.scope-proxy {
+  border-color: rgba(180, 83, 9, 0.3);
+  border-style: dashed;
 }
 
 .plat-dot {
@@ -4209,12 +4228,30 @@ li.card.story-card:hover {
   background: var(--panel);
   border: 1px solid var(--border);
 }
+.next-matchup-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.matchup-header-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
 .next-matchup-teams {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 1rem;
   text-align: center;
+}
+.next-team-full-name {
+  display: block;
 }
 .next-team {
   display: flex;
@@ -4306,8 +4343,11 @@ li.card.story-card:hover {
   margin-top: 0.8rem;
   border-radius: 10px;
   overflow: hidden;
+  aspect-ratio: 16 / 9;
+  width: 100%;
   max-height: 220px;
   position: relative;
+  background: var(--card);
 }
 .venue-image-wrap img {
   width: 100%;
@@ -4480,8 +4520,9 @@ li.card.story-card:hover {
 }
 .player-identity {
   display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
 }
 .player-jersey {
   color: var(--muted);
@@ -4571,24 +4612,294 @@ li.card.story-card:hover {
   font-weight: 700;
 }
 
-@media (max-width: 700px) {
+/* Schedule and Roster mobile helpers */
+.schedule-score-tap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  text-decoration: none;
+  color: inherit;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+}
+.schedule-score-tap:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.player-main-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+.player-mobile-sub {
+  display: none;
+}
+.show-mobile-only {
+  display: none;
+}
+.hide-mobile {
+  /* shown on desktop */
+}
+
+@media (max-width: 680px) {
   .team-clubhouse-hero {
-    padding: 1rem;
+    padding: 0.85rem 0.95rem;
+    gap: 0.75rem;
+    border-top-width: 4px;
+  }
+  .team-clubhouse-banner {
+    gap: 0.65rem;
   }
   .team-clubhouse-identity {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
     gap: 0.75rem;
+    width: 100%;
   }
   .team-clubhouse-logo-wrap {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    padding: 4px;
+    border-radius: 12px;
+  }
+  .team-clubhouse-titles {
+    min-width: 0;
+    flex: 1;
+  }
+  .team-clubhouse-titles h1 {
+    font-size: 1.35rem;
+    line-height: 1.15;
+    margin: 0.1rem 0 0.2rem;
+    word-break: break-word;
+  }
+  .team-league-chip {
+    gap: 0.35rem;
+  }
+  .team-meta-row {
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    margin-top: 0.2rem;
+  }
+  .team-record-badge {
+    padding: 0.1rem 0.45rem;
+    font-size: 0.8rem;
+  }
+  .team-split-text {
+    font-size: 0.78rem;
+  }
+  .team-streak-badge {
+    padding: 0.1rem 0.4rem;
+    font-size: 0.76rem;
+  }
+  .team-points-text {
+    font-size: 0.76rem;
+  }
+  .team-venue-row {
+    gap: 0.35rem;
+    font-size: 0.74rem;
+    margin-top: 0.2rem;
+  }
+  .team-clubhouse-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1.3fr 0.9fr;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+  }
+  .team-clubhouse-actions button {
+    padding: 0.48rem 0.2rem;
+    font-size: 0.76rem;
+    text-align: center;
+    justify-content: center;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .team-recent-form-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+    padding-top: 0.6rem;
+  }
+  .recent-form-pills {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
+    gap: 0.4rem;
+    padding-bottom: 2px;
+  }
+  .recent-form-pills::-webkit-scrollbar {
+    display: none;
+  }
+  .recent-form-pill {
+    flex-shrink: 0;
+    padding: 0.22rem 0.5rem;
+    font-size: 0.74rem;
+  }
+  .team-nav-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.4rem;
+    padding: 0.25rem 0 0.65rem;
+    margin-bottom: 0.5rem;
+  }
+  .team-nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .team-tab-btn {
+    flex-shrink: 0;
+    padding: 0.42rem 0.8rem;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+  .next-matchup-card {
+    padding: 0.85rem;
+    gap: 0.75rem;
   }
   .next-matchup-teams {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .next-team b {
+    font-size: 1.15rem;
+  }
+  .next-team .next-team-full-name {
+    display: none;
+  }
+  .next-matchup-middle {
+    gap: 0.2rem;
+  }
+  .matchup-vs-badge {
+    padding: 0.15rem 0.45rem;
+    font-size: 0.72rem;
+  }
+  .facts-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.45rem;
+  }
+  .fact-box {
+    padding: 0.55rem 0.65rem;
+  }
+  .fact-highlight {
+    font-size: 1.1rem;
+  }
+  .roster-preview-grid {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+  .show-mobile-only {
+    display: block !important;
+  }
+  .hide-mobile {
+    display: none !important;
+  }
+  .team-schedule-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    table-layout: fixed;
+  }
+  .team-schedule-wrap {
+    overflow-x: visible;
+  }
+  .schedule-date-col {
+    width: 82px;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.35rem 0.5rem 0.25rem !important;
+  }
+  .schedule-date-cell time {
+    display: block;
+    font-weight: 750;
+    font-size: 0.82rem;
+    line-height: 1.15;
+  }
+  .schedule-week-label {
+    font-size: 0.7rem;
+  }
+  .schedule-opp-col {
+    padding: 0.5rem 0.35rem !important;
+  }
+  .schedule-opp-cell {
+    gap: 0.35rem;
+  }
+  .schedule-opp-name .opp-full-name {
+    display: none;
+  }
+  .schedule-opp-name b {
+    font-size: 0.88rem;
+  }
+  .schedule-mobile-tv {
+    margin-top: 0.15rem;
+  }
+  .schedule-mobile-tv .tv-badge {
+    font-size: 0.68rem;
+    padding: 0.05rem 0.35rem;
+  }
+  .schedule-result-col {
+    width: 95px;
+    padding: 0.5rem 0.25rem !important;
+  }
+  .schedule-score-tap strong {
+    font-size: 0.88rem;
+  }
+  .schedule-score-tap .result-badge {
+    font-size: 0.72rem;
+    padding: 0.1rem 0.35rem;
+    margin-right: 0.2rem;
+  }
+  .schedule-score-tap .scheduled-time {
+    font-size: 0.76rem;
+    line-height: 1.15;
+  }
+  .roster-table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .roster-table-wrap {
+    overflow-x: visible;
+  }
+  .player-cell {
     gap: 0.5rem;
   }
-  .opp-full-name {
-    display: none;
+  .player-headshot, .player-headshot-placeholder {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+  }
+  .player-main-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-size: 0.88rem;
+  }
+  .player-mobile-sub {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.25;
+    margin-top: 0.1rem;
+  }
+  .pos-badge {
+    font-size: 0.74rem;
+    padding: 0.12rem 0.45rem;
+  }
+  .team-stats-categories-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  .stat-category-card {
+    padding: 0.85rem;
   }
 }
 

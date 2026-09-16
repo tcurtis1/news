@@ -102,29 +102,35 @@
           </div>
           
           <div class="next-matchup-card">
+            <div class="next-matchup-header-bar">
+              <time datetime="{{ ng.date }}" data-local-time class="matchup-date-time">{{ ng.date_display or ng.date }}</time>
+              <div class="matchup-header-chips">
+                {% if ng.broadcast %}<span class="broadcast-chip">📺 {{ ng.broadcast }}</span>{% endif %}
+                {% if ng.odds %}<span class="matchup-odds-pill">🎲 {{ ng.odds }}</span>{% endif %}
+              </div>
+            </div>
+
             <div class="next-matchup-teams">
               <div class="next-team my-team">
                 {% if team.logo %}
-                  <img class="team-logo-lg" src="{{ team.logo }}" alt="" width="44" height="44">
+                  <img class="team-logo-lg" src="{{ team.logo }}" alt="" width="48" height="48">
                 {% endif %}
                 <b>{{ team.abbreviation }}</b>
-                <span>{{ team.name }}</span>
+                <span class="next-team-full-name">{{ team.name }}</span>
                 {% if team.record.summary %}<small class="muted">{{ team.record.summary }}</small>{% endif %}
               </div>
               
               <div class="next-matchup-middle">
                 <span class="matchup-vs-badge">{{ ng.vs_at | upper }}</span>
-                <time datetime="{{ ng.date }}" data-local-time class="matchup-date-time">{{ ng.date }}</time>
                 {% if ng.venue %}<small class="matchup-venue">{{ ng.venue }}</small>{% endif %}
-                {% if ng.odds %}<div class="matchup-odds-pill">🎲 {{ ng.odds }}</div>{% endif %}
               </div>
 
               <a class="next-team opp-team team-link" href="/sports/{{ active_league }}/team/{{ ng.opponent.id }}">
                 {% if ng.opponent.logo %}
-                  <img class="team-logo-lg" src="{{ ng.opponent.logo }}" alt="" width="44" height="44" onerror="this.style.display='none'">
+                  <img class="team-logo-lg" src="{{ ng.opponent.logo }}" alt="" width="48" height="48" onerror="this.style.display='none'">
                 {% endif %}
                 <b>{% if ng.opponent.rank %}<span class="team-rank">#{{ ng.opponent.rank }}</span>{% endif %}{{ ng.opponent.abbreviation }}</b>
-                <span>{{ ng.opponent.name }}</span>
+                <span class="next-team-full-name">{{ ng.opponent.name }}</span>
                 {% if ng.opponent.record %}<small class="muted">{{ ng.opponent.record }}</small>{% endif %}
               </a>
             </div>
@@ -169,7 +175,7 @@
         </div>
         {% if team.venue.image %}
           <div class="venue-image-wrap">
-            <img src="{{ team.venue.image }}" alt="{{ team.venue.name }}" loading="lazy" decoding="async">
+            <img src="{{ team.venue.image }}" alt="{{ team.venue.name }}" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
             <small>{{ team.venue.name }}</small>
           </div>
         {% endif %}
@@ -201,8 +207,8 @@
             <button type="button" class="link-btn" data-goto-tab="roster">Full Roster →</button>
           </div>
           <div class="roster-preview-grid">
-            {% for grp in team_data.roster_groups %}
-              {% for p in grp.players[:3] %}
+            {% for grp in team_data.roster_groups[:2] %}
+              {% for p in grp.players[:2] %}
                 <div class="player-mini-card">
                   {% if p.headshot %}
                     <img class="player-headshot-sm" src="{{ p.headshot }}" alt="" width="36" height="36" loading="lazy" decoding="async" onerror="this.style.display='none'">
@@ -233,53 +239,68 @@
           <p>No schedule records found for this season.</p>
         </div>
       {% else %}
-        <div class="table-scroll-hint"><span>⟵ Swipe horizontally to view full schedule &amp; boxscores ⟶</span></div>
+        <div class="table-scroll-hint hide-mobile"><span>⟵ Swipe horizontally to view full schedule &amp; boxscores ⟶</span></div>
         <div class="standings-table-wrap team-schedule-wrap">
           <table class="standings-table team-schedule-table">
             <thead>
               <tr>
-                <th scope="col" style="text-align:left;min-width:110px;">Date</th>
-                <th scope="col" style="text-align:left;min-width:180px;">Opponent</th>
-                <th scope="col" style="text-align:center;min-width:110px;">Result / Status</th>
-                <th scope="col" style="text-align:center;min-width:90px;">TV</th>
-                <th scope="col" style="text-align:center;min-width:95px;">Coverage</th>
+                <th scope="col" style="text-align:left;">Date</th>
+                <th scope="col" style="text-align:left;">Opponent</th>
+                <th scope="col" style="text-align:center;">Result / Status</th>
+                <th scope="col" class="hide-mobile" style="text-align:center;">TV</th>
+                <th scope="col" class="hide-mobile" style="text-align:center;">Coverage</th>
               </tr>
             </thead>
             <tbody>
               {% for g in team_data.schedule %}
                 <tr class="{% if g.state == 'in' %}is-live-row{% elif g.result == 'W' %}is-win-row{% elif g.result == 'L' %}is-loss-row{% endif %}">
-                  <td style="text-align:left;">
-                    <div><time datetime="{{ g.date }}" data-local-time>{{ g.date }}</time></div>
-                    {% if g.week %}<small class="muted">{{ g.week }}</small>{% endif %}
+                  <td style="text-align:left;" class="schedule-date-col">
+                    <div class="schedule-date-cell">
+                      <time datetime="{{ g.date }}" data-local-time>{{ g.date_display or g.date }}</time>
+                      {% if g.week %}<small class="muted schedule-week-label">{{ g.week }}</small>{% endif %}
+                    </div>
                   </td>
-                  <td style="text-align:left;">
+                  <td style="text-align:left;" class="schedule-opp-col">
                     <a class="schedule-opp-cell team-link" href="/sports/{{ active_league }}/team/{{ g.opponent.id }}">
                       <span class="schedule-home-away">{{ g.vs_at }}</span>
                       {% if g.opponent.logo %}
-                        <img class="team-logo" src="{{ g.opponent.logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                        <img class="team-logo" src="{{ g.opponent.logo }}" alt="" width="22" height="22" loading="lazy" decoding="async" onerror="this.style.display='none'">
                       {% endif %}
                       <span class="schedule-opp-name">
                         <b>{% if g.opponent.rank %}<span class="team-rank">#{{ g.opponent.rank }}</span>{% endif %}{{ g.opponent.abbreviation }}</b>
                         <span class="opp-full-name">{{ g.opponent.name }}</span>
                       </span>
                     </a>
-                  </td>
-                  <td style="text-align:center;">
-                    {% if g.state == 'post' %}
-                      <span class="result-badge is-{{ g.result | lower }}">{{ g.result }}</span>
-                      <strong>{{ g.score_display }}</strong>
-                    {% elif g.state == 'in' %}
-                      <span class="live-pill">Live</span>
-                      <strong>{{ g.score_display }}</strong>
-                      <small class="live-clock">{{ g.status_detail }}</small>
-                    {% else %}
-                      <span class="scheduled-time">{{ g.status_detail or 'Scheduled' }}</span>
+                    {% if g.broadcast %}
+                      <div class="schedule-mobile-tv show-mobile-only">
+                        <span class="tv-badge">📺 {{ g.broadcast }}</span>
+                      </div>
                     {% endif %}
                   </td>
-                  <td style="text-align:center;">
+                  <td style="text-align:center;" class="schedule-result-col">
+                    <a href="{{ g.game_url }}" class="schedule-score-tap">
+                      {% if g.state == 'post' %}
+                        <span class="result-badge is-{{ g.result | lower }}">{{ g.result }}</span>
+                        <strong>{{ g.score_display }}</strong>
+                      {% elif g.state == 'in' %}
+                        <span class="live-pill">Live</span>
+                        <strong>{{ g.score_display }}</strong>
+                        <small class="live-clock">{{ g.status_detail }}</small>
+                      {% else %}
+                        <span class="scheduled-time">
+                          {% if g.status_detail and (' at ' in g.status_detail or ' EDT' in g.status_detail or ' EST' in g.status_detail or 'CDT' in g.status_detail or 'PDT' in g.status_detail) %}
+                            Scheduled
+                          {% else %}
+                            {{ g.status_detail or 'Scheduled' }}
+                          {% endif %}
+                        </span>
+                      {% endif %}
+                    </a>
+                  </td>
+                  <td class="hide-mobile" style="text-align:center;">
                     <small class="tv-badge">{{ g.broadcast or '—' }}</small>
                   </td>
-                  <td style="text-align:center;">
+                  <td class="hide-mobile" style="text-align:center;">
                     <a href="{{ g.game_url }}" class="game-boxscore-btn">
                       {% if g.state == 'post' %}Boxscore →{% elif g.state == 'in' %}Live →{% else %}Preview →{% endif %}
                     </a>
@@ -309,18 +330,18 @@
         {% for grp in team_data.roster_groups %}
           <div class="roster-position-group">
             <h3 class="roster-group-title">{{ grp.group_name }} <small>({{ grp.players | length }})</small></h3>
-            <div class="table-scroll-hint"><span>⟵ Swipe horizontally to view full player details ⟶</span></div>
-            <div class="standings-table-wrap">
+            <div class="table-scroll-hint hide-mobile"><span>⟵ Swipe horizontally to view full player details ⟶</span></div>
+            <div class="standings-table-wrap roster-table-wrap">
               <table class="standings-table roster-table">
                 <thead>
                   <tr>
-                    <th scope="col" style="text-align:left;min-width:200px;">Player</th>
-                    <th scope="col" style="text-align:center;min-width:65px;">Pos</th>
-                    <th scope="col" style="text-align:center;min-width:80px;">Height</th>
-                    <th scope="col" style="text-align:center;min-width:80px;">Weight</th>
-                    <th scope="col" style="text-align:center;min-width:55px;">Age</th>
-                    <th scope="col" style="text-align:center;min-width:75px;">Exp</th>
-                    <th scope="col" style="text-align:left;min-width:130px;">College / Origin</th>
+                    <th scope="col" style="text-align:left;">Player</th>
+                    <th scope="col" style="text-align:center;width:60px;">Pos</th>
+                    <th scope="col" class="hide-mobile" style="text-align:center;">Height</th>
+                    <th scope="col" class="hide-mobile" style="text-align:center;">Weight</th>
+                    <th scope="col" class="hide-mobile" style="text-align:center;">Age</th>
+                    <th scope="col" class="hide-mobile" style="text-align:center;">Exp</th>
+                    <th scope="col" class="hide-mobile" style="text-align:left;">College / Origin</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -329,22 +350,29 @@
                       <td style="text-align:left;">
                         <div class="player-cell">
                           {% if p.headshot %}
-                            <img class="player-headshot" src="{{ p.headshot }}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                            <img class="player-headshot" src="{{ p.headshot }}" alt="" width="34" height="34" loading="lazy" decoding="async" onerror="this.style.display='none'">
                           {% else %}
                             <div class="player-headshot-placeholder">{{ p.jersey or '—' }}</div>
                           {% endif %}
                           <div class="player-identity">
-                            <b>{{ p.name }}</b>
-                            {% if p.jersey %}<span class="player-jersey">#{{ p.jersey }}</span>{% endif %}
+                            <div class="player-main-line">
+                              <b>{{ p.name }}</b>
+                              {% if p.jersey %}<span class="player-jersey">#{{ p.jersey }}</span>{% endif %}
+                            </div>
+                            <div class="player-mobile-sub show-mobile-only">
+                              <span>{{ p.height }}{% if p.weight and p.weight != '—' %}, {{ p.weight }}{% endif %}</span>
+                              {% if p.exp and p.exp != '—' %}<span>· {{ p.exp }}</span>{% endif %}
+                              {% if p.college and p.college != '—' %}<span>· {{ p.college }}</span>{% endif %}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td style="text-align:center;"><span class="badge pos-badge">{{ p.pos }}</span></td>
-                      <td style="text-align:center;">{{ p.height }}</td>
-                      <td style="text-align:center;">{{ p.weight }}</td>
-                      <td style="text-align:center;">{{ p.age }}</td>
-                      <td style="text-align:center;">{{ p.exp }}</td>
-                      <td style="text-align:left;">{{ p.college }}</td>
+                      <td class="hide-mobile" style="text-align:center;">{{ p.height }}</td>
+                      <td class="hide-mobile" style="text-align:center;">{{ p.weight }}</td>
+                      <td class="hide-mobile" style="text-align:center;">{{ p.age }}</td>
+                      <td class="hide-mobile" style="text-align:center;">{{ p.exp }}</td>
+                      <td class="hide-mobile" style="text-align:left;">{{ p.college }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>

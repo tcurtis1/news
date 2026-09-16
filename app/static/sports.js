@@ -254,9 +254,6 @@
   paintStars();
   loadSportsNews();
 
-  var page = document.querySelector("[data-sports-page]");
-  if (!page || !page.dataset.refreshUrl) return;
-
   document.querySelectorAll("time[data-local-time]").forEach(function (node) {
     var instant = new Date(node.getAttribute("datetime"));
     if (!Number.isNaN(instant.getTime())) {
@@ -265,6 +262,9 @@
       }).format(instant);
     }
   });
+
+  var page = document.querySelector("[data-sports-page]");
+  if (!page || !page.dataset.refreshUrl) return;
 
   var hasLiveGame = function () {
     return Boolean(document.querySelector(".score-card.is-live, .game-state.state-in_progress")) || page.dataset.liveGame === "1";
