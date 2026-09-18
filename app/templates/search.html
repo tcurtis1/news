@@ -15,6 +15,11 @@
     'polymarket': 'Polymarket', 'kalshi': 'Kalshi', 'tiktok': 'TikTok', 'facebook': 'Facebook', 'instagram': 'Instagram'
   } %}
   {% set board_keys = ['google', 'bing', 'youtube', 'x', 'polymarket', 'kalshi', 'tiktok', 'facebook', 'instagram'] %}
+  {# Real, independent signals that can actually vote toward "2+ platforms agree" —
+     Facebook/Instagram are excluded here on purpose: both are the same Google News
+     proxy under different query phrasing, not an independent ranking. Keep this in
+     sync with app/trends.py's PROXY_ONLY_PLATFORMS. #}
+  {% set voting_keys = ['google', 'bing', 'youtube', 'x', 'polymarket', 'kalshi', 'tiktok'] %}
 
   {% set geo_code = geo or (place.code if place else 'US') %}
   {% set place_label = place.label if place else 'United States' %}
@@ -96,7 +101,7 @@
     </div>
 
     {% if cov and cov.note %}
-    <div class="coverage-banner" role="note">
+    <div class="coverage-banner" id="coverage-note" role="note">
       <strong>Location coverage</strong> — {{ cov.note }}
     </div>
     {% endif %}
@@ -122,11 +127,34 @@
       {% endif %}
     </div>
 
+    {# ── Why this matters ── #}
+    <section class="intersection-explainer" aria-label="Why cross-platform agreement matters">
+      <div class="intersection-jury">
+        {% for key in voting_keys %}
+        <span class="jury-seat" title="{{ labels[key] }}">
+          <span class="plat-dot plat-{{ key }}"></span>
+          <span class="jury-label">{{ labels[key] }}</span>
+        </span>
+        {% endfor %}
+        <span class="jury-arrow" aria-hidden="true">→</span>
+        <span class="jury-verdict">Intersection</span>
+      </div>
+      <p class="intersection-copy">
+        These are <strong>{{ voting_keys|length }} independent judges</strong> — Google's algorithm
+        doesn't talk to X's, which doesn't talk to Polymarket's traders betting real money.
+        Each ranks the internet's attention its own way, with its own blind spots.
+        When {{ voting_keys|length }} unrelated verdicts land on the same topic anyway, that's not
+        one platform's bubble — it's something genuinely, independently trending.
+        <a href="#coverage-note">How each board above is scored</a> — Facebook and Instagram
+        have no free ranking API, so those two are shown honestly labeled but never count here.
+      </p>
+    </section>
+
     {# ── Consensus ── #}
     <section class="consensus" aria-label="Consensus top topics">
       <h2 class="section-title section-title-lg">
         Consensus Top 10
-        <span class="muted-hint">on 2+ platforms</span>
+        <span class="muted-hint">on 2+ of {{ voting_keys|length }} independent platforms</span>
       </h2>
       {% if t.consensus %}
       <ol class="list consensus-list">

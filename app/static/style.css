@@ -1143,6 +1143,81 @@ html[data-theme="dark"] .dist-bal {
   font-weight: 700;
 }
 
+.intersection-explainer {
+  margin: 0 0 1.5rem;
+  padding: 1.1rem 1.2rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.intersection-jury {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.jury-seat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.jury-seat .plat-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+.jury-arrow {
+  color: var(--muted);
+  font-size: 1.1rem;
+  margin: 0 0.15rem;
+}
+
+.jury-verdict {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.75rem;
+  background: var(--accent);
+  color: #04211d;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+html[data-theme="dark"] .jury-verdict {
+  color: #04211d;
+}
+
+.intersection-copy {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.intersection-copy strong {
+  color: var(--text);
+}
+
+@media (max-width: 560px) {
+  .jury-label {
+    display: none;
+  }
+  .jury-seat {
+    padding: 0.3rem;
+  }
+}
+
 .muted-hint {
   color: var(--muted);
   font-size: 0.82rem;
