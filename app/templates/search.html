@@ -171,8 +171,8 @@
               {% endif %}
             </h2>
             <p class="summary">
-              On {{ c.platform_count }} platforms
-              · avg rank {{ c.avg_rank }}
+              Top 10 on {{ c.platform_count }} of {{ voting_keys|length }} independent platforms
+              · avg rank #{{ c.avg_rank }}
               {% if c.prev_rank and c.delta != 'new' and c.delta != 'baseline' %}
               · was #{{ c.prev_rank }}
               {% endif %}
@@ -186,9 +186,15 @@
             <div class="rank-pills">
               {% for p in c.platforms %}
                 {% set r = c.ranks[p] %}
+                {% if p in ('polymarket', 'kalshi') %}
+                <a class="rank-pill plat-{{ p }} rank-pill-money" href="{{ r.url }}" rel="noopener noreferrer" target="_blank" title="{{ r.title }}{% if r.snippet %} — {{ r.snippet }}{% endif %}">
+                  <span class="money-mark" aria-hidden="true">$</span>{{ r.label or labels[p] or p }} #{{ r.rank }}
+                </a>
+                {% else %}
                 <a class="rank-pill plat-{{ p }}" href="{{ r.url }}" rel="noopener noreferrer" target="_blank" title="{{ r.title }}">
                   {{ r.label or labels[p] or p }} #{{ r.rank }}
                 </a>
+                {% endif %}
               {% endfor %}
             </div>
           </div>
