@@ -218,6 +218,37 @@ def _extract_rss_image(entry: ET.Element) -> str | None:
     return None
 
 
+_THUMBNAIL_QUERY_STOP = {
+    "the", "a", "an", "is", "in", "to", "for", "of", "and", "or", "by", "on", "at", "with",
+    "from", "as", "this", "how", "why", "what", "ahead", "after", "before", "new", "over",
+    "into", "says", "said", "amid", "will", "may", "can", "could", "about", "more",
+    # Explainer/listicle boilerplate: carries no topical signal, but once the real
+    # subject words are trimmed away by the candidate-shortening below, a title like
+    # "A simple guide to the Yemen conflict" collapses to a bare "simple guide"
+    # search -- generic enough to match whatever unrelated article (a shopping
+    # listicle, say) currently ranks for that phrase, and its image gets used with
+    # no relevance check. Stripping these keeps the actual subject in the fallback.
+    "simple", "guide", "guides", "explained", "explainer", "explains", "explaining",
+    "everything", "need", "know", "heres", "understand", "understanding", "essential",
+    "quick", "ultimate", "complete", "beginners",
+}
+
+
+def _thumbnail_search_candidates(title: str) -> list[str]:
+    """Progressive, most-specific-first search queries for finding an article's
+    image by keyword when the real page can't be fetched directly (see the
+    news.google.com carve-out below)."""
+    candidates: list[str] = []
+    clean_words = [w for w in re.sub(r"[^\w\s]", " ", title or "").split() if w.lower() not in _THUMBNAIL_QUERY_STOP]
+    if len(clean_words) >= 4:
+        candidates.append(" ".join(clean_words[:4]))
+    if len(clean_words) >= 2:
+        candidates.append(" ".join(clean_words[:2]))
+    if clean_words:
+        candidates.append(clean_words[0])
+    return candidates
+
+
 async def resolve_article_thumbnail(
     url: str, title: str = "", client: httpx.AsyncClient | None = None
 ) -> str | None:
@@ -241,21 +272,7 @@ async def resolve_article_thumbnail(
             _cache_put(img)
             return img
 
-    STOP = {
-        "the", "a", "an", "is", "in", "to", "for", "of", "and", "or", "by", "on", "at", "with",
-        "from", "as", "this", "how", "why", "what", "ahead", "after", "before", "new", "over",
-        "into", "says", "said", "amid", "will", "may", "can", "could", "about", "more"
-    }
-
-    # Generate progressive candidate queries
-    candidates: list[str] = []
-    clean_words = [w for w in re.sub(r"[^\w\s]", " ", title or "").split() if w.lower() not in STOP]
-    if len(clean_words) >= 4:
-        candidates.append(" ".join(clean_words[:4]))
-    if len(clean_words) >= 2:
-        candidates.append(" ".join(clean_words[:2]))
-    if clean_words:
-        candidates.append(clean_words[0])
+    candidates = _thumbnail_search_candidates(title)
 
     headers = {"User-Agent": USER_AGENT}
 
