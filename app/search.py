@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote, quote_plus, urlparse
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -358,7 +358,15 @@ async def resolve_article_thumbnail(
         if not entity or len(entity) < 3:
             continue
         try:
-            wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote_plus(entity)}"
+            # A REST path segment needs %20 for spaces, not quote_plus's "+" --
+            # Wikipedia's summary API 404s on ".../summary/Paris+Hilton" (silently
+            # falling through to the next, shorter candidate) but resolves
+            # ".../summary/Paris_Hilton" correctly. Because that made every
+            # multi-word entity candidate 404, this stage always ended up
+            # matching only the single trailing word of a headline -- e.g. "Paris
+            # Hilton Sent Love on..." resolving to the Eiffel Tower (page "Paris")
+            # instead of Paris Hilton herself.
+            wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(entity.replace(' ', '_'), safe='')}"
             if client is not None:
                 r = await client.get(wiki_url, headers=headers, timeout=2.0)
             else:
