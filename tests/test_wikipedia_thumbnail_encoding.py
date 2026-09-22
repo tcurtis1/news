@@ -31,9 +31,8 @@ class WikipediaThumbnailEncodingTests(unittest.IsolatedAsyncioTestCase):
         client = AsyncMock(spec=httpx.AsyncClient)
         client.get.side_effect = fake_get
 
-        # url is a news.google.com link, so Stage 2 (direct OpenGraph fetch)
-        # is skipped and we exercise Stage 1 -> Stage 3 exactly as in
-        # production for Google-News-sourced hits.
+        # Unwrap of this fake Google News id finds no signature, Bing is empty,
+        # so we fall through to Wikipedia and can assert path encoding.
         await resolve_article_thumbnail(
             "https://news.google.com/rss/articles/some-story",
             title="Paris Hilton Sent Love on Presley Gerber's Final Instagram Post",

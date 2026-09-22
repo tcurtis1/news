@@ -17,9 +17,28 @@ class GetCachedThumbnailTests(unittest.TestCase):
         self.assertIsNone(search.get_cached_thumbnail("https://example.com/a", "Some Title"))
 
     def test_matching_title_hits(self):
-        search._IMAGE_CACHE["u"] = {"img": "https://img/a.jpg", "title_fp": search._title_fingerprint("Trump vows to hit Iran hard")}
+        search._IMAGE_CACHE["u"] = {
+            "img": "https://img/a.jpg",
+            "title_fp": search._title_fingerprint("Trump vows to hit Iran hard"),
+            "v": search._IMAGE_CACHE_SCHEMA,
+        }
         self.assertEqual(
             search.get_cached_thumbnail("u", "Trump vows to hit Iran hard"), "https://img/a.jpg"
+        )
+
+    def test_old_schema_is_a_miss_so_wrong_wikipedia_fallbacks_reresolve(self):
+        # Schema 1 cached Rembrandt's Anatomy Lesson for an autopsy headline.
+        # Bumping the schema forces one re-resolution onto the article og:image.
+        search._IMAGE_CACHE["u"] = {
+            "img": "https://upload.wikimedia.org/wikipedia/commons/autopsy.jpg",
+            "title_fp": search._title_fingerprint(
+                "Autopsy shows Hayden Panettiere died from a drug overdose"
+            ),
+        }
+        self.assertIsNone(
+            search.get_cached_thumbnail(
+                "u", "Autopsy shows Hayden Panettiere died from a drug overdose"
+            )
         )
 
     def test_changed_headline_invalidates_cached_image(self):
@@ -75,7 +94,11 @@ class ResolveArticleThumbnailCachingTests(unittest.IsolatedAsyncioTestCase):
 
         # Simulate a successful re-resolution the way any of resolve_article_
         # thumbnail's three stages would record one.
-        search._IMAGE_CACHE[cache_key] = {"img": "https://img/iran-strikes.jpg", "title_fp": search._title_fingerprint(title)}
+        search._IMAGE_CACHE[cache_key] = {
+            "img": "https://img/iran-strikes.jpg",
+            "title_fp": search._title_fingerprint(title),
+            "v": search._IMAGE_CACHE_SCHEMA,
+        }
 
         # Now cached under the new headline, and matches on the next lookup.
         self.assertEqual(

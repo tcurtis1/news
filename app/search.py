@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -13,7 +14,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
-from urllib.parse import quote, quote_plus, urlparse
+from urllib.parse import quote, quote_plus, urljoin, urlparse
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -117,6 +118,9 @@ def _clean_query(q: str) -> str:
 
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/data"))
 IMAGE_CACHE_FILE = CACHE_DIR / "image_cache.json"
+# Bump when the resolver's preference order changes so stale Wikipedia/Bing
+# fallbacks (e.g. Rembrandt's Anatomy Lesson on an autopsy headline) re-resolve.
+_IMAGE_CACHE_SCHEMA = 2
 
 _IMAGE_CACHE: dict[str, Any] = {}
 _LAST_CACHE_SAVE = 0.0
@@ -144,6 +148,8 @@ def get_cached_thumbnail(cache_key: str | None, title: str = "") -> str | None:
     if cached is None:
         return None
     if isinstance(cached, dict):
+        if cached.get("v") != _IMAGE_CACHE_SCHEMA:
+            return None
         if not title or cached.get("title_fp") == _title_fingerprint(title):
             return cached.get("img")
         return None
@@ -249,6 +255,183 @@ def _thumbnail_search_candidates(title: str) -> list[str]:
     return candidates
 
 
+def _google_news_article_id(url: str) -> str | None:
+    if not url or "news.google.com" not in url:
+        return None
+    m = re.search(r"/articles/([A-Za-z0-9_\-]+)", url)
+    return m.group(1) if m else None
+
+
+def _publisher_url_from_gnews_token(art_id: str) -> str | None:
+    """Older Google News tokens embed the publisher URL in the base64 payload."""
+    if not art_id:
+        return None
+    try:
+        padded = art_id + ("=" * ((4 - len(art_id) % 4) % 4))
+        raw = base64.urlsafe_b64decode(padded)
+    except Exception:
+        return None
+    text = raw.decode("latin-1", errors="ignore")
+    for m in re.finditer(r"https?://[^\x00-\x1f\s\"'<>]+", text):
+        u = m.group(0).rstrip(".,;)")
+        host = (urlparse(u).hostname or "").lower()
+        if host and "news.google.com" not in host and "." in host:
+            return u
+    return None
+
+
+def _publisher_url_from_batchexecute(text: str) -> str | None:
+    body = (text or "").lstrip()
+    if body.startswith(")]}'"):
+        body = body[4:].lstrip()
+    try:
+        outer = json.loads(body)
+        nested_s = outer[0][2]
+        nested = json.loads(nested_s) if isinstance(nested_s, str) else nested_s
+        cand = nested[1]
+        if isinstance(cand, str) and cand.startswith("http") and "news.google.com" not in cand:
+            return cand
+    except (IndexError, TypeError, ValueError, KeyError, json.JSONDecodeError):
+        pass
+    m = re.search(r"https?://(?!news\.google\.com)[^\"\\]+", text or "")
+    return m.group(0) if m else None
+
+
+def _extract_og_image(html: str, base_url: str) -> str | None:
+    m = re.search(
+        r'<meta[^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\'][^>]+content=["\']([^"\']+)["\']',
+        html,
+        re.IGNORECASE,
+    )
+    if not m:
+        m = re.search(
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\']',
+            html,
+            re.IGNORECASE,
+        )
+    if not m:
+        return None
+    img_url = m.group(1).strip().replace("&amp;", "&")
+    if img_url.startswith("//"):
+        img_url = "https:" + img_url
+    elif img_url.startswith("/"):
+        img_url = urljoin(base_url, img_url)
+    if img_url.startswith("http") and not img_url.endswith(".gif"):
+        return _upgrade_image_url(img_url)
+    return None
+
+
+def _wiki_title_fits_headline(wiki_title: str, headline: str) -> bool:
+    """Reject encyclopedia pages that only share a generic noun with the headline.
+
+    "Autopsy shows Hayden Panettiere..." used to pick Wikipedia's Autopsy page
+    (Rembrandt's Anatomy Lesson) because the last-resort candidate was the
+    single word "Autopsy". Require at least two content words, all present in
+    the headline.
+    """
+    wiki_words = [
+        w.lower()
+        for w in re.sub(r"[^\w\s]", " ", wiki_title or "").split()
+        if w.lower() not in _THUMBNAIL_QUERY_STOP and len(w) > 1
+    ]
+    if len(wiki_words) < 2:
+        return False
+    head = set(_title_fingerprint(headline).split())
+    return all(w in head for w in wiki_words)
+
+
+async def _http_get(
+    url: str,
+    *,
+    client: httpx.AsyncClient | None,
+    timeout: float,
+    headers: dict[str, str],
+    follow_redirects: bool = True,
+) -> httpx.Response:
+    if client is not None:
+        return await client.get(
+            url, headers=headers, timeout=timeout, follow_redirects=follow_redirects
+        )
+    async with httpx.AsyncClient(
+        timeout=timeout, headers=headers, follow_redirects=follow_redirects
+    ) as c:
+        return await c.get(url)
+
+
+async def _unwrap_google_news_url(
+    url: str, client: httpx.AsyncClient | None = None
+) -> str | None:
+    """Turn a news.google.com/rss/articles/... redirect into the publisher URL."""
+    art_id = _google_news_article_id(url)
+    if not art_id:
+        return None
+    embedded = _publisher_url_from_gnews_token(art_id)
+    if embedded:
+        return embedded
+    headers = {"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"}
+    try:
+        r = await _http_get(
+            f"https://news.google.com/articles/{art_id}",
+            client=client,
+            timeout=5.0,
+            headers=headers,
+        )
+        html = r.text if r.status_code == 200 else ""
+        sg_m = re.search(r'data-n-a-sg="([^"]+)"', html)
+        ts_m = re.search(r'data-n-a-ts="([^"]+)"', html)
+        if not sg_m or not ts_m:
+            return None
+        inner = (
+            '["garturlreq",[["X","X",["X","X"],null,null,1,1,"US:en",null,1,'
+            'null,null,null,null,null,0,1],"X","X",1,[1,1,1],1,1,null,0,0,null,0],'
+            f'"{art_id}",{ts_m.group(1)},"{sg_m.group(1)}"]'
+        )
+        payload = "f.req=" + quote(json.dumps([[["Fbv4je", inner]]]))
+        post_headers = {
+            "User-Agent": USER_AGENT,
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+            "Referer": "https://news.google.com/",
+        }
+        if client is not None:
+            pr = await client.post(
+                "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                headers=post_headers,
+                timeout=4.0,
+                content=payload,
+            )
+        else:
+            async with httpx.AsyncClient(timeout=4.0, headers=post_headers) as c:
+                pr = await c.post(
+                    "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                    content=payload,
+                )
+        if pr.status_code == 200:
+            return _publisher_url_from_batchexecute(pr.text)
+    except Exception:
+        return None
+    return None
+
+
+async def _og_image_from_url(
+    url: str, client: httpx.AsyncClient | None = None
+) -> str | None:
+    try:
+        r = await _http_get(
+            url,
+            client=client,
+            timeout=2.5,
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml",
+            },
+        )
+        if r.status_code == 200 and "text/html" in (r.headers.get("content-type") or ""):
+            return _extract_og_image(r.text[:80000], str(r.url) or url)
+    except Exception:
+        return None
+    return None
+
+
 async def resolve_article_thumbnail(
     url: str, title: str = "", client: httpx.AsyncClient | None = None
 ) -> str | None:
@@ -261,7 +444,11 @@ async def resolve_article_thumbnail(
         return cached
 
     def _cache_put(img: str) -> None:
-        _IMAGE_CACHE[cache_key] = {"img": img, "title_fp": _title_fingerprint(title)}
+        _IMAGE_CACHE[cache_key] = {
+            "img": img,
+            "title_fp": _title_fingerprint(title),
+            "v": _IMAGE_CACHE_SCHEMA,
+        }
         _save_image_cache_debounced()
 
     # YouTube fast path
@@ -276,17 +463,32 @@ async def resolve_article_thumbnail(
 
     headers = {"User-Agent": USER_AGENT}
 
-    # Stage 1: Bing News RSS search with progressive query relaxation
+    # Stage 1: the picture on the link — unwrap Google News, then og:image.
+    fetch_url = url
+    if url and "news.google.com" in url:
+        unwrapped = await _unwrap_google_news_url(url, client=client)
+        if unwrapped:
+            fetch_url = unwrapped
+    if fetch_url and fetch_url.startswith("http") and "news.google.com" not in fetch_url:
+        img = await _og_image_from_url(fetch_url, client=client)
+        if img:
+            _cache_put(img)
+            return img
+
+    # Stage 2: Bing News RSS search with progressive query relaxation
+    bing_queries: list[str] = []
+    stripped = (title or "").strip()
+    if len(stripped) >= 8:
+        bing_queries.append(stripped)
     for q in candidates:
+        if q and q not in bing_queries:
+            bing_queries.append(q)
+    for q in bing_queries:
         if not q or len(q) < 3:
             continue
         try:
             bing_url = f"https://www.bing.com/news/search?q={quote_plus(q)}&format=RSS"
-            if client is not None:
-                r = await client.get(bing_url, headers=headers, timeout=2.5)
-            else:
-                async with httpx.AsyncClient(timeout=2.5, headers=headers) as c:
-                    r = await c.get(bing_url)
+            r = await _http_get(bing_url, client=client, timeout=2.5, headers=headers)
             if r.status_code == 200 and b"<item>" in r.content:
                 text = r.content
                 idx = text.find(b"<rss")
@@ -307,55 +509,11 @@ async def resolve_article_thumbnail(
         except Exception:
             pass
 
-    # Stage 2: OpenGraph lookup for direct web URLs
-    if url and url.startswith("http") and "news.google.com" not in url:
-        try:
-            if client is not None:
-                r = await client.get(
-                    url,
-                    follow_redirects=True,
-                    timeout=2.5,
-                    headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
-                )
-            else:
-                async with httpx.AsyncClient(
-                    timeout=2.5,
-                    headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
-                    follow_redirects=True,
-                ) as c:
-                    r = await c.get(url)
-
-            if r.status_code == 200 and "text/html" in (r.headers.get("content-type") or ""):
-                html = r.text[:60000]
-                m = re.search(
-                    r'<meta[^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\'][^>]+content=["\']([^"\']+)["\']',
-                    html,
-                    re.IGNORECASE,
-                )
-                if not m:
-                    m = re.search(
-                        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\'](?:og:image|twitter:image|twitter:image:src)["\']',
-                        html,
-                        re.IGNORECASE,
-                    )
-                if m:
-                    img_url = m.group(1).strip()
-                    if img_url.startswith("//"):
-                        img_url = "https:" + img_url
-                    elif img_url.startswith("/"):
-                        from urllib.parse import urljoin
-                        img_url = urljoin(url, img_url)
-                    if img_url.startswith("http") and not img_url.endswith(".gif"):
-                        upgraded = _upgrade_image_url(img_url)
-                        if upgraded:
-                            _cache_put(upgraded)
-                            return upgraded
-        except Exception:
-            pass
-
-    # Stage 3: Wikipedia REST API for leading entity/organization
+    # Stage 3: Wikipedia REST API for a multi-word entity that actually appears
+    # in the headline. Single-word fallbacks ("Autopsy", "Paris") match the
+    # wrong encyclopedia page.
     for entity in candidates:
-        if not entity or len(entity) < 3:
+        if not entity or len(entity.split()) < 2:
             continue
         try:
             # A REST path segment needs %20 for spaces, not quote_plus's "+" --
@@ -367,13 +525,14 @@ async def resolve_article_thumbnail(
             # Hilton Sent Love on..." resolving to the Eiffel Tower (page "Paris")
             # instead of Paris Hilton herself.
             wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(entity.replace(' ', '_'), safe='')}"
-            if client is not None:
-                r = await client.get(wiki_url, headers=headers, timeout=2.0)
-            else:
-                async with httpx.AsyncClient(timeout=2.0, headers=headers) as c:
-                    r = await c.get(wiki_url)
+            r = await _http_get(wiki_url, client=client, timeout=2.0, headers=headers)
             if r.status_code == 200:
                 data = r.json()
+                if (data.get("type") or "") == "disambiguation":
+                    continue
+                wiki_title = data.get("title") or data.get("displaytitle") or entity
+                if not _wiki_title_fits_headline(str(wiki_title), title):
+                    continue
                 thumb = data.get("thumbnail", {}).get("source") or data.get("originalimage", {}).get("source")
                 if thumb and thumb.startswith("http") and not thumb.endswith(".svg"):
                     _cache_put(thumb)
